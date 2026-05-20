@@ -1,12 +1,5 @@
-import type { AgentCtx, Call, Receipt } from "./types.ts";
-
-// Local re-declaration — must stay in sync with budgeted_call.ts (ticket 4).
-// Ticket 8 (orchestrator) will import from one canonical location.
-interface CallOutcome {
-  call: Call;
-  data: unknown | null;
-  receipt: Receipt;
-}
+import type { AgentCtx, Receipt } from "./types.ts";
+import type { CallOutcome } from "./budgeted_call.ts";
 
 export function mergeResults(
   ctx: AgentCtx,
