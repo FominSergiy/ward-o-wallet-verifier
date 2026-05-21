@@ -18,14 +18,14 @@ We want to move to a **plan-execute-synthesize loop** where the LLM decides what
 | Ticket | Branch | File | Status |
 |--------|--------|------|--------|
 | 0 | `feat/move-to-agent-loop-ticket-0` | `src/agent/types.ts`, `src/agent/llm.ts` | ✅ merged |
-| 1 | `feat/move-to-agent-loop-ticket-1` | `src/agent/plan.ts` | 🔲 |
-| 2 | `feat/move-to-agent-loop-ticket-2` | `src/agent/resolve.ts` | 🔲 |
-| 3 | `feat/move-to-agent-loop-ticket-3` | `src/agent/phases.ts` | 🔲 |
-| 4 | `feat/move-to-agent-loop-ticket-4` | `src/agent/budgeted_call.ts` | 🔲 |
-| 5 | `feat/move-to-agent-loop-ticket-5` | `src/agent/merge.ts` | 🔲 |
-| 6 | `feat/move-to-agent-loop-ticket-6` | `src/agent/stop.ts` | 🔲 |
-| 7 | `feat/move-to-agent-loop-ticket-7` | `src/agent/synthesize.ts` | 🔲 |
-| 8 | (user) | `src/agent/verify.ts`, `src/routes/verify_agent.ts` | 🔲 user-owned |
+| 1 | `feat/move-to-agent-loop-ticket-1` | `src/agent/plan.ts` | ✅ merged |
+| 2 | `feat/move-to-agent-loop-ticket-2` | `src/agent/resolve.ts` | ✅ merged |
+| 3 | `feat/move-to-agent-loop-ticket-3` | `src/agent/phases.ts` | ✅ merged |
+| 4 | `feat/move-to-agent-loop-ticket-4` | `src/agent/budgeted_call.ts` | ✅ merged |
+| 5 | `feat/move-to-agent-loop-ticket-5` | `src/agent/merge.ts` | ✅ merged |
+| 6 | `feat/move-to-agent-loop-ticket-6` | `src/agent/stop.ts` | ✅ merged |
+| 7 | `feat/move-to-agent-loop-ticket-7` | `src/agent/synthesize.ts` | ✅ merged |
+| 8 | `feat/move-to-agent-loop-ticket-8` | `src/agent/verify.ts`, `src/routes/verify_agent.ts` | ✅ merged |
 
 ---
 
