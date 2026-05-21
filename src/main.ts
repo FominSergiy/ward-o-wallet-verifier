@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import { planRouter } from "./routes/plan.ts";
 import { verifyRouter } from "./routes/verify.ts";
 import { verifyAgentRouter } from "./routes/verify_agent.ts";
+import { discoverRouter } from "./routes/discover.ts";
 
 const app = new Hono();
 
@@ -21,6 +22,7 @@ app.get("/health", (c) => c.json({ status: "ok" }));
 app.route("/plan", planRouter);
 app.route("/verify", verifyRouter);
 app.route("/verify-agent", verifyAgentRouter);
+app.route("/discover", discoverRouter);
 
 app.onError((err, c) => {
   console.error(err);

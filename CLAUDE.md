@@ -8,6 +8,16 @@ Never use the `gh` CLI.
 The MCP server is pre-configured in `.mcp.json` (token via `$AGNIC_GH_TOKEN`).
 Repo owner: `FominSergiy`, repo name: `agnic-agent-wallet-verifier`.
 
+## agent docs
+
+all lives under docs
+
+### plans
+
+to be executed plans are saved under plans/planned
+all done plans are put under plans/completed
+
+
 ## Project tools
 
 **Runtime:** Deno. Binary: `~/.deno/bin/deno`. All tasks are in `deno.json`.
