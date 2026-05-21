@@ -1,39 +1,83 @@
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { generateObject, zodSchema } from "ai";
 import { z } from "zod";
 
-// Thin adapter layer. Swap the provider here when agnic gateway is ready —
-// the DAG synthesis node only calls `generateStructured` and stays unchanged.
+// Agnic exposes an OpenAI-compatible chat completions API at /v1/chat/completions.
+// We use tool-calling to enforce structured output: define a single function
+// whose parameters mirror the caller's zod schema, force the model to call it,
+// then parse and validate the returned arguments.
 
-function getProvider() {
-  const agnicKey = Deno.env.get("AGNIC_API_KEY");
-  if (agnicKey) {
-    // TODO: wire agnic provider when docs are available
-    // return createAgnic({ apiKey: agnicKey });
-    console.warn("[gateway] AGNIC_API_KEY set but agnic provider not yet wired — falling back to OpenRouter");
-  }
+const AGNIC_CHAT_URL = "https://api.agnic.ai/v1/chat/completions";
+const DEFAULT_MODEL = Deno.env.get("AI_MODEL") ?? "anthropic/claude-sonnet-4.6";
 
-  const openrouterKey = Deno.env.get("OPENROUTER_API_KEY");
-  if (!openrouterKey) {
-    throw new Error("No AI gateway configured. Set OPENROUTER_API_KEY or AGNIC_API_KEY.");
-  }
-  return createOpenRouter({ apiKey: openrouterKey });
+interface ChatCompletion {
+  choices?: Array<{
+    message?: {
+      content?: string | null;
+      tool_calls?: Array<{
+        id: string;
+        type: "function";
+        function: { name: string; arguments: string };
+      }>;
+    };
+    finish_reason?: string;
+  }>;
+  agnic?: { cost_usd?: string; latency_ms?: number };
+  error?: { message?: string } | string;
 }
-
-const DEFAULT_MODEL = Deno.env.get("AI_MODEL") ?? "anthropic/claude-sonnet-4-6";
 
 export async function generateStructured<T>(
   schema: z.ZodType<T>,
   prompt: string,
   model = DEFAULT_MODEL,
+  fetchFn: typeof globalThis.fetch = globalThis.fetch,
 ): Promise<T> {
-  const provider = getProvider();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { object } = await generateObject({
-    model: provider(model),
-    // ai@4.3.x was compiled against zod v3 types; cast to satisfy overload
-    schema: zodSchema(schema as unknown as Parameters<typeof zodSchema>[0]),
-    prompt,
+  const apiKey = Deno.env.get("AGNIC_API_KEY");
+  if (!apiKey) throw new Error("AGNIC_API_KEY not set");
+
+  const jsonSchema = z.toJSONSchema(schema, { target: "draft-7" });
+
+  const resp = await fetchFn(AGNIC_CHAT_URL, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: "user", content: prompt }],
+      tools: [{
+        type: "function",
+        function: {
+          name: "respond",
+          description: "Return the structured response.",
+          parameters: jsonSchema,
+        },
+      }],
+      tool_choice: { type: "function", function: { name: "respond" } },
+    }),
   });
-  return object as T;
+
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error(`agnic gateway HTTP ${resp.status}: ${errText}`);
+  }
+
+  const data = await resp.json() as ChatCompletion;
+  const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+  if (!toolCall) {
+    const fallbackContent = data.choices?.[0]?.message?.content ?? "(empty)";
+    throw new Error(
+      `agnic gateway returned no tool call. Content: ${fallbackContent.slice(0, 200)}`,
+    );
+  }
+
+  let parsedArgs: unknown;
+  try {
+    parsedArgs = JSON.parse(toolCall.function.arguments);
+  } catch (e) {
+    throw new Error(
+      `agnic gateway tool arguments were not valid JSON: ${(e as Error).message}`,
+    );
+  }
+
+  return schema.parse(parsedArgs);
 }
