@@ -23,5 +23,7 @@ Rules:
 - Always include sanctions and labels unless you have strong reason not to.
 - Set earlyStop flags so the harness can exit on definitive signals.
 `.trim();
+  //TODO: we need to make sure result is returned as a structured object json so that we are able to read it
+  //TODO: and extract ednpoints we are going to call
   return await llm.generateStructured(PlanSchema, prompt);
 }

@@ -16,6 +16,7 @@ export type Invoker = (
   ctx: AgentCtx,
 ) => Promise<{ data: unknown; amountUsdc: number; txHash?: string }>;
 
+// TODO: again, this is hard-coded, we will need to do a discovery to get callers first
 export const defaultInvoker: Invoker = async (call, ctx) => {
   const req: VerifyRequest = { address: ctx.address, chain: ctx.chain };
   switch (call.category) {

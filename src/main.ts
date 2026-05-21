@@ -17,6 +17,7 @@ app.use(
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 
+//TODO: need to update plan once we get plan llm call right
 app.route("/plan", planRouter);
 app.route("/verify", verifyRouter);
 app.route("/verify-agent", verifyAgentRouter);

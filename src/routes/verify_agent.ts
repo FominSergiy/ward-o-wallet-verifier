@@ -9,10 +9,11 @@ const VerifyAgentRequestSchema = VerifyRequestSchema.extend({
 });
 
 const verifyAgentRouter = new Hono();
+const BUDGET_CEILING = 0.05;
 
 verifyAgentRouter.post("/", zValidator("json", VerifyAgentRequestSchema), async (c) => {
   const { budgetCeiling, ...req } = c.req.valid("json");
-  const { report, ctx } = await verifyAgent(req, { budgetCeiling: budgetCeiling ?? 0.05 });
+  const { report, ctx } = await verifyAgent(req, { budgetCeiling: budgetCeiling ?? BUDGET_CEILING });
   return c.json({ report, ctx });
 });
 

@@ -3,6 +3,7 @@ import type { Chain } from "../dag/types.ts";
 
 type CallBase = Omit<Call, "phase" | "category">;
 
+//TODO: this should be a self-discovery, no hard-coded endpoints anywhere. we can cache costs
 const CATEGORY_MAP: Record<Category, CallBase> = {
   sanctions: { provider: "bazaar/ofac", endpoint: "bazaar/ofac", estimatedCostUsdc: 0.001 },
   labels: { provider: "bazaar/labels", endpoint: "bazaar/labels", estimatedCostUsdc: 0.0008 },
