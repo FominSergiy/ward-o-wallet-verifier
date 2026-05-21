@@ -120,6 +120,56 @@ Deno.test("rankServices returns empty on empty candidates", async () => {
   assertEquals(out, []);
 });
 
+Deno.test("rankServices preserves inputInfo from DiscoveryEntry", async () => {
+  const inputInfo = {
+    method: "GET",
+    queryParams: { wallet: "0xexample" },
+    type: "http",
+  };
+  const entryWithInfo: DiscoveryEntry = {
+    resource: "https://svc",
+    description: "x",
+    accepts: [{
+      amount: "1000",
+      asset: "0xUSDC",
+      network: "eip155:8453",
+      payTo: "0xpay",
+      scheme: "exact",
+      maxTimeoutSeconds: 60,
+    }],
+    extensions: { bazaar: { info: { input: inputInfo } } },
+  };
+  const candidates: DiscoveryCandidatesByCategory = {
+    walletNetwork: "base",
+    candidates: { sanctions: [entryWithInfo] },
+    errors: {},
+  };
+  const llm = mockLlm({
+    RankedSelection: {
+      selections: [{ category: "sanctions", resourceIndex: 0, rationale: "r" }],
+    },
+  });
+  const out = await rankServices(candidates, llm);
+  assertEquals(out[0].inputInfo, inputInfo);
+});
+
+Deno.test("rankServices leaves inputInfo undefined when absent", async () => {
+  const candidates: DiscoveryCandidatesByCategory = {
+    walletNetwork: "base",
+    candidates: {
+      sanctions: [entry({ resource: "https://s", amount: "1000" })],
+    },
+    errors: {},
+  };
+  const llm = mockLlm({
+    RankedSelection: {
+      selections: [{ category: "sanctions", resourceIndex: 0, rationale: "r" }],
+    },
+  });
+  const out = await rankServices(candidates, llm);
+  assertEquals(out[0].inputInfo, undefined);
+});
+
 Deno.test("rankServices skips categories missing from LLM output", async () => {
   const candidates: DiscoveryCandidatesByCategory = {
     walletNetwork: "base",

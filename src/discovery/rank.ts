@@ -1,6 +1,7 @@
 import type { Category } from "../agent/types.ts";
 import { defaultLlm, type LlmClient } from "../agent/llm.ts";
 import {
+  extractBazaarInfo,
   RankedSelectionSchema,
   type DiscoveryCandidatesByCategory,
   type DiscoveryEntry,
@@ -96,6 +97,7 @@ function toRanked(
     scheme: schemeFor(entry, network),
     qualityScore: qualityFor(entry),
     rationale,
+    inputInfo: extractBazaarInfo(entry),
   };
 }
 

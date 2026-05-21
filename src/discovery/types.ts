@@ -22,16 +22,35 @@ export interface DiscoveryAccept {
   extra?: { name?: string; version?: string };
 }
 
+export interface BazaarInfo {
+  method?: string;
+  // queryParams/pathParams are example shapes — keys hint at parameter names,
+  // values are example values from the provider. We pattern-match on key names
+  // (address|wallet|addr|account) to know where to substitute the input.
+  queryParams?: Record<string, unknown>;
+  pathParams?: Record<string, unknown>;
+  body?: unknown;
+  bodyType?: string;
+  type?: string;
+}
+
 export interface DiscoveryEntry {
   resource: string;
   description: string;
   accepts: DiscoveryAccept[];
   extensions?: {
     bazaar?: {
-      info?: { method?: string; queryParams?: unknown; bodyType?: string };
+      // Real catalog wraps the call hints under `info.input` alongside an
+      // example `output`. Older typings flattened it; we keep both around so
+      // helpers can tolerate either shape.
+      info?: { input?: BazaarInfo; output?: unknown };
       quality?: { l30DaysUniquePayers?: number };
     };
   };
+}
+
+export function extractBazaarInfo(entry: DiscoveryEntry): BazaarInfo | undefined {
+  return entry.extensions?.bazaar?.info?.input;
 }
 
 export interface SearchParams {
@@ -74,6 +93,9 @@ export interface RankedService {
   scheme: "exact" | "upto";
   qualityScore: number | null;
   rationale: string;
+  // Preserved from DiscoveryEntry.extensions.bazaar.info.input so the
+  // invocation phase knows how to call the service (method, params, body shape).
+  inputInfo?: BazaarInfo;
 }
 
 export const RankedSelectionSchema = z.object({
