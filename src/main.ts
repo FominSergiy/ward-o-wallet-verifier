@@ -4,6 +4,7 @@ import { planRouter } from "./routes/plan.ts";
 import { verifyRouter } from "./routes/verify.ts";
 import { verifyAgentRouter } from "./routes/verify_agent.ts";
 import { discoverRouter } from "./routes/discover.ts";
+import { invokeRouter } from "./routes/invoke.ts";
 
 const app = new Hono();
 
@@ -23,6 +24,7 @@ app.route("/plan", planRouter);
 app.route("/verify", verifyRouter);
 app.route("/verify-agent", verifyAgentRouter);
 app.route("/discover", discoverRouter);
+app.route("/invoke", invokeRouter);
 
 app.onError((err, c) => {
   console.error(err);

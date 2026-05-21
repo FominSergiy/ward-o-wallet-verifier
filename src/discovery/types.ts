@@ -118,6 +118,11 @@ export interface DiscoveryPlan {
   address: string;
   walletNetwork: WalletNetwork;
   services: RankedService[];
+  // Runner-up candidates per category, sorted by quality+price. The invocation
+  // phase falls back to these when the primary service errors at runtime —
+  // necessary because the CDP catalog contains stale/dead listings that
+  // re-rank can't filter out from description alone.
+  alternates: Partial<Record<Category, RankedService[]>>;
   totalEstimatedCostUsdc: number;
   unresolvedCategories: Category[];
   generatedAt: string;
