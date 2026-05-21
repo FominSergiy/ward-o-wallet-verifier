@@ -101,9 +101,9 @@ Use the following routes / rules to build out the application - key available in
 1. to check balance:
 
 ```bash
-curl https://api.agnic.ai/api/balance \
-  -H "X-Agnic-Token: ${AGNIC_API_KEY}"  
-{"usdcBalance":"0","address":"address","hasWallet":true,"network":"base-sepolia","chainType":"ethereum","creditBalance":"49.9999","totalBalance":"49.9999"}% 
+curl https://api.agnic.ai/api/balance\?network\=base \
+  -H "X-Agnic-Token: ${AGNIC_API_KEY}"
+{"usdcBalance":"18.139474","address":"0x9dd5e3a608Ba321C5205688d66E11e81B67e08c2","hasWallet":true,"network":"base","chainType":"ethereum","creditBalance":"49.9999","totalBalance":"68.139374"}% 
 ```
 
 2. sample call to llm model with agnic interface
