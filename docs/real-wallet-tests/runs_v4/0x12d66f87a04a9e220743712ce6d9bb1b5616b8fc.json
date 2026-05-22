@@ -1,0 +1,175 @@
+{
+  "test": {
+    "address": "0x12D66f87A04A9E220743712cE6d9bB1B5616B8Fc",
+    "chain": "eth",
+    "label": "Tornado Cash 0.1 ETH pool (OFAC-sanctioned)",
+    "category": "OFAC-sanctioned (mixer)",
+    "expected": "do_not_transact",
+    "sourceUrl": "https://home.treasury.gov/news/press-releases/jy0916"
+  },
+  "metrics": {
+    "address": "0x12D66f87A04A9E220743712cE6d9bB1B5616B8Fc",
+    "label": "Tornado Cash 0.1 ETH pool (OFAC-sanctioned)",
+    "expected": "do_not_transact",
+    "actualVerdict": "safe_to_transact",
+    "actualConfidence": "medium",
+    "verdictMatch": "mismatch",
+    "match": false,
+    "primaryHits": 5,
+    "alternateRescues": 0,
+    "llmAdapterCount": 1,
+    "hardErrors": 0,
+    "errorMessages": [],
+    "totalSpentUsdc": 0.017125,
+    "latencyMs": 48539.32587500001,
+    "resolved": [
+      "sanctions",
+      "labels",
+      "onchain_history",
+      "web_sentiment",
+      "contract_analysis"
+    ],
+    "unresolved": [],
+    "httpStatus": 200
+  },
+  "raw": {
+    "verdict": {
+      "address": "0x12D66f87A04A9E220743712cE6d9bB1B5616B8Fc",
+      "chain": "eth",
+      "safe": true,
+      "verdict": "safe_to_transact",
+      "confidence": "medium",
+      "headline": "Safe to transact — sanctions screen is clean and no negative signals were found across labels, on-chain history, or web sentiment.",
+      "reasoning": "The sanctions check returned no matches against the active corpus, which is the most heavily weighted positive signal. Label lookup returned no profile (neutral), web sentiment surfaced zero news hits (neutral), and on-chain history shows an active multi-chain wallet receiving inbound transfers across Base and Arbitrum with no obvious mixer-style roundtrip pattern. Contract analysis is not applicable (no source code supplied; address behaves as an EOA receiver). With sanctions clean and no risk indicators across any resolved category, the overall posture is safe, though confidence is medium because labels are unknown and there is no doxxing/ENS confirmation.",
+      "findings": [
+        {
+          "category": "sanctions",
+          "severity": "info",
+          "finding": "No matches against active sanctions lists; risk_level reported as low."
+        },
+        {
+          "category": "labels",
+          "severity": "info",
+          "finding": "No label profile found — neither positive (exchange/protocol) nor negative (scam/mixer) tags."
+        },
+        {
+          "category": "onchain_history",
+          "severity": "info",
+          "finding": "Active wallet with multiple inbound transfers across Base and Arbitrum (USDC, ETH, and other tokens) from distinct counterparties; no mixer-like roundtrip pattern observed."
+        },
+        {
+          "category": "web_sentiment",
+          "severity": "info",
+          "finding": "Zero news articles or web mentions returned — no public reports of scams, exploits, or lawsuits."
+        },
+        {
+          "category": "contract_analysis",
+          "severity": "info",
+          "finding": "Not applicable — no contract source provided; address treated as an EOA."
+        }
+      ],
+      "coverage": {
+        "requested": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment",
+          "contract_analysis"
+        ],
+        "resolved": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment",
+          "contract_analysis"
+        ],
+        "unresolved": []
+      },
+      "totalSpentUsdc": 0.017125,
+      "generatedAt": "2026-05-22T17:26:51.081Z"
+    },
+    "plan": {
+      "services": [
+        {
+          "category": "sanctions",
+          "resource": "https://api.anchor-x402.com/v1/screen",
+          "priceUsdc": 0.001,
+          "rationale": "Only candidate with a confirmed 0% failure rate; also has solid inputInfoCompleteness (2/3) and the lowest price ($0.001), making it the clear winner over all untested alternatives."
+        },
+        {
+          "category": "labels",
+          "resource": "https://blockrun.ai/api/v1/pm/polymarket/wallet/identity/:address",
+          "priceUsdc": 0.005,
+          "rationale": "Only labels candidate with a confirmed 0% failure rate and full 2/3 inputInfoCompleteness, directly beating all 100%-failure and untested/low-completeness alternatives."
+        },
+        {
+          "category": "onchain_history",
+          "resource": "https://public.zapper.xyz/x402/transaction-history",
+          "priceUsdc": 0.001125,
+          "rationale": "Confirmed 0% failure rate combined with 2/3 inputInfoCompleteness and a competitive price ($0.001125) drives this pick over all untested or 100%-failing alternatives."
+        },
+        {
+          "category": "web_sentiment",
+          "resource": "https://blockrun.ai/api/v1/surf/search/news",
+          "priceUsdc": 0.005,
+          "rationale": "Only web_sentiment candidate with a confirmed 0% failure rate; chosen over the 50%- and 100%-failing peers despite lower inputInfoCompleteness (1/3)."
+        },
+        {
+          "category": "contract_analysis",
+          "resource": "https://orbisapi.com/proxy/smart-contract-auditor-api-0061a9",
+          "priceUsdc": 0.005,
+          "rationale": "Confirmed 0% failure rate is the decisive signal; while inputInfoCompleteness is 1/3, every higher-completeness alternative is either 100% failing or untested, and this service is the lowest-risk option."
+        }
+      ]
+    },
+    "receipts": [
+      {
+        "category": "sanctions",
+        "resource": "https://api.anchor-x402.com/v1/screen",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.001,
+        "durationMs": 3032,
+        "paid": true
+      },
+      {
+        "category": "labels",
+        "resource": "https://blockrun.ai/api/v1/pm/polymarket/wallet/identity/:address",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.005,
+        "durationMs": 3123,
+        "paid": true
+      },
+      {
+        "category": "onchain_history",
+        "resource": "https://public.zapper.xyz/x402/transaction-history",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.001125,
+        "durationMs": 2524,
+        "paid": true
+      },
+      {
+        "category": "web_sentiment",
+        "resource": "https://blockrun.ai/api/v1/surf/search/news",
+        "status": "fallback_ok",
+        "adapterPath": "llm",
+        "amountUsdc": 0.005,
+        "durationMs": 9283,
+        "paid": true
+      },
+      {
+        "category": "contract_analysis",
+        "resource": "https://orbisapi.com/proxy/smart-contract-auditor-api-0061a9",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.005,
+        "durationMs": 16241,
+        "paid": true
+      }
+    ],
+    "walletNetwork": "base",
+    "totalSpentUsdc": 0.017125
+  }
+}
