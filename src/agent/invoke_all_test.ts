@@ -285,6 +285,85 @@ Deno.test("invokeAll records ok in the health store on success", async () => {
   });
 });
 
+Deno.test("invokeAll runs viem fallback when onchain_history x402 fails on eth", async () => {
+  await withTempHealthStore(async () => {
+    const services = [
+      svc("sanctions", "https://sanc.example"),
+      svc("onchain_history", "https://dead-onchain.example"),
+    ];
+    const invoker = (s: RankedService) => {
+      if (s.category === "sanctions") return Promise.resolve(okOutcome("sanctions", { ok: true }));
+      return Promise.resolve(errorOutcome("onchain_history", "Target API is not X402 enabled"));
+    };
+    let viemCalled = false;
+    const r = await invokeAll(plan(services), "eth", {
+      invoker,
+      onchainViemFetcher: (address, chain) => {
+        viemCalled = true;
+        return Promise.resolve({
+          source: "viem" as const,
+          chain,
+          address,
+          txCount: 17,
+          balanceWei: "1000000000000000000",
+          balanceEth: 1.0,
+          currentBlock: 100,
+          rpcUrl: "https://stub-rpc",
+        });
+      },
+    });
+    assertEquals(viemCalled, true);
+    assertEquals(r.findings.onchain_history !== undefined, true);
+    const data = r.findings.onchain_history as { source: string; txCount: number };
+    assertEquals(data.source, "viem");
+    assertEquals(data.txCount, 17);
+    // onchain_history should no longer be in unresolved.
+    assertEquals(r.unresolved.includes("onchain_history"), false);
+    // viem call is free — total spend matches the successful sanctions call only.
+    assertEquals(r.totalSpentUsdc, 0.001);
+  });
+});
+
+Deno.test("invokeAll skips viem fallback when onchain_history x402 succeeded", async () => {
+  await withTempHealthStore(async () => {
+    const services = [
+      svc("sanctions", "https://sanc.example"),
+      svc("onchain_history", "https://working-onchain.example"),
+    ];
+    let viemCalled = false;
+    const r = await invokeAll(plan(services), "eth", {
+      invoker: (s) => Promise.resolve(okOutcome(s.category, { from: "x402" })),
+      onchainViemFetcher: () => {
+        viemCalled = true;
+        throw new Error("should not be called");
+      },
+    });
+    assertEquals(viemCalled, false);
+    const data = r.findings.onchain_history as { from: string };
+    assertEquals(data.from, "x402");
+  });
+});
+
+Deno.test("invokeAll leaves onchain_history unresolved when viem fallback also fails", async () => {
+  await withTempHealthStore(async () => {
+    const services = [
+      svc("sanctions", "https://sanc.example"),
+      svc("onchain_history", "https://dead-onchain.example"),
+    ];
+    const r = await invokeAll(plan(services), "eth", {
+      invoker: (s) =>
+        Promise.resolve(
+          s.category === "sanctions"
+            ? okOutcome("sanctions", { ok: true })
+            : errorOutcome("onchain_history", "Not Found"),
+        ),
+      onchainViemFetcher: () => Promise.reject(new Error("rpc down")),
+    });
+    assertEquals(r.unresolved.includes("onchain_history"), true);
+    assertEquals(r.findings.onchain_history, undefined);
+  });
+});
+
 Deno.test("invokeAll records err in the health store on failure", async () => {
   await withTempHealthStore(async () => {
     const services = [
