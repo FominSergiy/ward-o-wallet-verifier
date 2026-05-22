@@ -1,20 +1,19 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import { z } from "zod";
 import { mockLlm } from "./llm.ts";
-import { PlanSchema } from "./types.ts";
+
+const FixtureSchema = z.object({
+  categories: z.array(z.string()),
+  rationale: z.string(),
+}).describe("Plan");
 
 Deno.test("mockLlm returns fixture matched by schema description", async () => {
   const fixture = {
     categories: ["sanctions", "labels"],
     rationale: "smoke test",
-    earlyStop: {
-      onSanctionHit: true,
-      onConfirmedSafeLabel: true,
-      budgetExhausted: true,
-    },
   };
   const llm = mockLlm({ Plan: fixture });
-  const result = await llm.generateStructured(PlanSchema, "ignored");
+  const result = await llm.generateStructured(FixtureSchema, "ignored");
   assertEquals(result.categories, ["sanctions", "labels"]);
   assertEquals(result.rationale, "smoke test");
 });
@@ -28,7 +27,12 @@ Deno.test("mockLlm falls back to first fixture when description does not match",
 
 Deno.test("mockLlm throws when fixture violates schema", async () => {
   const llm = mockLlm({
-    Plan: { categories: [], rationale: "", earlyStop: {} },
+    Plan: { categories: [], rationale: "" },
   });
-  await assertRejects(() => llm.generateStructured(PlanSchema, "ignored"));
+  await assertRejects(() =>
+    llm.generateStructured(
+      FixtureSchema.extend({ minLen: z.array(z.string()).min(1) }),
+      "ignored",
+    )
+  );
 });

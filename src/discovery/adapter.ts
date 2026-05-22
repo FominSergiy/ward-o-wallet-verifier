@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Chain } from "../dag/types.ts";
+import type { Chain } from "../agent/types.ts";
 import { defaultLlm, type LlmClient } from "../agent/llm.ts";
 import type { BazaarInfo, RankedService } from "./types.ts";
 

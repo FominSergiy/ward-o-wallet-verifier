@@ -1,5 +1,13 @@
 import { z } from "zod";
-import type { Chain } from "../dag/types.ts";
+
+export const ChainSchema = z.enum(["eth", "base", "polygon", "arbitrum", "optimism"]);
+export type Chain = z.infer<typeof ChainSchema>;
+
+export const VerifyRequestSchema = z.object({
+  address: z.string().regex(/^0x[0-9a-fA-F]{40}$/, "Must be a valid EVM address"),
+  chain: ChainSchema,
+});
+export type VerifyRequest = z.infer<typeof VerifyRequestSchema>;
 
 export const CategorySchema = z.enum([
   "sanctions",
@@ -10,44 +18,3 @@ export const CategorySchema = z.enum([
   "contract_analysis",
 ]);
 export type Category = z.infer<typeof CategorySchema>;
-
-export const EarlyStopSchema = z.object({
-  onSanctionHit: z.boolean(),
-  onConfirmedSafeLabel: z.boolean(),
-  budgetExhausted: z.boolean(),
-});
-
-export const PlanSchema = z.object({
-  categories: z.array(CategorySchema).min(1),
-  rationale: z.string(),
-  earlyStop: EarlyStopSchema,
-}).describe("Plan");
-export type Plan = z.infer<typeof PlanSchema>;
-
-export interface Call {
-  category: Category;
-  provider: string;
-  endpoint: string;
-  estimatedCostUsdc: number;
-  phase: 1 | 2;
-}
-
-export interface Receipt {
-  callId: string;
-  amountUsdc: number;
-  txHash?: string;
-  durationMs: number;
-  status: "ok" | "error" | "timeout" | "skipped_budget";
-  error?: string;
-  paid?: boolean;
-  network?: string;
-}
-
-export interface AgentCtx {
-  address: string;
-  chain: Chain;
-  spent: number;
-  receipts: Receipt[];
-  findings: Partial<Record<Category, unknown>>;
-  plan?: Plan;
-}
