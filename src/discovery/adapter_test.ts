@@ -137,7 +137,7 @@ Deno.test("buildCallFromInfo appends address as default param when GET has no pa
   assertEquals(built.url, `https://svc.example/v1/check?address=${encodeURIComponent(ADDR)}`);
 });
 
-Deno.test("buildCallSetFromInfo produces multiple POST shapes for POST services", () => {
+Deno.test("buildCallSetFromInfo produces a single alternate POST shape for POST services", () => {
   const set = buildCallSetFromInfo(
     svc({
       resource: "https://post.example/v1",
@@ -147,18 +147,30 @@ Deno.test("buildCallSetFromInfo produces multiple POST shapes for POST services"
     "base",
   );
   assertEquals(set.primary.method, "POST");
-  assertEquals(set.fallbacks.length > 0, true);
-  // Fallback bodies should not equal the primary body.
+  // Trimmed to a single { wallet, chain } fallback to minimize paid call volume.
+  assertEquals(set.fallbacks.length, 1);
   const primaryKey = JSON.stringify(set.primary.body);
   for (const f of set.fallbacks) {
     assertEquals(f.method, "POST");
     assertEquals(JSON.stringify(f.body) !== primaryKey, true);
     assertEquals(f.url, set.primary.url);
   }
-  // Concrete shapes should be present.
   const bodyJsons = set.fallbacks.map((f) => JSON.stringify(f.body));
   assertEquals(bodyJsons.some((j) => j.includes('"wallet"')), true);
-  assertEquals(bodyJsons.some((j) => j.includes('"wallets"')), true);
+});
+
+Deno.test("buildCallSetFromInfo dedupes when primary body equals the only alternate", () => {
+  // Primary body already has { wallet, chain } — the lone alternate should be deduped out.
+  const set = buildCallSetFromInfo(
+    svc({
+      resource: "https://post.example/v1",
+      inputInfo: { method: "POST", body: { wallet: "0xex", chain: "base" } },
+    }),
+    ADDR,
+    "base",
+  );
+  assertEquals(set.primary.method, "POST");
+  assertEquals(set.fallbacks.length, 0);
 });
 
 Deno.test("buildCallSetFromInfo returns empty fallbacks for GET services", () => {

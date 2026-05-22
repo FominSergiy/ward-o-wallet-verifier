@@ -1,0 +1,175 @@
+{
+  "test": {
+    "address": "0xa7e5d5a720f06526557c513402f2e6b5fa20b008",
+    "chain": "eth",
+    "label": "Garantex exchange (OFAC-sanctioned)",
+    "category": "OFAC-sanctioned (Russia)",
+    "expected": "do_not_transact",
+    "sourceUrl": "https://home.treasury.gov/news/press-releases/jy0701"
+  },
+  "metrics": {
+    "address": "0xa7e5d5a720f06526557c513402f2e6b5fa20b008",
+    "label": "Garantex exchange (OFAC-sanctioned)",
+    "expected": "do_not_transact",
+    "actualVerdict": "do_not_transact",
+    "actualConfidence": "high",
+    "verdictMatch": "match",
+    "match": true,
+    "primaryHits": 5,
+    "alternateRescues": 0,
+    "llmAdapterCount": 1,
+    "hardErrors": 0,
+    "errorMessages": [],
+    "totalSpentUsdc": 0.017125,
+    "latencyMs": 40832.98962500002,
+    "resolved": [
+      "sanctions",
+      "labels",
+      "onchain_history",
+      "web_sentiment",
+      "contract_analysis"
+    ],
+    "unresolved": [],
+    "httpStatus": 200
+  },
+  "raw": {
+    "verdict": {
+      "address": "0xa7e5d5a720f06526557c513402f2e6b5fa20b008",
+      "chain": "eth",
+      "safe": false,
+      "verdict": "do_not_transact",
+      "confidence": "high",
+      "headline": "Do not transact — this wallet is sanctioned on OFAC SDN and Garantex lists.",
+      "reasoning": "The sanctions check returned a confirmed match against two programs (OFAC SDN and Garantex) with a high risk level, which is an automatic hard veto regardless of other signals. No mitigating positive labels, ENS, or exchange attestations exist, and web sentiment returned no offsetting evidence. Sending funds to this address would likely violate sanctions law and expose the sender to severe legal and financial risk.",
+      "findings": [
+        {
+          "category": "sanctions",
+          "severity": "critical",
+          "finding": "Confirmed sanctions match on OFAC SDN and Garantex programs; high risk level. Do not transact without a regulatory-approved exception."
+        },
+        {
+          "category": "labels",
+          "severity": "info",
+          "finding": "No labels found for this address; no positive or negative label evidence."
+        },
+        {
+          "category": "onchain_history",
+          "severity": "low",
+          "finding": "Wallet shows recent small inbound transfers on Base and Arbitrum (USDC, ETH, small amounts) from multiple addresses; activity pattern is unremarkable but does not offset sanctions risk."
+        },
+        {
+          "category": "web_sentiment",
+          "severity": "info",
+          "finding": "No news or web articles returned for this address."
+        },
+        {
+          "category": "contract_analysis",
+          "severity": "info",
+          "finding": "Contract analysis not applicable — address appears to be an EOA; no code was provided."
+        }
+      ],
+      "coverage": {
+        "requested": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment",
+          "contract_analysis"
+        ],
+        "resolved": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment",
+          "contract_analysis"
+        ],
+        "unresolved": []
+      },
+      "totalSpentUsdc": 0.017125,
+      "generatedAt": "2026-05-22T16:41:53.514Z"
+    },
+    "plan": {
+      "services": [
+        {
+          "category": "sanctions",
+          "resource": "https://api.anchor-x402.com/v1/screen",
+          "priceUsdc": 0.001,
+          "rationale": "Only candidate with a confirmed 0% recent failure rate, plus solid inputInfoCompleteness (2/3) and the lowest price, making it the clear winner over all untested alternatives."
+        },
+        {
+          "category": "labels",
+          "resource": "https://blockrun.ai/api/v1/pm/polymarket/wallet/identity/:address",
+          "priceUsdc": 0.005,
+          "rationale": "Candidates 0, 1, 3, and 4 all have 100% failure rates and are skipped; resource 8 (blockrun.ai identity/profile) is untested but has the highest inputInfoCompleteness (2/3) among the surviving candidates and a description that clearly fits wallet labeling/identity."
+        },
+        {
+          "category": "onchain_history",
+          "resource": "https://public.zapper.xyz/x402/transaction-history",
+          "priceUsdc": 0.001125,
+          "rationale": "Resource 9 (Zapper transaction-history) is the only candidate with a confirmed 0% recent failure rate and also has full inputInfoCompleteness (2/3), making it the dominant choice over all untested or 100%-failing alternatives."
+        },
+        {
+          "category": "web_sentiment",
+          "resource": "https://blockrun.ai/api/v1/surf/search/news",
+          "priceUsdc": 0.005,
+          "rationale": "Resources 1, 2, and 4 have 100% failure rates; resource 0 sits at the 50% threshold; resource 5 (blockrun.ai news search) is untested with a matching description, and while inputInfoCompleteness is 1/3, it shares that level with most survivors and is the lowest-priced news/sentiment option."
+        },
+        {
+          "category": "contract_analysis",
+          "resource": "https://orbisapi.com/proxy/smart-contract-auditor-api-0061a9",
+          "priceUsdc": 0.005,
+          "rationale": "Resource 1 is the only candidate with a confirmed 0% recent failure rate, which is the strongest signal and overrides its lower inputInfoCompleteness (1/3) relative to untested alternatives."
+        }
+      ]
+    },
+    "receipts": [
+      {
+        "category": "sanctions",
+        "resource": "https://api.anchor-x402.com/v1/screen",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.001,
+        "durationMs": 3149,
+        "paid": true
+      },
+      {
+        "category": "labels",
+        "resource": "https://blockrun.ai/api/v1/pm/polymarket/wallet/identity/:address",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.005,
+        "durationMs": 3069,
+        "paid": true
+      },
+      {
+        "category": "onchain_history",
+        "resource": "https://public.zapper.xyz/x402/transaction-history",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.001125,
+        "durationMs": 3069,
+        "paid": true
+      },
+      {
+        "category": "web_sentiment",
+        "resource": "https://blockrun.ai/api/v1/surf/search/news",
+        "status": "fallback_ok",
+        "adapterPath": "llm",
+        "amountUsdc": 0.005,
+        "durationMs": 8290,
+        "paid": true
+      },
+      {
+        "category": "contract_analysis",
+        "resource": "https://orbisapi.com/proxy/smart-contract-auditor-api-0061a9",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.005,
+        "durationMs": 7775,
+        "paid": true
+      }
+    ],
+    "walletNetwork": "base",
+    "totalSpentUsdc": 0.017125
+  }
+}

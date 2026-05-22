@@ -92,19 +92,16 @@ function substituteAddressInBody(
   return { address, chain };
 }
 
-// Common POST body shapes we try when the primary {address, chain} body is
-// rejected. Ordered by observed catalog frequency. Each is a *function* of
-// (address, chain) so the same templates can be reused across services.
+// Single alternate POST body shape — the most-common variant. Kept at 1 to
+// minimize paid upstream call volume; if it doesn't match, we fall straight
+// through to the LLM adapter (cheaper than burning paid retries on a hostile
+// catalog).
 function alternateBodyShapes(
   address: string,
   chain: Chain,
 ): Array<Record<string, unknown>> {
   return [
     { wallet: address, chain },
-    { wallet: address },
-    { addr: address, chain },
-    { addresses: [address] },
-    { wallets: [address] },
   ];
 }
 

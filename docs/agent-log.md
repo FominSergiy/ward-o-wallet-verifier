@@ -6,3 +6,4 @@ Append-only. One row per completed feature, newest at bottom. Cross-reference sl
 |------------|---------------|---------------------------------------------------------------------------------|
 | 2026-05-21 | x402-payments | agnicFetch x402 proxy client + x402Invoker replacing all stubs in budgetedCall |
 | 2026-05-21 | service-discovery | CDP x402 discovery pipeline + LLM rerank + POST /discover route + e2e test     |
+| 2026-05-22 | pattern-adapter-shape-trim | Trim alternateBodyShapes 5→1 to cut paid-call volume; v3 e2e validation 2/2 match, 0 rate-limit hits |
