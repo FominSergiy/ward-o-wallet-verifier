@@ -1,0 +1,161 @@
+{
+  "test": {
+    "address": "0xd90e2f925da726b50c4ed8d0fb90ad053324f31b",
+    "chain": "eth",
+    "label": "Tornado Cash router contract",
+    "category": "Mixer (smart contract)",
+    "expected": "do_not_transact",
+    "sourceUrl": "https://etherscan.io/address/0xd90e2f925da726b50c4ed8d0fb90ad053324f31b"
+  },
+  "metrics": {
+    "address": "0xd90e2f925da726b50c4ed8d0fb90ad053324f31b",
+    "label": "Tornado Cash router contract",
+    "expected": "do_not_transact",
+    "actualVerdict": "insufficient_data",
+    "actualConfidence": "low",
+    "verdictMatch": "partial",
+    "match": false,
+    "primaryHits": 1,
+    "alternateRescues": 0,
+    "llmAdapterCount": 0,
+    "hardErrors": 4,
+    "errorMessages": [
+      "[labels] agnicFetch [Too many requests from this IP, please try again later.]: Too Many Requests",
+      "[onchain_history] agnicFetch [Too many requests from this IP, please try again later.]: Too Many Requests",
+      "[web_sentiment] agnicFetch [Too many requests from this IP, please try again later.]: Too Many Requests",
+      "[contract_analysis] agnicFetch [Too many requests from this IP, please try again later.]: Too Many Requests"
+    ],
+    "totalSpentUsdc": 0.001,
+    "latencyMs": 19081.040832999977,
+    "resolved": [
+      "sanctions"
+    ],
+    "unresolved": [
+      "labels",
+      "onchain_history",
+      "web_sentiment",
+      "contract_analysis"
+    ],
+    "httpStatus": 200
+  },
+  "raw": {
+    "verdict": {
+      "address": "0xd90e2f925da726b50c4ed8d0fb90ad053324f31b",
+      "chain": "eth",
+      "safe": false,
+      "verdict": "insufficient_data",
+      "confidence": "low",
+      "headline": "Synthesis failed — manual review required: agnic gateway HTTP 402: {\"error\":{\"code\":\"spending_limit_exceeded\",\"message\":\"Daily limit exceeded. Spent: $4.55, Limit:",
+      "reasoning": "The risk analysis step errored before producing a final verdict. Raw service findings are available in the receipts for manual review. Treat this verdict as a placeholder, NOT as a determination of safety.",
+      "findings": [],
+      "coverage": {
+        "requested": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment",
+          "contract_analysis"
+        ],
+        "resolved": [
+          "sanctions"
+        ],
+        "unresolved": [
+          "labels",
+          "onchain_history",
+          "web_sentiment",
+          "contract_analysis"
+        ]
+      },
+      "totalSpentUsdc": 0.001,
+      "generatedAt": "2026-05-22T11:15:07.067Z"
+    },
+    "synthesisError": "agnic gateway HTTP 402: {\"error\":{\"code\":\"spending_limit_exceeded\",\"message\":\"Daily limit exceeded. Spent: $4.55, Limit: $5\",\"type\":\"invalid_request_error\"}}",
+    "plan": {
+      "services": [
+        {
+          "category": "sanctions",
+          "resource": "https://api.anchor-x402.com/v1/screen",
+          "priceUsdc": 0.001,
+          "rationale": "Fallback selection: highest usage, lowest price."
+        },
+        {
+          "category": "labels",
+          "resource": "https://orbisapi.com/proxy/wallet-cluster-score-api-32f2cb/analyze",
+          "priceUsdc": 0.001,
+          "rationale": "Fallback selection: highest usage, lowest price."
+        },
+        {
+          "category": "onchain_history",
+          "resource": "https://orbisapi.com/proxy/wallet-balance-api-5575de/v1/transactions/:address",
+          "priceUsdc": 0.001,
+          "rationale": "Fallback selection: highest usage, lowest price."
+        },
+        {
+          "category": "web_sentiment",
+          "resource": "https://x402-deployer.x402-deployer.workers.dev/hacker-news-search",
+          "priceUsdc": 0.001,
+          "rationale": "Fallback selection: highest usage, lowest price."
+        },
+        {
+          "category": "contract_analysis",
+          "resource": "https://orbisapi.com/proxy/smart-contract-risk-api-e05d1a/parse",
+          "priceUsdc": 0.001,
+          "rationale": "Fallback selection: highest usage, lowest price."
+        }
+      ]
+    },
+    "receipts": [
+      {
+        "category": "sanctions",
+        "resource": "https://api.anchor-x402.com/v1/screen",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.001,
+        "durationMs": 3377,
+        "paid": true
+      },
+      {
+        "category": "labels",
+        "resource": "https://mru-oracle.com/compliance/wallet-entity",
+        "status": "error",
+        "adapterPath": "pattern",
+        "amountUsdc": 0,
+        "durationMs": 5165,
+        "paid": false,
+        "error": "agnicFetch [Too many requests from this IP, please try again later.]: Too Many Requests"
+      },
+      {
+        "category": "onchain_history",
+        "resource": "https://orbisapi.com/proxy/wallet-balance-api-5575de",
+        "status": "error",
+        "adapterPath": "pattern",
+        "amountUsdc": 0,
+        "durationMs": 5165,
+        "paid": false,
+        "error": "agnicFetch [Too many requests from this IP, please try again later.]: Too Many Requests"
+      },
+      {
+        "category": "web_sentiment",
+        "resource": "https://blockrun.ai/api/v1/surf/search/social/posts",
+        "status": "error",
+        "adapterPath": "pattern",
+        "amountUsdc": 0,
+        "durationMs": 5160,
+        "paid": false,
+        "error": "agnicFetch [Too many requests from this IP, please try again later.]: Too Many Requests"
+      },
+      {
+        "category": "contract_analysis",
+        "resource": "https://orbisapi.com/proxy/smart-contract-auditor-api-0061a9",
+        "status": "error",
+        "adapterPath": "pattern",
+        "amountUsdc": 0,
+        "durationMs": 5155,
+        "paid": false,
+        "error": "agnicFetch [Too many requests from this IP, please try again later.]: Too Many Requests"
+      }
+    ],
+    "walletNetwork": "base",
+    "totalSpentUsdc": 0.001
+  }
+}

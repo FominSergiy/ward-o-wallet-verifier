@@ -1,0 +1,182 @@
+{
+  "test": {
+    "address": "0xf977814e90da44bfa03b6295a0616a897441acec",
+    "chain": "eth",
+    "label": "Binance Hot Wallet 20",
+    "category": "Verified exchange",
+    "expected": "safe_to_transact",
+    "sourceUrl": "https://etherscan.io/address/0xf977814e90da44bfa03b6295a0616a897441acec"
+  },
+  "metrics": {
+    "address": "0xf977814e90da44bfa03b6295a0616a897441acec",
+    "label": "Binance Hot Wallet 20",
+    "expected": "safe_to_transact",
+    "actualVerdict": "safe_to_transact",
+    "actualConfidence": "medium",
+    "verdictMatch": "match",
+    "match": true,
+    "primaryHits": 3,
+    "alternateRescues": 0,
+    "llmAdapterCount": 3,
+    "hardErrors": 2,
+    "errorMessages": [
+      "[labels] agnicFetch [Payment exceeds maximum allowed value]: Payment Required",
+      "[contract_analysis] agnicFetch [Payment exceeds maximum allowed value]: Payment Required"
+    ],
+    "totalSpentUsdc": 0.007125,
+    "latencyMs": 80486.91195799998,
+    "resolved": [
+      "sanctions",
+      "onchain_history",
+      "web_sentiment"
+    ],
+    "unresolved": [
+      "labels",
+      "contract_analysis"
+    ],
+    "httpStatus": 200
+  },
+  "raw": {
+    "verdict": {
+      "address": "0xf977814e90da44bfa03b6295a0616a897441acec",
+      "chain": "eth",
+      "safe": true,
+      "verdict": "safe_to_transact",
+      "confidence": "medium",
+      "headline": "Safe to transact — this is a well-known Binance exchange hot wallet with a clean sanctions screen, though confirm the deposit memo/network with your exchange.",
+      "reasoning": "Sanctions screening returned no matches against the active corpus. On-chain history shows a very high-volume wallet with large, frequent inbound transfers from many distinct addresses — a pattern consistent with a major centralized exchange hot wallet (this address is publicly known as Binance 8). Label and contract-analysis lookups were unresolved, so we cannot programmatically confirm the exchange tag here. Web sentiment surfaced only a single retail user pleading with the FBI/Crypto.com about their own lost funds and tagging this address (which is the exchange they appear to be trying to reach), not any credible scam/hack allegation against the wallet itself. Net signal is positive but confidence is capped at medium because the explicit \"exchange\" label tag did not resolve.",
+      "findings": [
+        {
+          "category": "sanctions",
+          "severity": "info",
+          "finding": "No matches against active sanctions lists (OFAC SDN and public corpora); risk_level reported as low."
+        },
+        {
+          "category": "onchain_history",
+          "severity": "info",
+          "finding": "Very high transaction volume with large inbound transfers from many distinct counterparties — pattern consistent with a major centralized exchange hot wallet (publicly known as Binance 8)."
+        },
+        {
+          "category": "web_sentiment",
+          "severity": "low",
+          "finding": "Only social mention is a single retail user (@Navarroeric00) tagging the FBI/Crypto.com about their own inaccessible funds; no credible reports of scam, hack, or exploit attributable to this wallet."
+        },
+        {
+          "category": "labels",
+          "severity": "low",
+          "finding": "Label lookup unresolved — could not programmatically confirm the widely-reported 'Binance hot wallet' tag."
+        },
+        {
+          "category": "contract_analysis",
+          "severity": "info",
+          "finding": "Contract analysis unresolved; address behaves as an EOA/custodial wallet, so contract risk is not applicable."
+        }
+      ],
+      "coverage": {
+        "requested": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment",
+          "contract_analysis"
+        ],
+        "resolved": [
+          "sanctions",
+          "onchain_history",
+          "web_sentiment"
+        ],
+        "unresolved": [
+          "labels",
+          "contract_analysis"
+        ]
+      },
+      "totalSpentUsdc": 0.007125,
+      "generatedAt": "2026-05-22T11:10:23.322Z"
+    },
+    "plan": {
+      "services": [
+        {
+          "category": "sanctions",
+          "resource": "https://api.anchor-x402.com/v1/screen",
+          "priceUsdc": 0.001,
+          "rationale": "Only candidate with a confirmed 0% failure rate; matches inputInfoCompleteness 2/3 and lowest price at $0.001 USDC, making it the clear winner over untested peers and the 100%-failing resource[3]."
+        },
+        {
+          "category": "labels",
+          "resource": "https://mru-oracle.com/compliance/wallet-entity",
+          "priceUsdc": 0.003,
+          "rationale": "Resource[5] is the only labels candidate with inputInfoCompleteness 2/3 and an untested (not confirmed-failing) failure rate, giving it the best odds of actually responding compared to the three 100%-failing options and the lower-completeness untested alternatives."
+        },
+        {
+          "category": "onchain_history",
+          "resource": "https://public.zapper.xyz/x402/transaction-history",
+          "priceUsdc": 0.001125,
+          "rationale": "Zapper's resource[9] combines inputInfoCompleteness 2/3, an untested (not confirmed-failing) failure rate, and the lowest price ($0.001125) among the completeness-2 untested candidates, with a well-documented multi-address transaction history endpoint."
+        },
+        {
+          "category": "web_sentiment",
+          "resource": "https://blockrun.ai/api/v1/surf/search/social/posts",
+          "priceUsdc": 0.005,
+          "rationale": "Resource[0] is the only web_sentiment candidate with a confirmed 0% failure rate, making it the strongest pick despite its lower inputInfoCompleteness (1/3), since real-world reliability outweighs documentation quality."
+        },
+        {
+          "category": "contract_analysis",
+          "resource": "https://orbisapi.com/proxy/smart-contract-risk-api-82fd41/v1/smart-contract-risk/compare",
+          "priceUsdc": 0.024,
+          "rationale": "Resource[2] has inputInfoCompleteness 2/3, an untested (not confirmed-failing) failure rate, and a clear description matching smart-contract security analysis, preferred over the 100%-failing resource[0] and the lower-completeness untested options."
+        }
+      ]
+    },
+    "receipts": [
+      {
+        "category": "sanctions",
+        "resource": "https://api.anchor-x402.com/v1/screen",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.001,
+        "durationMs": 2745,
+        "paid": true
+      },
+      {
+        "category": "labels",
+        "resource": "https://orbisapi.com/proxy/wallet-cluster-score-api-32f2cb/bulk",
+        "status": "error",
+        "adapterPath": "llm",
+        "amountUsdc": 0,
+        "durationMs": 4611,
+        "paid": false,
+        "error": "agnicFetch [Payment exceeds maximum allowed value]: Payment Required"
+      },
+      {
+        "category": "onchain_history",
+        "resource": "https://public.zapper.xyz/x402/transaction-history",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.001125,
+        "durationMs": 2566,
+        "paid": true
+      },
+      {
+        "category": "web_sentiment",
+        "resource": "https://blockrun.ai/api/v1/surf/search/social/posts",
+        "status": "fallback_ok",
+        "adapterPath": "llm",
+        "amountUsdc": 0.005,
+        "durationMs": 9044,
+        "paid": true
+      },
+      {
+        "category": "contract_analysis",
+        "resource": "https://orbisapi.com/proxy/smart-contract-auditor-api-0061a9/openapi",
+        "status": "error",
+        "adapterPath": "llm",
+        "amountUsdc": 0,
+        "durationMs": 8030,
+        "paid": false,
+        "error": "agnicFetch [Payment exceeds maximum allowed value]: Payment Required"
+      }
+    ],
+    "walletNetwork": "base",
+    "totalSpentUsdc": 0.007125
+  }
+}

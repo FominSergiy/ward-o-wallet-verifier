@@ -1,0 +1,34 @@
+{
+  "test": {
+    "address": "0xa5e4b451d0a3c3d05fc3a8076fda45952b8f4f83",
+    "chain": "eth",
+    "label": "Pink Drainer scam wallet",
+    "category": "Scam / drainer",
+    "expected": "do_not_transact",
+    "sourceUrl": "https://etherscan.io/address/0xa5e4b451d0a3c3d05fc3a8076fda45952b8f4f83"
+  },
+  "metrics": {
+    "address": "0xa5e4b451d0a3c3d05fc3a8076fda45952b8f4f83",
+    "label": "Pink Drainer scam wallet",
+    "expected": "do_not_transact",
+    "actualVerdict": null,
+    "actualConfidence": null,
+    "verdictMatch": "error",
+    "match": false,
+    "primaryHits": 0,
+    "alternateRescues": 0,
+    "llmAdapterCount": 0,
+    "hardErrors": 0,
+    "errorMessages": [],
+    "totalSpentUsdc": 0,
+    "latencyMs": 17144.709374999977,
+    "resolved": [],
+    "unresolved": [],
+    "httpStatus": 502,
+    "rawError": "sanctions invocation failed: agnicFetch [Too many requests from this IP, please try again later.]: Too Many Requests"
+  },
+  "raw": {
+    "error": "sanctions_invocation_failed",
+    "message": "sanctions invocation failed: agnicFetch [Too many requests from this IP, please try again later.]: Too Many Requests"
+  }
+}

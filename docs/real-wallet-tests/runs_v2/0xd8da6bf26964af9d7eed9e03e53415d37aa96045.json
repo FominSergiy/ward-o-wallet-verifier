@@ -1,0 +1,184 @@
+{
+  "test": {
+    "address": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    "chain": "eth",
+    "label": "Vitalik's main wallet (vitalik.eth)",
+    "category": "Safe / ENS-doxxed",
+    "expected": "safe_to_transact",
+    "sourceUrl": "https://etherscan.io/address/0xd8da6bf26964af9d7eed9e03e53415d37aa96045"
+  },
+  "metrics": {
+    "address": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    "label": "Vitalik's main wallet (vitalik.eth)",
+    "expected": "safe_to_transact",
+    "actualVerdict": "safe_to_transact",
+    "actualConfidence": "medium",
+    "verdictMatch": "match",
+    "match": true,
+    "primaryHits": 0,
+    "alternateRescues": 2,
+    "llmAdapterCount": 4,
+    "hardErrors": 3,
+    "errorMessages": [
+      "[labels] agnicFetch [Payment exceeds maximum allowed value]: Payment Required",
+      "[onchain_history] agnicFetch [Target API is not X402 enabled]: Bad Request",
+      "[contract_analysis] agnicFetch [Payment exceeds maximum allowed value]: Payment Required"
+    ],
+    "totalSpentUsdc": 0.006,
+    "latencyMs": 108955.232333,
+    "resolved": [
+      "sanctions",
+      "web_sentiment"
+    ],
+    "unresolved": [
+      "labels",
+      "onchain_history",
+      "contract_analysis"
+    ],
+    "httpStatus": 200
+  },
+  "raw": {
+    "verdict": {
+      "address": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+      "chain": "eth",
+      "safe": true,
+      "verdict": "safe_to_transact",
+      "confidence": "medium",
+      "headline": "Safe to transact — this is Vitalik Buterin's well-known public Ethereum address with a clean sanctions screen.",
+      "reasoning": "Sanctions screening returned no matches against the active corpus. Web sentiment is extensive and consistently identifies this address as Vitalik Buterin's public Ethereum mainnet wallet, with social discussion focused on his transparent on-chain activity (selling unsolicited gifted meme tokens) — no scam, hack, exploit, or fraud allegations were found. Labels, on-chain history, and contract analysis were unresolved, so confidence is capped at medium, but the strongly positive public identification combined with a clean sanctions result supports a safe verdict.",
+      "findings": [
+        {
+          "category": "sanctions",
+          "severity": "info",
+          "finding": "No matches against active sanctions lists; risk_level reported as low."
+        },
+        {
+          "category": "web_sentiment",
+          "severity": "info",
+          "finding": "Multiple public sources identify this address as Vitalik Buterin's known Ethereum mainnet wallet; discussion is benign (transparent disposal of gifted tokens). No scam/hack/exploit/lawsuit references found."
+        },
+        {
+          "category": "labels",
+          "severity": "low",
+          "finding": "Labels lookup was unresolved; however, this address is widely publicly attributed to Vitalik Buterin via web sentiment."
+        },
+        {
+          "category": "onchain_history",
+          "severity": "low",
+          "finding": "On-chain history lookup was unresolved; could not directly verify transaction count or age, though the address is publicly known to have years of activity."
+        },
+        {
+          "category": "contract_analysis",
+          "severity": "info",
+          "finding": "Contract analysis unresolved; address is publicly known as an EOA, so contract analysis is not applicable."
+        }
+      ],
+      "coverage": {
+        "requested": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment",
+          "contract_analysis"
+        ],
+        "resolved": [
+          "sanctions",
+          "web_sentiment"
+        ],
+        "unresolved": [
+          "labels",
+          "onchain_history",
+          "contract_analysis"
+        ]
+      },
+      "totalSpentUsdc": 0.006,
+      "generatedAt": "2026-05-22T11:07:36.061Z"
+    },
+    "plan": {
+      "services": [
+        {
+          "category": "sanctions",
+          "resource": "https://mru-oracle.com/compliance/wallet",
+          "priceUsdc": 0.001,
+          "rationale": "All candidates have unknown failure rates and equal inputInfoCompleteness (2/3), so the lowest price breaks the tie — resource 3 matches at $0.001 while also offering the broadest multi-list coverage (OFAC SDN, USDT/USDC blacklists, Ransomwhere, OpenSanctions, UK OFSI), making it the best value-for-coverage pick."
+        },
+        {
+          "category": "labels",
+          "resource": "https://x402-deployer.x402-deployer.workers.dev/wallet-label",
+          "priceUsdc": 0.005,
+          "rationale": "Resource 0 is the only labels candidate with inputInfoCompleteness 2/3 that directly addresses wallet labelling/tagging with CEX hot/cold wallet identification, clearly matching the category intent; higher completeness score drives this over the 1/3-completeness alternatives."
+        },
+        {
+          "category": "onchain_history",
+          "resource": "https://orbisapi.com/proxy/wallet-balance-api-5575de/v1/transactions/:address",
+          "priceUsdc": 0.001,
+          "rationale": "Resource 3 has inputInfoCompleteness 2/3, the lowest price ($0.001) among the fully-documented candidates, and its description explicitly covers on-chain ETH & ERC20 transaction history with a clear path-parameterized address endpoint."
+        },
+        {
+          "category": "web_sentiment",
+          "resource": "https://serp-x402.vercel.app/serp/news",
+          "priceUsdc": 0.003,
+          "rationale": "Resource 4 (Google News SERP) has inputInfoCompleteness 2/3, real-time news coverage directly relevant to sentiment monitoring, and a competitive price ($0.003), edging out the HN-only resource 3 for broader web-sentiment signal."
+        },
+        {
+          "category": "contract_analysis",
+          "resource": "https://audit.crestsystems.ai/audit/contract",
+          "priceUsdc": 1,
+          "rationale": "Resource 0 has inputInfoCompleteness 2/3 and the clearest, most purpose-built description (vulnerability report with severity ratings, exploit scenarios, and fix recommendations), directly matching the category; price is higher but justified by the most complete audit output among 2/3-completeness options."
+        }
+      ]
+    },
+    "receipts": [
+      {
+        "category": "sanctions",
+        "resource": "https://api.anchor-x402.com/v1/screen",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.001,
+        "durationMs": 2711,
+        "paid": true
+      },
+      {
+        "category": "labels",
+        "resource": "https://orbisapi.com/proxy/wallet-cluster-score-api-32f2cb/bulk",
+        "status": "error",
+        "adapterPath": "llm",
+        "amountUsdc": 0,
+        "durationMs": 11725,
+        "paid": false,
+        "error": "agnicFetch [Payment exceeds maximum allowed value]: Payment Required"
+      },
+      {
+        "category": "onchain_history",
+        "resource": "https://orbisapi.com/proxy/wallet-balance-api-5575de/v1/transactions/:address",
+        "status": "error",
+        "adapterPath": "llm",
+        "amountUsdc": 0,
+        "durationMs": 17185,
+        "paid": false,
+        "error": "agnicFetch [Target API is not X402 enabled]: Bad Request"
+      },
+      {
+        "category": "web_sentiment",
+        "resource": "https://blockrun.ai/api/v1/surf/search/social/posts",
+        "status": "fallback_ok",
+        "adapterPath": "llm",
+        "amountUsdc": 0.005,
+        "durationMs": 9555,
+        "paid": true
+      },
+      {
+        "category": "contract_analysis",
+        "resource": "https://orbisapi.com/proxy/smart-contract-auditor-api-0061a9/openapi",
+        "status": "error",
+        "adapterPath": "llm",
+        "amountUsdc": 0,
+        "durationMs": 4986,
+        "paid": false,
+        "error": "agnicFetch [Payment exceeds maximum allowed value]: Payment Required"
+      }
+    ],
+    "walletNetwork": "base",
+    "totalSpentUsdc": 0.006
+  }
+}

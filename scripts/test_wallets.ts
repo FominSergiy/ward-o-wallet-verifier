@@ -61,8 +61,9 @@ const ADDRESSES: TestAddress[] = [
 
 const ENDPOINT = Deno.env.get("VERIFY_AGENT_URL") ??
   "http://localhost:8000/verify-agent";
-const RUNS_DIR = "docs/real-wallet-tests/runs";
-const REPORT_PATH = "docs/real-wallet-tests/report.md";
+const RUNS_DIR = Deno.env.get("OUTPUT_DIR") ?? "docs/real-wallet-tests/runs";
+const REPORT_PATH = Deno.env.get("REPORT_PATH") ??
+  "docs/real-wallet-tests/report.md";
 
 interface Receipt {
   category: string;
