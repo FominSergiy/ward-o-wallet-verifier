@@ -4,6 +4,7 @@ import type {
   RankedService,
   WalletNetwork,
 } from "../discovery/types.ts";
+import { recordError, recordOk } from "../discovery/health_store.ts";
 import type { LlmClient } from "./llm.ts";
 import type { Chain } from "../dag/types.ts";
 import type { Category } from "./types.ts";
@@ -85,7 +86,9 @@ async function invokeWithAlternates(
       continue;
     }
     const outcome = await invoker(svc, address, chain, { llm });
+    // Update health stats so future rerank calls can weight this service.
     if (outcome.status === "ok" || outcome.status === "fallback_ok") {
+      recordOk(svc.resource);
       if (i > 0) {
         console.warn(
           `[invoke] primary failed for ${primary.category}; succeeded on alternate ${svc.resource}`,
@@ -93,6 +96,7 @@ async function invokeWithAlternates(
       }
       return outcome;
     }
+    recordError(svc.resource, outcome.error ?? "(unknown)");
     lastOutcome = outcome;
     if (isDomainLevelError(outcome.error)) {
       failedHosts.add(host);

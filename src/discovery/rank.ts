@@ -1,8 +1,10 @@
 import type { Category } from "../agent/types.ts";
 import { defaultLlm, type LlmClient } from "../agent/llm.ts";
+import { failureRate } from "./health_store.ts";
 import {
   extractBazaarInfo,
   RankedSelectionSchema,
+  type BazaarInfo,
   type DiscoveryCandidatesByCategory,
   type DiscoveryEntry,
   type RankedSelection,
@@ -10,6 +12,22 @@ import {
 } from "./types.ts";
 
 const MAX_DESC_CHARS = 200;
+
+// Score how completely a service has documented its input shape. Used as a
+// secondary signal in the rerank prompt — services with rich `bazaar.info`
+// almost always work with the pattern adapter; skeletal entries fall through
+// to the LLM-fallback adapter and have a higher real-world error rate.
+function inputInfoCompleteness(info: BazaarInfo | undefined): number {
+  if (!info) return 0;
+  let score = 0;
+  if (info.method) score += 1;
+  if (
+    (info.queryParams && Object.keys(info.queryParams).length > 0) ||
+    (info.pathParams && Object.keys(info.pathParams).length > 0)
+  ) score += 1;
+  if (info.body !== undefined) score += 1;
+  return score; // 0..3
+}
 
 function priceUsdcFor(e: DiscoveryEntry, network: string): number {
   const a = e.accepts.find((x) => x.network === network) ?? e.accepts[0];
@@ -38,11 +56,18 @@ function buildPrompt(
   for (const [cat, entries] of Object.entries(candidates) as [Category, DiscoveryEntry[]][]) {
     sections.push(`Category: ${cat}`);
     entries.forEach((e, idx) => {
+      const fr = failureRate(e.resource);
+      const frStr = fr === null
+        ? "unknown (untested)"
+        : `${(fr * 100).toFixed(0)}%`;
+      const info = extractBazaarInfo(e);
       sections.push(
         `  [${idx}] resource: ${e.resource}`,
         `      description: ${(e.description ?? "").slice(0, MAX_DESC_CHARS)}`,
         `      priceUsdc: ${priceUsdcFor(e, network)}`,
         `      qualityScore: ${qualityFor(e) ?? "unknown"}`,
+        `      recentFailureRate: ${frStr}`,
+        `      inputInfoCompleteness: ${inputInfoCompleteness(info)}/3`,
         `      scheme: ${schemeFor(e, network)}`,
       );
     });
@@ -52,12 +77,14 @@ function buildPrompt(
   return `
 You are picking the single best x402 service per category for a wallet risk-verification run.
 
-Selection criteria, in order of importance:
-1. Higher qualityScore (l30DaysUniquePayers — proven, recently used) is strongly preferred.
-2. Lower priceUsdc breaks ties between similar-quality entries.
-3. The description must clearly match the category intent. If no candidate fits, omit that category.
+Selection criteria, in priority order:
+1. recentFailureRate is the STRONGEST signal. If a candidate has > 50% recent failure rate, skip it unless every other candidate also has high failure or unknown rate. Failure rate is observed real-world performance — descriptions and qualityScores cannot override it.
+2. inputInfoCompleteness (0..3) — services that document their input shape fully (method + params + body) are far more likely to actually respond. Prefer 2 and 3.
+3. Higher qualityScore (l30DaysUniquePayers — proven, recently used) is the next-best signal.
+4. Lower priceUsdc breaks ties between similar-quality entries.
+5. The description must clearly match the category intent. If no candidate fits, omit that category.
 
-Return one selection per category as { category, resourceIndex, rationale }. The rationale is one short sentence.
+Return one selection per category as { category, resourceIndex, rationale }. The rationale is one short sentence that mentions which of the above signals drove the pick.
 
 Candidates:
 ${sections.join("\n")}

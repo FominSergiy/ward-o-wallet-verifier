@@ -3,6 +3,24 @@ import { invokeAll, SanctionsInvocationError } from "./invoke_all.ts";
 import type { ServiceInvocationOutcome } from "./invoke_service.ts";
 import type { DiscoveryPlan, RankedService } from "../discovery/types.ts";
 import type { Category } from "./types.ts";
+import {
+  _resetHealthStoreForTests,
+  readHealth,
+} from "../discovery/health_store.ts";
+
+function withTempHealthStore(fn: () => Promise<void>): Promise<void> {
+  const tmp = Deno.makeTempFileSync({ suffix: ".json" });
+  Deno.env.set("HEALTH_STORE_PATH", tmp);
+  _resetHealthStoreForTests();
+  return fn().finally(() => {
+    Deno.env.delete("HEALTH_STORE_PATH");
+    try {
+      Deno.removeSync(tmp);
+    } catch {
+      // ignore
+    }
+  });
+}
 
 function svc(category: Category, resource: string): RankedService {
   return {
@@ -253,6 +271,41 @@ Deno.test("invokeAll still tries different-host alternates after domain-level er
     true,
   );
   assertEquals(r.findings.onchain_history, { txCount: 5 });
+});
+
+Deno.test("invokeAll records ok in the health store on success", async () => {
+  await withTempHealthStore(async () => {
+    const services = [svc("sanctions", "https://sanc.example")];
+    await invokeAll(plan(services), "base", {
+      invoker: (s) => Promise.resolve(okOutcome(s.category, { ok: true })),
+    });
+    const health = readHealth();
+    assertEquals(health["https://sanc.example"]?.ok, 1);
+    assertEquals(health["https://sanc.example"]?.err ?? 0, 0);
+  });
+});
+
+Deno.test("invokeAll records err in the health store on failure", async () => {
+  await withTempHealthStore(async () => {
+    const services = [
+      svc("sanctions", "https://sanc-ok.example"),
+      svc("labels", "https://labels-fail.example"),
+    ];
+    const invoker = (s: RankedService) =>
+      Promise.resolve(
+        s.category === "sanctions"
+          ? okOutcome("sanctions", { ok: true })
+          : errorOutcome("labels", "Bad Request"),
+      );
+    await invokeAll(plan(services), "base", { invoker });
+    const health = readHealth();
+    assertEquals(health["https://sanc-ok.example"]?.ok, 1);
+    assertEquals(health["https://labels-fail.example"]?.err, 1);
+    assertEquals(
+      health["https://labels-fail.example"]?.lastError?.includes("Bad Request"),
+      true,
+    );
+  });
 });
 
 Deno.test("invokeAll echoes walletNetwork in result", async () => {
