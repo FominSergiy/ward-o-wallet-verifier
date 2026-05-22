@@ -189,6 +189,142 @@ Deno.test("invokeRankedService does not retry on insufficient_balance", async ()
   }
 });
 
+Deno.test("invokeRankedService tries POST fallback shapes before LLM adapter", async () => {
+  setupAgnic();
+  const orig = globalThis.fetch;
+  const cap = captureConsole();
+  // Capture each body sent — fallback shapes should differ.
+  const sentBodies: unknown[] = [];
+  let calls = 0;
+  globalThis.fetch = (_url, init) => {
+    calls++;
+    const bodyText = ((init as { body?: string } | undefined)?.body) ?? "";
+    try {
+      // Inner agnicFetch body is JSON-stringified envelope { url, method, body? }
+      const wrapper = JSON.parse(bodyText) as Record<string, unknown>;
+      sentBodies.push(wrapper);
+    } catch {
+      sentBodies.push(null);
+    }
+    // First 2 calls — return upstream 4xx so we try fallback shapes.
+    if (calls <= 2) {
+      return Promise.resolve(jsonResp(400, {
+        error: "upstream_4xx",
+        error_description: "wrong key name",
+      }));
+    }
+    // 3rd call succeeds.
+    return Promise.resolve(jsonResp(200, { sanctions_match: false }, {
+      "X-Agnic-Paid": "true",
+      "X-Agnic-Amount": "0.001",
+    }));
+  };
+  // A POST service so fallback shapes apply.
+  const postService = svc({
+    resource: "https://post.example/v1/check",
+    inputInfo: { method: "POST", body: { address: "0xexample", chain: "base" } },
+  });
+  let llmCalls = 0;
+  const llm: LlmClient = {
+    generateStructured<T>(schema: z.ZodType<T>, _p: string): Promise<T> {
+      llmCalls++;
+      return Promise.resolve(schema.parse({ url: "https://x", method: "GET" }));
+    },
+  };
+  try {
+    const out = await invokeRankedService(postService, ADDR, "base", { llm });
+    assertEquals(out.status, "ok", `expected ok, got ${out.status}: ${out.error}`);
+    assertEquals(out.adapterPath, "pattern");
+    // 3 calls = primary + 2 fallback shapes. LLM never invoked.
+    assertEquals(calls, 3);
+    assertEquals(llmCalls, 0);
+    // At least one warn line about the fallback-shape success.
+    assertEquals(
+      cap.warn.some((l) => l.includes("succeeded with fallback POST shape")),
+      true,
+    );
+  } finally {
+    cap.restore();
+    globalThis.fetch = orig;
+    teardownAgnic();
+  }
+});
+
+Deno.test("invokeRankedService retries once on Too Many Requests rate limit", async () => {
+  setupAgnic();
+  const orig = globalThis.fetch;
+  const cap = captureConsole();
+  let calls = 0;
+  globalThis.fetch = (_url, _init) => {
+    calls++;
+    if (calls === 1) {
+      return Promise.resolve(
+        jsonResp(429, {
+          error: "rate_limited",
+          error_description: "Too many requests from this IP, please try again later.",
+        }),
+      );
+    }
+    return Promise.resolve(jsonResp(200, { ok: true }, {
+      "X-Agnic-Paid": "true",
+      "X-Agnic-Amount": "0.001",
+    }));
+  };
+  // Override the backoff delay so the test doesn't actually sleep 5 seconds.
+  // Approach: stub setTimeout to fire immediately for any duration in this test.
+  const origSetTimeout = globalThis.setTimeout;
+  // deno-lint-ignore no-explicit-any
+  globalThis.setTimeout = ((fn: () => void, _ms?: number) => origSetTimeout(fn, 0)) as any;
+  const llm = mockLlm({});
+  try {
+    const out = await invokeRankedService(svc(), ADDR, "base", { llm });
+    assertEquals(out.status, "ok", `expected ok, got ${out.status}: ${out.error}`);
+    assertEquals(calls, 2);
+    assertEquals(
+      cap.warn.some((l) => l.includes("rate-limited") && l.includes("backing off")),
+      true,
+    );
+  } finally {
+    globalThis.setTimeout = origSetTimeout;
+    cap.restore();
+    globalThis.fetch = orig;
+    teardownAgnic();
+  }
+});
+
+Deno.test("invokeRankedService does NOT retry on insufficient_balance (regression)", async () => {
+  setupAgnic();
+  const orig = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = (_url, _init) => {
+    calls++;
+    return Promise.resolve(
+      jsonResp(402, {
+        error: "insufficient_balance",
+        error_description: "Have: $0, Need: $0.001",
+      }),
+    );
+  };
+  let llmCalls = 0;
+  const llm: LlmClient = {
+    generateStructured<T>(schema: z.ZodType<T>, _p: string): Promise<T> {
+      llmCalls++;
+      return Promise.resolve(schema.parse({ url: "https://x", method: "GET" }));
+    },
+  };
+  try {
+    const out = await invokeRankedService(svc(), ADDR, "base", { llm });
+    assertEquals(out.status, "error");
+    assertEquals(out.adapterPath, "pattern");
+    assertEquals(out.error?.includes("insufficient_balance"), true);
+    assertEquals(calls, 1, "hard error should not be retried");
+    assertEquals(llmCalls, 0);
+  } finally {
+    globalThis.fetch = orig;
+    teardownAgnic();
+  }
+});
+
 Deno.test("invokeRankedService records amountUsdc and paid from response headers", async () => {
   setupAgnic();
   const orig = globalThis.fetch;

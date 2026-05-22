@@ -1,8 +1,8 @@
 import { agnicFetch, AgnicFetchError } from "../clients/agnic.ts";
 import {
   AdapterFailedError,
-  buildCallFromInfo,
   buildCallFromInfoViaLlm,
+  buildCallSetFromInfo,
   type BuiltCall,
 } from "../discovery/adapter.ts";
 import type { RankedService } from "../discovery/types.ts";
@@ -29,18 +29,24 @@ const HARD_ERROR_CODES = new Set([
   "insufficient_balance",
   "payment_exceeds_max",
   "no_wallet",
-  "rate_limited",
 ]);
 
 function isUpstreamInputError(err: AgnicFetchError): boolean {
   if (HARD_ERROR_CODES.has(err.code)) return false;
-  // Heuristic: 5xx and network-level codes shouldn't be retried via fallback.
+  if (isRateLimitError(err)) return false;
   if (/^upstream_5/i.test(err.code)) return false;
   if (/^network_/i.test(err.code)) return false;
-  // Everything else (upstream_4xx, bad_request, invalid_request, unknown_error,
-  // and miscellaneous catch-alls) likely points at our request shape.
   return true;
 }
+
+function isRateLimitError(err: AgnicFetchError): boolean {
+  if (err.code === "rate_limited") return true;
+  if (/^upstream_429/i.test(err.code)) return true;
+  if (/too many requests/i.test(err.message)) return true;
+  return false;
+}
+
+const RATE_LIMIT_BACKOFF_MS = 5_000;
 
 async function performCall(
   built: BuiltCall,
@@ -64,6 +70,69 @@ async function performCall(
   };
 }
 
+// Wraps performCall with a single rate-limit retry after a 5s backoff. Returns
+// the call result (success) OR re-throws the LAST error (rate-limit AGAIN or
+// any non-rate-limit error). Caller decides whether to LLM-fallback based on
+// the re-thrown error.
+async function performCallWithRateLimitRetry(
+  built: BuiltCall,
+  priceUsdc: number,
+  resource: string,
+): Promise<Awaited<ReturnType<typeof performCall>>> {
+  try {
+    return await performCall(built, priceUsdc);
+  } catch (e) {
+    if (e instanceof AgnicFetchError && isRateLimitError(e)) {
+      console.warn(
+        `[invoke] ${resource} rate-limited; backing off ${RATE_LIMIT_BACKOFF_MS}ms before retry`,
+      );
+      await new Promise((res) => setTimeout(res, RATE_LIMIT_BACKOFF_MS));
+      return await performCall(built, priceUsdc);
+    }
+    throw e;
+  }
+}
+
+function errorOutcome(
+  service: RankedService,
+  message: string,
+  start: number,
+  adapterPath: "pattern" | "llm",
+): ServiceInvocationOutcome {
+  return {
+    category: service.category,
+    resource: service.resource,
+    data: null,
+    status: "error",
+    error: message,
+    amountUsdc: 0,
+    durationMs: Date.now() - start,
+    paid: false,
+    network: null,
+    adapterPath,
+  };
+}
+
+function okOutcome(
+  service: RankedService,
+  r: Awaited<ReturnType<typeof performCall>>,
+  start: number,
+  status: "ok" | "fallback_ok",
+  adapterPath: "pattern" | "llm",
+): ServiceInvocationOutcome {
+  return {
+    category: service.category,
+    resource: service.resource,
+    data: r.data,
+    status,
+    amountUsdc: r.amountUsdc,
+    durationMs: Date.now() - start,
+    paid: r.paid,
+    network: r.network,
+    adapterPath,
+  };
+}
+
 export async function invokeRankedService(
   service: RankedService,
   address: string,
@@ -73,115 +142,61 @@ export async function invokeRankedService(
   const llm = opts.llm ?? defaultLlm;
   const start = Date.now();
 
-  // Layer 1: pattern-match adapter.
-  let built: BuiltCall;
+  // Layer 1: pattern-match adapter — try the primary shape, then any
+  // fallback shapes for POST endpoints.
+  let callSet;
   try {
-    built = buildCallFromInfo(service, address, chain);
+    callSet = buildCallSetFromInfo(service, address, chain);
   } catch (e) {
-    const err = e as Error;
-    return {
-      category: service.category,
-      resource: service.resource,
-      data: null,
-      status: "error",
-      error: `pattern-adapter: ${err.message}`,
-      amountUsdc: 0,
-      durationMs: Date.now() - start,
-      paid: false,
-      network: null,
-      adapterPath: "pattern",
-    };
+    return errorOutcome(service, `pattern-adapter: ${(e as Error).message}`, start, "pattern");
+  }
+
+  const patternShapes: BuiltCall[] = [callSet.primary, ...callSet.fallbacks];
+  let lastError: unknown = null;
+  for (let i = 0; i < patternShapes.length; i++) {
+    const built = patternShapes[i];
+    try {
+      const r = await performCallWithRateLimitRetry(built, service.priceUsdc, service.resource);
+      if (i > 0) {
+        console.warn(
+          `[invoke] ${service.resource} succeeded with fallback POST shape ${i} (body=${JSON.stringify(built.body).slice(0, 80)})`,
+        );
+      }
+      return okOutcome(service, r, start, "ok", "pattern");
+    } catch (e) {
+      lastError = e;
+      // Hard errors short-circuit — no point trying more pattern shapes.
+      if (e instanceof AgnicFetchError && !isUpstreamInputError(e)) {
+        return errorOutcome(service, e.message, start, "pattern");
+      }
+      // Otherwise continue to next shape (if any).
+    }
+  }
+
+  // Layer 2: LLM-built call.
+  console.warn(
+    `[invoke] pattern-match failed for ${service.resource} (${patternShapes.length} shape(s) tried) — trying LLM fallback (${(lastError as Error)?.message})`,
+  );
+
+  let llmBuilt: BuiltCall;
+  try {
+    llmBuilt = await buildCallFromInfoViaLlm(service, address, chain, llm);
+  } catch (lerr) {
+    const reason = lerr instanceof AdapterFailedError
+      ? lerr.message
+      : (lerr as Error).message;
+    console.error(
+      `[invoke] both adapters failed for ${service.resource}: ${reason}`,
+    );
+    return errorOutcome(service, reason, start, "llm");
   }
 
   try {
-    const r = await performCall(built, service.priceUsdc);
-    return {
-      category: service.category,
-      resource: service.resource,
-      data: r.data,
-      status: "ok",
-      amountUsdc: r.amountUsdc,
-      durationMs: Date.now() - start,
-      paid: r.paid,
-      network: r.network,
-      adapterPath: "pattern",
-    };
-  } catch (e) {
-    // Hard errors: surface immediately. No fallback, no log spam.
-    if (e instanceof AgnicFetchError && !isUpstreamInputError(e)) {
-      return {
-        category: service.category,
-        resource: service.resource,
-        data: null,
-        status: "error",
-        error: e.message,
-        amountUsdc: 0,
-        durationMs: Date.now() - start,
-        paid: false,
-        network: null,
-        adapterPath: "pattern",
-      };
-    }
-
-    // Layer 2: LLM-built call. Log that we're falling back.
-    console.warn(
-      `[invoke] pattern-match failed for ${service.resource} — trying LLM fallback (${(e as Error).message})`,
-    );
-
-    let llmBuilt: BuiltCall;
-    try {
-      llmBuilt = await buildCallFromInfoViaLlm(service, address, chain, llm);
-    } catch (lerr) {
-      const reason = lerr instanceof AdapterFailedError
-        ? lerr.message
-        : (lerr as Error).message;
-      console.error(
-        `[invoke] both adapters failed for ${service.resource}: ${reason}`,
-      );
-      return {
-        category: service.category,
-        resource: service.resource,
-        data: null,
-        status: "error",
-        error: reason,
-        amountUsdc: 0,
-        durationMs: Date.now() - start,
-        paid: false,
-        network: null,
-        adapterPath: "llm",
-      };
-    }
-
-    try {
-      const r = await performCall(llmBuilt, service.priceUsdc);
-      return {
-        category: service.category,
-        resource: service.resource,
-        data: r.data,
-        status: "fallback_ok",
-        amountUsdc: r.amountUsdc,
-        durationMs: Date.now() - start,
-        paid: r.paid,
-        network: r.network,
-        adapterPath: "llm",
-      };
-    } catch (e2) {
-      const msg = (e2 as Error).message;
-      console.error(
-        `[invoke] both adapters failed for ${service.resource}: ${msg}`,
-      );
-      return {
-        category: service.category,
-        resource: service.resource,
-        data: null,
-        status: "error",
-        error: msg,
-        amountUsdc: 0,
-        durationMs: Date.now() - start,
-        paid: false,
-        network: null,
-        adapterPath: "llm",
-      };
-    }
+    const r = await performCallWithRateLimitRetry(llmBuilt, service.priceUsdc, service.resource);
+    return okOutcome(service, r, start, "fallback_ok", "llm");
+  } catch (e2) {
+    const msg = (e2 as Error).message;
+    console.error(`[invoke] both adapters failed for ${service.resource}: ${msg}`);
+    return errorOutcome(service, msg, start, "llm");
   }
 }
