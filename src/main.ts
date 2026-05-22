@@ -1,7 +1,5 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { planRouter } from "./routes/plan.ts";
-import { verifyRouter } from "./routes/verify.ts";
 import { verifyAgentRouter } from "./routes/verify_agent.ts";
 import { discoverRouter } from "./routes/discover.ts";
 import { invokeRouter } from "./routes/invoke.ts";
@@ -19,9 +17,6 @@ app.use(
 
 app.get("/health", (c) => c.json({ status: "ok" }));
 
-//TODO: need to update plan once we get plan llm call right
-app.route("/plan", planRouter);
-app.route("/verify", verifyRouter);
 app.route("/verify-agent", verifyAgentRouter);
 app.route("/discover", discoverRouter);
 app.route("/invoke", invokeRouter);

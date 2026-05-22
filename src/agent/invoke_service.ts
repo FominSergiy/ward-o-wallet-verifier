@@ -7,8 +7,7 @@ import {
 } from "../discovery/adapter.ts";
 import type { RankedService } from "../discovery/types.ts";
 import { defaultLlm, type LlmClient } from "./llm.ts";
-import type { Chain } from "../dag/types.ts";
-import type { Category } from "./types.ts";
+import type { Category, Chain } from "./types.ts";
 
 export interface ServiceInvocationOutcome {
   category: Category;

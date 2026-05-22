@@ -7,8 +7,7 @@ import type {
 import { recordError, recordOk } from "../discovery/health_store.ts";
 import { fetchOnchainHistory } from "./onchain_viem.ts";
 import type { LlmClient } from "./llm.ts";
-import type { Chain } from "../dag/types.ts";
-import type { Category } from "./types.ts";
+import type { Category, Chain } from "./types.ts";
 
 const VIEM_SUPPORTED_CHAINS: Chain[] = ["eth", "base", "polygon", "arbitrum", "optimism"];
 

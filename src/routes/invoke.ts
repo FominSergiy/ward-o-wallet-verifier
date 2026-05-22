@@ -1,8 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "hono/zod-validator";
 import { z } from "zod";
-import { ChainSchema } from "../dag/types.ts";
-import { CategorySchema, type Category } from "../agent/types.ts";
+import { CategorySchema, ChainSchema, type Category } from "../agent/types.ts";
 import { discover } from "../discovery/discover.ts";
 import { invokeAll, SanctionsInvocationError } from "../agent/invoke_all.ts";
 import {

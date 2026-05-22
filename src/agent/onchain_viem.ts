@@ -17,7 +17,7 @@ import {
   optimism,
   polygon,
 } from "viem/chains";
-import type { Chain } from "../dag/types.ts";
+import type { Chain } from "./types.ts";
 
 const DEFAULT_RPCS: Record<string, string> = {
   eth: Deno.env.get("RPC_URL_ETH") ?? "https://cloudflare-eth.com",

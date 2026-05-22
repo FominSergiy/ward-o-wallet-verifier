@@ -79,7 +79,7 @@ function errorOutcome(category: Category, msg: string): ServiceInvocationOutcome
 
 Deno.test("invokeAll runs services concurrently", async () => {
   const sleepMs = 50;
-  const invoker = (_s: RankedService) =>
+  const _invoker = (_s: RankedService) =>
     new Promise<ServiceInvocationOutcome>((resolve) =>
       setTimeout(() => resolve(okOutcome("sanctions", { ok: true })), sleepMs)
     );
@@ -218,6 +218,7 @@ Deno.test("invokeAll skips same-host alternates after domain-level error", async
       if (s.category === "sanctions") return Promise.resolve(okOutcome("sanctions", { ok: true }));
       return invoker(s);
     },
+    disableViemFallback: true,
   });
   // Only the primary should have been called for onchain — alternates skipped.
   assertEquals(calls.length, 1);

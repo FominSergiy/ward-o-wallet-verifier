@@ -1,7 +1,6 @@
 import { defaultLlm, type LlmClient } from "./llm.ts";
 import { WalletVerdictSchema, type WalletVerdict } from "./verdict.ts";
-import type { Chain } from "../dag/types.ts";
-import type { Category } from "./types.ts";
+import type { Category, Chain } from "./types.ts";
 import type { Findings } from "./invoke_all.ts";
 
 const OPUS_MODEL = Deno.env.get("SYNTHESIS_MODEL") ?? "anthropic/claude-opus-4.7";

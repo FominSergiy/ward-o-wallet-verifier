@@ -1,6 +1,5 @@
 import { z } from "zod";
-import { ChainSchema } from "../dag/types.ts";
-import { CategorySchema } from "./types.ts";
+import { CategorySchema, ChainSchema } from "./types.ts";
 
 export const VerdictEnum = z.enum([
   "safe_to_transact",

@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "hono/zod-validator";
 import { z } from "zod";
-import { VerifyRequestSchema } from "../dag/types.ts";
+import { VerifyRequestSchema } from "../agent/types.ts";
 import { verifyAgent } from "../agent/verify.ts";
 import {
   DiscoveryFetchError,
@@ -60,34 +60,30 @@ export function createVerifyAgentRouter(opts: VerifyAgentRouterOpts = {}): Hono 
 
     try {
       const result = await verifyAgent(req, { budgetCeiling });
-      if (result.mode === "discovery") {
-        return c.json({
-          verdict: result.verdict,
-          synthesisError: result.synthesisError,
-          plan: {
-            services: result.plan.services.map((s) => ({
-              category: s.category,
-              resource: s.resource,
-              priceUsdc: s.priceUsdc,
-              rationale: s.rationale,
-            })),
-          },
-          receipts: result.outcomes.map((o) => ({
-            category: o.category,
-            resource: o.resource,
-            status: o.status,
-            adapterPath: o.adapterPath,
-            amountUsdc: o.amountUsdc,
-            durationMs: o.durationMs,
-            paid: o.paid,
-            error: o.error,
+      return c.json({
+        verdict: result.verdict,
+        synthesisError: result.synthesisError,
+        plan: {
+          services: result.plan.services.map((s) => ({
+            category: s.category,
+            resource: s.resource,
+            priceUsdc: s.priceUsdc,
+            rationale: s.rationale,
           })),
-          walletNetwork: result.walletNetwork,
-          totalSpentUsdc: result.totalSpentUsdc,
-        });
-      }
-      // Legacy path response shape (unchanged from before).
-      return c.json({ report: result.report, ctx: result.ctx });
+        },
+        receipts: result.outcomes.map((o) => ({
+          category: o.category,
+          resource: o.resource,
+          status: o.status,
+          adapterPath: o.adapterPath,
+          amountUsdc: o.amountUsdc,
+          durationMs: o.durationMs,
+          paid: o.paid,
+          error: o.error,
+        })),
+        walletNetwork: result.walletNetwork,
+        totalSpentUsdc: result.totalSpentUsdc,
+      });
     } catch (e) {
       if (e instanceof WalletUnfundedError) {
         return c.json({

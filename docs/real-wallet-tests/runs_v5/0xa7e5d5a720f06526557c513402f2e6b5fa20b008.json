@@ -1,0 +1,182 @@
+{
+  "test": {
+    "address": "0xa7e5d5a720f06526557c513402f2e6b5fa20b008",
+    "chain": "eth",
+    "label": "Garantex exchange (OFAC-sanctioned)",
+    "category": "OFAC-sanctioned (Russia)",
+    "expected": "do_not_transact",
+    "sourceUrl": "https://home.treasury.gov/news/press-releases/jy0701"
+  },
+  "metrics": {
+    "address": "0xa7e5d5a720f06526557c513402f2e6b5fa20b008",
+    "label": "Garantex exchange (OFAC-sanctioned)",
+    "expected": "do_not_transact",
+    "actualVerdict": "do_not_transact",
+    "actualConfidence": "high",
+    "verdictMatch": "match",
+    "match": true,
+    "primaryHits": 3,
+    "alternateRescues": 0,
+    "llmAdapterCount": 2,
+    "hardErrors": 2,
+    "errorMessages": [
+      "[labels] agnicFetch [Not found]: Not Found",
+      "[web_sentiment] agnicFetch [Not found]: Not Found"
+    ],
+    "totalSpentUsdc": 0.009899999999999999,
+    "latencyMs": 47516.201458000025,
+    "resolved": [
+      "sanctions",
+      "onchain_history",
+      "contract_analysis"
+    ],
+    "unresolved": [
+      "labels",
+      "web_sentiment"
+    ],
+    "httpStatus": 200
+  },
+  "raw": {
+    "verdict": {
+      "address": "0xa7e5d5a720f06526557c513402f2e6b5fa20b008",
+      "chain": "eth",
+      "safe": false,
+      "verdict": "do_not_transact",
+      "confidence": "high",
+      "headline": "Do not transact — this wallet is on the OFAC SDN sanctions list (Garantex).",
+      "reasoning": "The sanctions check returned a confirmed match against two sanctions programs (OFAC SDN and Garantex), which is a hard veto under our policy and overrides all other signals. On-chain history shows a near-zero ETH balance, providing no compensating positive evidence, and contract analysis was not applicable. Sending funds to this address would expose the user to severe legal and regulatory risk.",
+      "findings": [
+        {
+          "category": "sanctions",
+          "severity": "critical",
+          "finding": "Confirmed sanctions match on OFAC SDN and Garantex programs — hard veto."
+        },
+        {
+          "category": "onchain_history",
+          "severity": "info",
+          "finding": "Wallet holds a near-zero balance (~0.00000436 ETH); no positive history evidence."
+        },
+        {
+          "category": "contract_analysis",
+          "severity": "info",
+          "finding": "No contract code provided; analysis not applicable for this address."
+        },
+        {
+          "category": "labels",
+          "severity": "low",
+          "finding": "Labels signal unresolved — no label data available."
+        },
+        {
+          "category": "web_sentiment",
+          "severity": "low",
+          "finding": "Web sentiment unresolved — no public sentiment data retrieved."
+        }
+      ],
+      "coverage": {
+        "requested": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment",
+          "contract_analysis"
+        ],
+        "resolved": [
+          "sanctions",
+          "onchain_history",
+          "contract_analysis"
+        ],
+        "unresolved": [
+          "labels",
+          "web_sentiment"
+        ]
+      },
+      "totalSpentUsdc": 0.009899999999999999,
+      "generatedAt": "2026-05-22T19:24:42.869Z"
+    },
+    "plan": {
+      "services": [
+        {
+          "category": "sanctions",
+          "resource": "https://api.anchor-x402.com/v1/screen",
+          "priceUsdc": 0.001,
+          "rationale": "Only candidate with a confirmed 0% failure rate; matches the wallet-screening category intent, has adequate inputInfoCompleteness (2/3), and is the lowest price ($0.001) among tested options."
+        },
+        {
+          "category": "labels",
+          "resource": "https://orbisapi.com/proxy/wallet-label-classifier-api-56ce3c",
+          "priceUsdc": 0.005,
+          "rationale": "All higher-completeness candidates (indices 5) have 100% failure rate; among the untested 1/3-completeness survivors, index 0 (wallet-label-classifier) best matches the labeling category intent at a reasonable $0.005 price."
+        },
+        {
+          "category": "onchain_history",
+          "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+          "priceUsdc": 0.0039,
+          "rationale": "Index 9 has 100% failure rate so is skipped; index 2 is the only remaining candidate with inputInfoCompleteness of 2/3, directly exposing the address as a path parameter, at the lowest price ($0.0039) among 2/3-completeness options."
+        },
+        {
+          "category": "web_sentiment",
+          "resource": "https://orbisapi.com/proxy/web-scrape-social-api-eeb761",
+          "priceUsdc": 0.005,
+          "rationale": "Indices 0 and 3 have 100% failure rate; among the two untested survivors (1 and 2), index 1 (web-scrape-social) more directly maps to sentiment/reputation signals for a wallet risk run, and both are equal on price and completeness."
+        },
+        {
+          "category": "contract_analysis",
+          "resource": "https://orbisapi.com/proxy/smart-contract-auditor-api-0061a9",
+          "priceUsdc": 0.005,
+          "rationale": "Index 9 is the only contract-analysis candidate with a confirmed 0% failure rate, making it the clear winner on the strongest selection signal despite its 1/3 completeness."
+        }
+      ]
+    },
+    "receipts": [
+      {
+        "category": "sanctions",
+        "resource": "https://api.anchor-x402.com/v1/screen",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.001,
+        "durationMs": 3211,
+        "paid": true
+      },
+      {
+        "category": "labels",
+        "resource": "https://orbisapi.com/proxy/wallet-label-classifier-api-56ce3c",
+        "status": "error",
+        "adapterPath": "llm",
+        "amountUsdc": 0,
+        "durationMs": 17509,
+        "paid": false,
+        "error": "agnicFetch [Not found]: Not Found"
+      },
+      {
+        "category": "onchain_history",
+        "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.0039,
+        "durationMs": 12900,
+        "paid": true
+      },
+      {
+        "category": "web_sentiment",
+        "resource": "https://orbisapi.com/proxy/web-scrape-social-api-eeb761",
+        "status": "error",
+        "adapterPath": "llm",
+        "amountUsdc": 0,
+        "durationMs": 21810,
+        "paid": false,
+        "error": "agnicFetch [Not found]: Not Found"
+      },
+      {
+        "category": "contract_analysis",
+        "resource": "https://orbisapi.com/proxy/smart-contract-auditor-api-0061a9",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.005,
+        "durationMs": 10748,
+        "paid": true
+      }
+    ],
+    "walletNetwork": "base",
+    "totalSpentUsdc": 0.009899999999999999
+  }
+}
