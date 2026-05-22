@@ -27,9 +27,26 @@ async function fetchBalance(
   }
 }
 
+// Process-wide cache for the detected wallet network. The agnic /api/balance
+// endpoint is aggressively rate-limited (15-minute cooldown after a small
+// burst); since the funded network doesn't change between requests, cache the
+// result for the lifetime of the process.
+let cachedNetwork: WalletNetwork | null = null;
+const NETWORK_CACHE_TTL_MS = 5 * 60_000; // 5 min — short enough to pick up funding changes
+let cachedAt = 0;
+
+export function _resetNetworkCacheForTests() {
+  cachedNetwork = null;
+  cachedAt = 0;
+}
+
 export async function detectWalletNetwork(
   fetchFn: typeof globalThis.fetch = globalThis.fetch,
 ): Promise<WalletNetwork> {
+  if (cachedNetwork && Date.now() - cachedAt < NETWORK_CACHE_TTL_MS) {
+    return cachedNetwork;
+  }
+
   const apiKey = Deno.env.get("AGNIC_API_KEY");
   if (!apiKey) throw new Error("AGNIC_API_KEY not set");
 
@@ -41,13 +58,20 @@ export async function detectWalletNetwork(
   const mainnetUsdc = mainnet ? parseFloat(mainnet.usdcBalance) : 0;
   const sepoliaUsdc = sepolia ? parseFloat(sepolia.usdcBalance) : 0;
 
-  if (mainnetUsdc > 0) return "base";
-  if (sepoliaUsdc > 0) return "base-sepolia";
+  let result: WalletNetwork | null = null;
+  if (mainnetUsdc > 0) result = "base";
+  else if (sepoliaUsdc > 0) result = "base-sepolia";
 
-  throw new WalletUnfundedError(
-    mainnet?.address ?? null,
-    sepolia?.address ?? null,
-  );
+  if (!result) {
+    throw new WalletUnfundedError(
+      mainnet?.address ?? null,
+      sepolia?.address ?? null,
+    );
+  }
+
+  cachedNetwork = result;
+  cachedAt = Date.now();
+  return result;
 }
 
 export { toCaip2, type WalletNetwork } from "./types.ts";

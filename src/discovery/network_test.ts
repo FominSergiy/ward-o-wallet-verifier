@@ -1,6 +1,11 @@
 import { assertEquals, assertRejects } from "@std/assert";
-import { detectWalletNetwork, toCaip2 } from "./network.ts";
+import { _resetNetworkCacheForTests, detectWalletNetwork, toCaip2 } from "./network.ts";
 import { WalletUnfundedError } from "./types.ts";
+
+// Tests assume a fresh cache state for each case.
+function resetCache() {
+  _resetNetworkCacheForTests();
+}
 
 function mockBalance(args: {
   mainnetUsdc: string;
@@ -40,6 +45,7 @@ function mockBalance(args: {
 }
 
 Deno.test("detectWalletNetwork prefers mainnet when both wallets funded", async () => {
+  resetCache();
   Deno.env.set("AGNIC_API_KEY", "k");
   try {
     const result = await detectWalletNetwork(
@@ -52,6 +58,7 @@ Deno.test("detectWalletNetwork prefers mainnet when both wallets funded", async 
 });
 
 Deno.test("detectWalletNetwork returns sepolia when only sepolia funded", async () => {
+  resetCache();
   Deno.env.set("AGNIC_API_KEY", "k");
   try {
     const result = await detectWalletNetwork(
@@ -64,6 +71,7 @@ Deno.test("detectWalletNetwork returns sepolia when only sepolia funded", async 
 });
 
 Deno.test("detectWalletNetwork returns base when only mainnet funded", async () => {
+  resetCache();
   Deno.env.set("AGNIC_API_KEY", "k");
   try {
     const result = await detectWalletNetwork(
@@ -76,6 +84,7 @@ Deno.test("detectWalletNetwork returns base when only mainnet funded", async () 
 });
 
 Deno.test("detectWalletNetwork throws WalletUnfundedError when neither funded", async () => {
+  resetCache();
   Deno.env.set("AGNIC_API_KEY", "k");
   try {
     await assertRejects(
@@ -110,6 +119,7 @@ Deno.test("detectWalletNetwork throws WalletUnfundedError when neither funded", 
 });
 
 Deno.test("detectWalletNetwork throws when AGNIC_API_KEY missing", async () => {
+  resetCache();
   Deno.env.delete("AGNIC_API_KEY");
   await assertRejects(
     () => detectWalletNetwork(),

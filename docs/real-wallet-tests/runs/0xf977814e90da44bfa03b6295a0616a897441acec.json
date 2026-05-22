@@ -1,0 +1,180 @@
+{
+  "test": {
+    "address": "0xf977814e90da44bfa03b6295a0616a897441acec",
+    "chain": "eth",
+    "label": "Binance Hot Wallet 20",
+    "category": "Verified exchange",
+    "expected": "safe_to_transact",
+    "sourceUrl": "https://etherscan.io/address/0xf977814e90da44bfa03b6295a0616a897441acec"
+  },
+  "metrics": {
+    "address": "0xf977814e90da44bfa03b6295a0616a897441acec",
+    "label": "Binance Hot Wallet 20",
+    "expected": "safe_to_transact",
+    "actualVerdict": "safe_to_transact",
+    "actualConfidence": "high",
+    "verdictMatch": "match",
+    "match": true,
+    "primaryHits": 3,
+    "alternateRescues": 1,
+    "llmAdapterCount": 2,
+    "hardErrors": 1,
+    "errorMessages": [
+      "[onchain_history] agnicFetch [Target API is not X402 enabled]: Bad Request"
+    ],
+    "totalSpentUsdc": 0.016,
+    "latencyMs": 47891.908834,
+    "resolved": [
+      "sanctions",
+      "labels",
+      "web_sentiment",
+      "contract_analysis"
+    ],
+    "unresolved": [
+      "onchain_history"
+    ],
+    "httpStatus": 200
+  },
+  "raw": {
+    "verdict": {
+      "address": "0xf977814e90da44bfa03b6295a0616a897441acec",
+      "chain": "eth",
+      "safe": true,
+      "verdict": "safe_to_transact",
+      "confidence": "high",
+      "headline": "Safe to transact: this address is Binance Hot Wallet 20, a well-known centralized exchange wallet with no sanctions hits.",
+      "reasoning": "The sanctions check returned a clean result with no matches against the active sanctions corpus. Web sentiment evidence strongly identifies this address as 'Binance: Hot Wallet 20' on Blockscan, holding tens of billions of dollars across 24 chains — consistent with a major, publicly-known exchange hot wallet rather than a malicious actor. The labels and contract_analysis endpoints returned only API metadata (no specific risk labels or vulnerabilities), and on-chain history was unresolved, but the strong exchange identification combined with clean sanctions outweighs those gaps. Users should still always confirm the deposit address with their exchange before sending.",
+      "findings": [
+        {
+          "category": "sanctions",
+          "severity": "info",
+          "finding": "No matches against the active sanctions corpus (risk_level: low)."
+        },
+        {
+          "category": "labels",
+          "severity": "info",
+          "finding": "Label API returned only metadata; no specific risk or safety labels surfaced from this source."
+        },
+        {
+          "category": "web_sentiment",
+          "severity": "info",
+          "finding": "Multiple explorer sources (Blockscan) identify this address as 'Binance: Hot Wallet 20', a known centralized exchange wallet holding ~$40B across 24 chains."
+        },
+        {
+          "category": "contract_analysis",
+          "severity": "info",
+          "finding": "No contract vulnerabilities reported; address behaves as an EOA/exchange wallet, so contract analysis is not applicable."
+        },
+        {
+          "category": "onchain_history",
+          "severity": "low",
+          "finding": "On-chain history signal was unresolved by the data layer; not factored into the verdict."
+        }
+      ],
+      "coverage": {
+        "requested": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment",
+          "contract_analysis"
+        ],
+        "resolved": [
+          "sanctions",
+          "labels",
+          "web_sentiment",
+          "contract_analysis"
+        ],
+        "unresolved": [
+          "onchain_history"
+        ]
+      },
+      "totalSpentUsdc": 0.016,
+      "generatedAt": "2026-05-22T01:18:14.412Z"
+    },
+    "plan": {
+      "services": [
+        {
+          "category": "sanctions",
+          "resource": "https://mru-oracle.com/compliance/wallet",
+          "priceUsdc": 0.001,
+          "rationale": "Screens against 12,997+ sanctioned/blacklisted crypto addresses across the broadest set of lists (OFAC SDN, USDT/USDC Blacklist, Ransomwhere, OpenSanctions, UK OFSI) at the lowest tier price of $0.001, making it the strongest wallet-specific sanctions candidate."
+        },
+        {
+          "category": "labels",
+          "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
+          "priceUsdc": 0.005,
+          "rationale": "Explicitly labels crypto addresses as exchange, mixer, contract, or known entity — the clearest match to the 'labels' category intent — at a competitive $0.005 price with all qualityScores unknown."
+        },
+        {
+          "category": "onchain_history",
+          "resource": "https://orbisapi.com/proxy/wallet-balance-api-5575de/v1/transactions/:address",
+          "priceUsdc": 0.001,
+          "rationale": "Provides on-chain ETH & ERC20 transaction history at the lowest available price ($0.001), directly matching the category intent for a risk-verification run."
+        },
+        {
+          "category": "web_sentiment",
+          "resource": "https://blockrun.ai/api/v1/surf/search/web",
+          "priceUsdc": 0.005,
+          "rationale": "Broad web search across crypto sources is the best fit for surfacing wallet/entity web sentiment signals, and shares the same price tier as alternatives while being crypto-focused."
+        },
+        {
+          "category": "contract_analysis",
+          "resource": "https://orbisapi.com/proxy/smart-contract-audit-pro-api-eec894",
+          "priceUsdc": 0.005,
+          "rationale": "Combines vulnerability scanning, risk scoring, and an audit checklist in one purpose-built AI-agent tool at a low $0.005 price, offering the most comprehensive coverage for contract analysis."
+        }
+      ]
+    },
+    "receipts": [
+      {
+        "category": "sanctions",
+        "resource": "https://api.anchor-x402.com/v1/screen",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.001,
+        "durationMs": 3135,
+        "paid": true
+      },
+      {
+        "category": "labels",
+        "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.005,
+        "durationMs": 3584,
+        "paid": true
+      },
+      {
+        "category": "onchain_history",
+        "resource": "https://orbisapi.com/proxy/wallet-balance-api-5575de/balance/:address",
+        "status": "error",
+        "adapterPath": "llm",
+        "amountUsdc": 0,
+        "durationMs": 5324,
+        "paid": false,
+        "error": "agnicFetch [Target API is not X402 enabled]: Bad Request"
+      },
+      {
+        "category": "web_sentiment",
+        "resource": "https://blockrun.ai/api/v1/surf/search/web",
+        "status": "fallback_ok",
+        "adapterPath": "llm",
+        "amountUsdc": 0.005,
+        "durationMs": 19269,
+        "paid": true
+      },
+      {
+        "category": "contract_analysis",
+        "resource": "https://orbisapi.com/proxy/smart-contract-audit-pro-api-eec894",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.005,
+        "durationMs": 7885,
+        "paid": true
+      }
+    ],
+    "walletNetwork": "base",
+    "totalSpentUsdc": 0.016
+  }
+}

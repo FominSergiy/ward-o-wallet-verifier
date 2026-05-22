@@ -72,6 +72,29 @@ You MUST follow these per-signal weighting rules in order:
 Return ONLY the structured object that matches the schema.
 `.trim();
 
+// Findings from upstream services can be large (labels returns entity lists,
+// web_sentiment returns multi-page search hits). Cap per-category to keep the
+// prompt within Opus's working size — empirically large prompts trigger
+// "internal_error" upstream.
+const MAX_FINDING_CHARS = 3000;
+
+function truncateFindings(findings: Findings): Findings {
+  const out: Findings = {};
+  for (const [k, v] of Object.entries(findings)) {
+    const stringified = JSON.stringify(v);
+    if (stringified.length <= MAX_FINDING_CHARS) {
+      out[k as keyof Findings] = v;
+    } else {
+      out[k as keyof Findings] = {
+        __truncated: true,
+        __originalSize: stringified.length,
+        preview: stringified.slice(0, MAX_FINDING_CHARS) + "…[truncated]",
+      };
+    }
+  }
+  return out;
+}
+
 export async function synthesizeVerdict(
   input: SynthesisInput,
   opts: { llm?: LlmClient; model?: string } = {},
@@ -79,10 +102,12 @@ export async function synthesizeVerdict(
   const llm = opts.llm ?? defaultLlm;
   const model = opts.model ?? OPUS_MODEL;
 
+  const safeInput = { ...input, findings: truncateFindings(input.findings) };
+
   const prompt = `${PROMPT_PREAMBLE}
 
 Input:
-${JSON.stringify(input, null, 2)}
+${JSON.stringify(safeInput, null, 2)}
 
 The current ISO 8601 timestamp to use for generatedAt is: ${new Date().toISOString()}
 `.trim();

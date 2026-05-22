@@ -1,0 +1,180 @@
+{
+  "test": {
+    "address": "0xd90e2f925da726b50c4ed8d0fb90ad053324f31b",
+    "chain": "eth",
+    "label": "Tornado Cash router contract",
+    "category": "Mixer (smart contract)",
+    "expected": "do_not_transact",
+    "sourceUrl": "https://etherscan.io/address/0xd90e2f925da726b50c4ed8d0fb90ad053324f31b"
+  },
+  "metrics": {
+    "address": "0xd90e2f925da726b50c4ed8d0fb90ad053324f31b",
+    "label": "Tornado Cash router contract",
+    "expected": "do_not_transact",
+    "actualVerdict": "do_not_transact",
+    "actualConfidence": "high",
+    "verdictMatch": "match",
+    "match": true,
+    "primaryHits": 3,
+    "alternateRescues": 1,
+    "llmAdapterCount": 2,
+    "hardErrors": 1,
+    "errorMessages": [
+      "[onchain_history] agnicFetch [Target API is not X402 enabled]: Bad Request"
+    ],
+    "totalSpentUsdc": 0.016,
+    "latencyMs": 47719.960792,
+    "resolved": [
+      "sanctions",
+      "labels",
+      "web_sentiment",
+      "contract_analysis"
+    ],
+    "unresolved": [
+      "onchain_history"
+    ],
+    "httpStatus": 200
+  },
+  "raw": {
+    "verdict": {
+      "address": "0xd90e2f925da726b50c4ed8d0fb90ad053324f31b",
+      "chain": "eth",
+      "safe": false,
+      "verdict": "do_not_transact",
+      "confidence": "high",
+      "headline": "DO NOT TRANSACT: this address is on the OFAC SDN list as a sanctioned Tornado Cash address.",
+      "reasoning": "The sanctions check returned a confirmed hit against both the OFAC SDN list and the Tornado Cash designation, which is an automatic hard veto regardless of any other signal. Web search results corroborate this by referencing the August 2022 OFAC sanctioning of Tornado Cash addresses. Labels and contract_analysis endpoints returned only API metadata (no usable verdict), and onchain_history was unresolved, but none of these can override a confirmed sanctions match. Sending funds to this address would likely violate U.S. sanctions law.",
+      "findings": [
+        {
+          "category": "sanctions",
+          "severity": "critical",
+          "finding": "Confirmed match on OFAC SDN and Tornado Cash sanctions lists; risk level reported as high."
+        },
+        {
+          "category": "web_sentiment",
+          "severity": "high",
+          "finding": "Public web results directly tie this address to the OFAC-sanctioned Tornado Cash mixer."
+        },
+        {
+          "category": "labels",
+          "severity": "info",
+          "finding": "Labels endpoint returned only API metadata; no usable label data for this address."
+        },
+        {
+          "category": "contract_analysis",
+          "severity": "info",
+          "finding": "Contract analysis endpoint returned only API metadata; no vulnerability assessment available."
+        },
+        {
+          "category": "onchain_history",
+          "severity": "info",
+          "finding": "On-chain history was not resolved; however, sanctions match makes this signal moot."
+        }
+      ],
+      "coverage": {
+        "requested": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment",
+          "contract_analysis"
+        ],
+        "resolved": [
+          "sanctions",
+          "labels",
+          "web_sentiment",
+          "contract_analysis"
+        ],
+        "unresolved": [
+          "onchain_history"
+        ]
+      },
+      "totalSpentUsdc": 0.016,
+      "generatedAt": "2026-05-22T01:22:52.215Z"
+    },
+    "plan": {
+      "services": [
+        {
+          "category": "sanctions",
+          "resource": "https://mru-oracle.com/compliance/wallet",
+          "priceUsdc": 0.001,
+          "rationale": "Covers the broadest set of sanctions lists (12,997+ addresses across OFAC SDN, USDT/USDC blacklists, Ransomwhere, OpenSanctions, UK OFSI) at the lowest price tier of $0.001 USDC, making it the strongest wallet-focused sanctions screen available."
+        },
+        {
+          "category": "labels",
+          "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
+          "priceUsdc": 0.005,
+          "rationale": "Explicitly labels crypto addresses as exchange, mixer, contract, or known entity — the clearest match to the category intent — at a competitive $0.005 USDC price with all qualityScores unknown."
+        },
+        {
+          "category": "onchain_history",
+          "resource": "https://orbisapi.com/proxy/wallet-balance-api-5575de/v1/transactions/:address",
+          "priceUsdc": 0.001,
+          "rationale": "Provides ETH & ERC20 transaction history at the lowest price ($0.001 USDC) with a direct address-parameterized endpoint, making it the best cost-efficient fit for on-chain history retrieval."
+        },
+        {
+          "category": "web_sentiment",
+          "resource": "https://blockrun.ai/api/v1/surf/search/web",
+          "priceUsdc": 0.005,
+          "rationale": "Broad web search across crypto sources directly matches the need to surface wallet/entity sentiment signals, at a reasonable $0.005 USDC with all qualityScores unknown."
+        },
+        {
+          "category": "contract_analysis",
+          "resource": "https://orbisapi.com/proxy/smart-contract-audit-pro-api-eec894",
+          "priceUsdc": 0.005,
+          "rationale": "Combines vulnerability scanning, risk scoring, and an audit checklist in a single AI-agent-ready endpoint at only $0.005 USDC, offering the best feature breadth per dollar among all contract analysis candidates."
+        }
+      ]
+    },
+    "receipts": [
+      {
+        "category": "sanctions",
+        "resource": "https://api.anchor-x402.com/v1/screen",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.001,
+        "durationMs": 2763,
+        "paid": true
+      },
+      {
+        "category": "labels",
+        "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.005,
+        "durationMs": 3584,
+        "paid": true
+      },
+      {
+        "category": "onchain_history",
+        "resource": "https://orbisapi.com/proxy/wallet-balance-api-5575de/balance/:address",
+        "status": "error",
+        "adapterPath": "llm",
+        "amountUsdc": 0,
+        "durationMs": 5838,
+        "paid": false,
+        "error": "agnicFetch [Target API is not X402 enabled]: Bad Request"
+      },
+      {
+        "category": "web_sentiment",
+        "resource": "https://blockrun.ai/api/v1/surf/search/web",
+        "status": "fallback_ok",
+        "adapterPath": "llm",
+        "amountUsdc": 0.005,
+        "durationMs": 19162,
+        "paid": true
+      },
+      {
+        "category": "contract_analysis",
+        "resource": "https://orbisapi.com/proxy/smart-contract-audit-pro-api-eec894",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.005,
+        "durationMs": 7782,
+        "paid": true
+      }
+    ],
+    "walletNetwork": "base",
+    "totalSpentUsdc": 0.016
+  }
+}

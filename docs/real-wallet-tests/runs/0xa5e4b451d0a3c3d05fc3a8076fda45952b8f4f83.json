@@ -1,0 +1,182 @@
+{
+  "test": {
+    "address": "0xa5e4b451d0a3c3d05fc3a8076fda45952b8f4f83",
+    "chain": "eth",
+    "label": "Pink Drainer scam wallet",
+    "category": "Scam / drainer",
+    "expected": "do_not_transact",
+    "sourceUrl": "https://etherscan.io/address/0xa5e4b451d0a3c3d05fc3a8076fda45952b8f4f83"
+  },
+  "metrics": {
+    "address": "0xa5e4b451d0a3c3d05fc3a8076fda45952b8f4f83",
+    "label": "Pink Drainer scam wallet",
+    "expected": "do_not_transact",
+    "actualVerdict": "do_not_transact",
+    "actualConfidence": "medium",
+    "verdictMatch": "match",
+    "match": true,
+    "primaryHits": 2,
+    "alternateRescues": 1,
+    "llmAdapterCount": 3,
+    "hardErrors": 2,
+    "errorMessages": [
+      "[onchain_history] agnicFetch [Target API is not X402 enabled]: Bad Request",
+      "[contract_analysis] agnicFetch [Too many requests from this IP, please try again later.]: Too Many Requests"
+    ],
+    "totalSpentUsdc": 0.011,
+    "latencyMs": 55405.66508399998,
+    "resolved": [
+      "sanctions",
+      "labels",
+      "web_sentiment"
+    ],
+    "unresolved": [
+      "onchain_history",
+      "contract_analysis"
+    ],
+    "httpStatus": 200
+  },
+  "raw": {
+    "verdict": {
+      "address": "0xa5e4b451d0a3c3d05fc3a8076fda45952b8f4f83",
+      "chain": "eth",
+      "safe": false,
+      "verdict": "do_not_transact",
+      "confidence": "medium",
+      "headline": "Do not transact: web sentiment surfaces a MistTrack alert tied to this address despite a clean sanctions check.",
+      "reasoning": "Sanctions screening returned a clean result, which is a strong positive baseline. However, web sentiment search results include a MistTrack (a well-known crypto investigations service) post that appears to be alerting on this address — a credible negative signal that warrants caution. The labels endpoint returned no usable label data, and both onchain_history and contract_analysis were unresolved, so we cannot corroborate or refute the MistTrack signal with activity patterns. Given the presence of an investigative-source alert combined with missing on-chain context, the prudent verdict is do_not_transact at medium confidence.",
+      "findings": [
+        {
+          "category": "sanctions",
+          "severity": "info",
+          "finding": "No matches against active sanctions lists (checked against public OFAC/EU/UK corpus)."
+        },
+        {
+          "category": "labels",
+          "severity": "info",
+          "finding": "Label API returned only schema/endpoint metadata; no usable labels for this address."
+        },
+        {
+          "category": "web_sentiment",
+          "severity": "high",
+          "finding": "Web results include a MistTrack (crypto AML investigator) post that appears to flag/alert on this address; Block Analitica/Spark profile shows no DeFi activity."
+        },
+        {
+          "category": "onchain_history",
+          "severity": "low",
+          "finding": "On-chain history was not resolved; cannot assess wallet age, transaction patterns, or balance."
+        },
+        {
+          "category": "contract_analysis",
+          "severity": "info",
+          "finding": "Contract analysis unresolved; address type (EOA vs contract) not confirmed."
+        }
+      ],
+      "coverage": {
+        "requested": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment",
+          "contract_analysis"
+        ],
+        "resolved": [
+          "sanctions",
+          "labels",
+          "web_sentiment"
+        ],
+        "unresolved": [
+          "onchain_history",
+          "contract_analysis"
+        ]
+      },
+      "totalSpentUsdc": 0.011,
+      "generatedAt": "2026-05-22T01:25:16.698Z"
+    },
+    "plan": {
+      "services": [
+        {
+          "category": "sanctions",
+          "resource": "https://mru-oracle.com/compliance/wallet",
+          "priceUsdc": 0.001,
+          "rationale": "Covers the broadest set of crypto-specific sanction lists (12,997+ addresses across OFAC SDN, USDT/USDC blacklists, Ransomwhere, OpenSanctions, UK OFSI) at the lowest price tier of $0.001, making it the strongest wallet-focused sanctions screen."
+        },
+        {
+          "category": "labels",
+          "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
+          "priceUsdc": 0.005,
+          "rationale": "Directly labels crypto addresses as exchange, mixer, contract, or known entity — the clearest match to the 'labels' category intent — at a competitive $0.005 price with all qualityScores unknown."
+        },
+        {
+          "category": "onchain_history",
+          "resource": "https://orbisapi.com/proxy/wallet-balance-api-5575de",
+          "priceUsdc": 0.001,
+          "rationale": "Provides ETH & ERC20 wallet balances and transaction history at the lowest available price ($0.001) with a description that squarely matches the onchain history intent."
+        },
+        {
+          "category": "web_sentiment",
+          "resource": "https://blockrun.ai/api/v1/surf/search/web",
+          "priceUsdc": 0.005,
+          "rationale": "Broad web search across crypto sources best serves wallet risk web-sentiment checks, at a mid-tier $0.005 price with all qualityScores equal."
+        },
+        {
+          "category": "contract_analysis",
+          "resource": "https://orbisapi.com/proxy/smart-contract-risk-api-e05d1a/parse",
+          "priceUsdc": 0.001,
+          "rationale": "Scores smart contract risk from audit finding patterns at the lowest price ($0.001) among the contract analysis candidates, offering a focused risk-scoring output appropriate for a risk-verification run."
+        }
+      ]
+    },
+    "receipts": [
+      {
+        "category": "sanctions",
+        "resource": "https://api.anchor-x402.com/v1/screen",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.001,
+        "durationMs": 2762,
+        "paid": true
+      },
+      {
+        "category": "labels",
+        "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.005,
+        "durationMs": 13203,
+        "paid": true
+      },
+      {
+        "category": "onchain_history",
+        "resource": "https://orbisapi.com/proxy/wallet-balance-api-5575de/v1/tokens/:address",
+        "status": "error",
+        "adapterPath": "llm",
+        "amountUsdc": 0,
+        "durationMs": 7577,
+        "paid": false,
+        "error": "agnicFetch [Target API is not X402 enabled]: Bad Request"
+      },
+      {
+        "category": "web_sentiment",
+        "resource": "https://blockrun.ai/api/v1/surf/search/web",
+        "status": "fallback_ok",
+        "adapterPath": "llm",
+        "amountUsdc": 0.005,
+        "durationMs": 14536,
+        "paid": true
+      },
+      {
+        "category": "contract_analysis",
+        "resource": "https://orbisapi.com/proxy/smart-contract-auditor-api-0061a9",
+        "status": "error",
+        "adapterPath": "llm",
+        "amountUsdc": 0,
+        "durationMs": 3207,
+        "paid": false,
+        "error": "agnicFetch [Too many requests from this IP, please try again later.]: Too Many Requests"
+      }
+    ],
+    "walletNetwork": "base",
+    "totalSpentUsdc": 0.011
+  }
+}
