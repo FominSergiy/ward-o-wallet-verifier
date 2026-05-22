@@ -12,7 +12,17 @@ export interface ServiceHealth {
   err: number;
   lastSeen: string;
   lastError?: string;
+  lastErrorCode?: string;
 }
+
+// Error codes that signal a durable config-level mismatch for a specific
+// service (not a transient failure or a global state). A service flagged
+// with one of these has consistently failed under its catalog-advertised
+// price and should be skipped by the ranker until the health store is
+// explicitly reset.
+const DURABLE_BLOCK_CODES = new Set([
+  "payment_exceeds_max",
+]);
 
 export type HealthRecord = Record<string, ServiceHealth>;
 
@@ -67,7 +77,11 @@ export function recordOk(resource: string): void {
   writeHealth(all);
 }
 
-export function recordError(resource: string, msg: string): void {
+export function recordError(
+  resource: string,
+  msg: string,
+  code?: string,
+): void {
   if (!ENABLED) return;
   const all = readHealth();
   const cur = all[resource] ?? { ok: 0, err: 0, lastSeen: "" };
@@ -76,8 +90,21 @@ export function recordError(resource: string, msg: string): void {
     err: cur.err + 1,
     lastSeen: new Date().toISOString(),
     lastError: msg.slice(0, 200),
+    lastErrorCode: code,
   };
   writeHealth(all);
+}
+
+/**
+ * Returns true if a resource has previously failed with an error code that
+ * signals a durable config mismatch (e.g. catalog-vs-runtime price drift on
+ * an x402 upstream). Used by the ranker to skip services that consistently
+ * cannot be paid for under their advertised price.
+ */
+export function isDurablyBlocked(resource: string): boolean {
+  const stats = readHealth()[resource];
+  if (!stats?.lastErrorCode) return false;
+  return DURABLE_BLOCK_CODES.has(stats.lastErrorCode);
 }
 
 /**

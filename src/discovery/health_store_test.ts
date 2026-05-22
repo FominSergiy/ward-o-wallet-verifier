@@ -2,6 +2,7 @@ import { assertEquals } from "@std/assert";
 import {
   _resetHealthStoreForTests,
   failureRate,
+  isDurablyBlocked,
   readHealth,
   recordError,
   recordOk,
@@ -78,5 +79,30 @@ Deno.test("recordError truncates very long error messages", () => {
     recordError("https://svc.q", longMsg);
     const stats = readHealth()["https://svc.q"];
     assertEquals(stats?.lastError?.length, 200);
+  });
+});
+
+Deno.test("recordError persists lastErrorCode when provided", () => {
+  withTempStore(() => {
+    recordError("https://svc.p", "Payment Required", "payment_exceeds_max");
+    const stats = readHealth()["https://svc.p"];
+    assertEquals(stats?.lastErrorCode, "payment_exceeds_max");
+  });
+});
+
+Deno.test("isDurablyBlocked returns true after payment_exceeds_max", () => {
+  withTempStore(() => {
+    recordError("https://svc.blocked", "Payment Required", "payment_exceeds_max");
+    assertEquals(isDurablyBlocked("https://svc.blocked"), true);
+  });
+});
+
+Deno.test("isDurablyBlocked returns false for transient/generic errors", () => {
+  withTempStore(() => {
+    recordError("https://svc.transient", "boom", "upstream_500");
+    recordError("https://svc.nocode", "boom");
+    assertEquals(isDurablyBlocked("https://svc.transient"), false);
+    assertEquals(isDurablyBlocked("https://svc.nocode"), false);
+    assertEquals(isDurablyBlocked("https://svc.unseen"), false);
   });
 });

@@ -16,6 +16,8 @@ export interface ServiceInvocationOutcome {
   data: unknown | null;
   status: "ok" | "fallback_ok" | "error";
   error?: string;
+  /** AgnicFetchError code when the error came from the Agnic gateway. */
+  errorCode?: string;
   amountUsdc: number;
   durationMs: number;
   paid: boolean;
@@ -98,6 +100,7 @@ function errorOutcome(
   message: string,
   start: number,
   adapterPath: "pattern" | "llm",
+  errorCode?: string,
 ): ServiceInvocationOutcome {
   return {
     category: service.category,
@@ -105,6 +108,7 @@ function errorOutcome(
     data: null,
     status: "error",
     error: message,
+    errorCode,
     amountUsdc: 0,
     durationMs: Date.now() - start,
     paid: false,
@@ -167,7 +171,7 @@ export async function invokeRankedService(
       lastError = e;
       // Hard errors short-circuit — no point trying more pattern shapes.
       if (e instanceof AgnicFetchError && !isUpstreamInputError(e)) {
-        return errorOutcome(service, e.message, start, "pattern");
+        return errorOutcome(service, e.message, start, "pattern", e.code);
       }
       // Otherwise continue to next shape (if any).
     }
@@ -196,7 +200,8 @@ export async function invokeRankedService(
     return okOutcome(service, r, start, "fallback_ok", "llm");
   } catch (e2) {
     const msg = (e2 as Error).message;
+    const code = e2 instanceof AgnicFetchError ? e2.code : undefined;
     console.error(`[invoke] both adapters failed for ${service.resource}: ${msg}`);
-    return errorOutcome(service, msg, start, "llm");
+    return errorOutcome(service, msg, start, "llm", code);
   }
 }

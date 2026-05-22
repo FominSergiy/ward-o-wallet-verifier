@@ -288,6 +288,84 @@ Deno.test("rankServices leaves inputInfo undefined when absent", async () => {
   assertEquals(out[0].inputInfo, undefined);
 });
 
+Deno.test("rankServices filters durably-blocked candidates from the rerank prompt", async () => {
+  await withTempHealthStore(async () => {
+    // Seed: one service durably blocked, one healthy.
+    recordError(
+      "https://blocked.example",
+      "Payment Required",
+      "payment_exceeds_max",
+    );
+    const candidates: DiscoveryCandidatesByCategory = {
+      walletNetwork: "base",
+      candidates: {
+        sanctions: [
+          entry({ resource: "https://blocked.example", amount: "1000" }),
+          entry({ resource: "https://healthy.example", amount: "1000" }),
+        ],
+      },
+      errors: {},
+    };
+    let captured = "";
+    const llm: LlmClient = {
+      generateStructured<T>(
+        schema: z.ZodType<T>,
+        prompt: string,
+      ): Promise<T> {
+        captured = prompt;
+        return Promise.resolve(
+          schema.parse({
+            // Healthy is now at index 0 after filtering.
+            selections: [{ category: "sanctions", resourceIndex: 0, rationale: "r" }],
+          }),
+        );
+      },
+    };
+    const out = await rankServices(candidates, llm);
+    assertEquals(captured.includes("https://blocked.example"), false);
+    assertEquals(captured.includes("https://healthy.example"), true);
+    assertEquals(out.length, 1);
+    assertEquals(out[0].resource, "https://healthy.example");
+  });
+});
+
+Deno.test("rankServices re-includes durably-blocked candidates if filtering empties a category", async () => {
+  await withTempHealthStore(async () => {
+    recordError(
+      "https://only-option.example",
+      "Payment Required",
+      "payment_exceeds_max",
+    );
+    const candidates: DiscoveryCandidatesByCategory = {
+      walletNetwork: "base",
+      candidates: {
+        sanctions: [
+          entry({ resource: "https://only-option.example", amount: "1000" }),
+        ],
+      },
+      errors: {},
+    };
+    let captured = "";
+    const llm: LlmClient = {
+      generateStructured<T>(
+        schema: z.ZodType<T>,
+        prompt: string,
+      ): Promise<T> {
+        captured = prompt;
+        return Promise.resolve(
+          schema.parse({
+            selections: [{ category: "sanctions", resourceIndex: 0, rationale: "r" }],
+          }),
+        );
+      },
+    };
+    const out = await rankServices(candidates, llm);
+    assertEquals(captured.includes("https://only-option.example"), true);
+    assertEquals(out.length, 1);
+    assertEquals(out[0].resource, "https://only-option.example");
+  });
+});
+
 Deno.test("rankServices skips categories missing from LLM output", async () => {
   const candidates: DiscoveryCandidatesByCategory = {
     walletNetwork: "base",
