@@ -27,6 +27,33 @@ async function fetchBalance(
   }
 }
 
+export interface AgnicBudget {
+  usdcBalance: number;
+  creditBalance: number;
+  totalBalance: number;
+}
+
+/**
+ * One-shot Agnic budget lookup against `base` mainnet. Used by the
+ * /verify-agent pre-flight check to short-circuit requests when the
+ * daily cap is exhausted. Bypasses the network-detection cache (different
+ * freshness needs). Returns null if AGNIC_API_KEY is unset or the call
+ * itself fails — callers should treat null as "couldn't determine, proceed".
+ */
+export async function fetchAgnicBudget(
+  fetchFn: typeof globalThis.fetch = globalThis.fetch,
+): Promise<AgnicBudget | null> {
+  const apiKey = Deno.env.get("AGNIC_API_KEY");
+  if (!apiKey) return null;
+  const r = await fetchBalance("base", apiKey, fetchFn);
+  if (!r) return null;
+  return {
+    usdcBalance: parseFloat(r.usdcBalance),
+    creditBalance: parseFloat(r.creditBalance),
+    totalBalance: parseFloat(r.totalBalance),
+  };
+}
+
 // Process-wide cache for the detected wallet network. The agnic /api/balance
 // endpoint is aggressively rate-limited (15-minute cooldown after a small
 // burst); since the funded network doesn't change between requests, cache the

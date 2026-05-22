@@ -103,7 +103,7 @@ async function invokeWithAlternates(
       }
       return outcome;
     }
-    recordError(svc.resource, outcome.error ?? "(unknown)");
+    recordError(svc.resource, outcome.error ?? "(unknown)", outcome.errorCode);
     lastOutcome = outcome;
     if (isDomainLevelError(outcome.error)) {
       failedHosts.add(host);

@@ -1,6 +1,6 @@
 import type { Category } from "../agent/types.ts";
 import { defaultLlm, type LlmClient } from "../agent/llm.ts";
-import { failureRate } from "./health_store.ts";
+import { failureRate, isDurablyBlocked } from "./health_store.ts";
 import {
   extractBazaarInfo,
   RankedSelectionSchema,
@@ -128,17 +128,49 @@ function toRanked(
   };
 }
 
+/**
+ * Filter durably-blocked candidates per category. A service is durably blocked
+ * if it has previously failed with an error code that signals a config-level
+ * mismatch (e.g. catalog-vs-runtime price drift on x402 upstreams). If
+ * filtering would empty a category, the blocked entries are re-included —
+ * better to try a known-bad service than to skip the category entirely.
+ */
+function filterDurablyBlocked(
+  candidates: Partial<Record<Category, DiscoveryEntry[]>>,
+): Partial<Record<Category, DiscoveryEntry[]>> {
+  const out: Partial<Record<Category, DiscoveryEntry[]>> = {};
+  for (const [cat, entries] of Object.entries(candidates) as [Category, DiscoveryEntry[]][]) {
+    const kept = entries.filter((e) => !isDurablyBlocked(e.resource));
+    if (kept.length === 0 && entries.length > 0) {
+      console.warn(
+        `[rank] all candidates for ${cat} are durably blocked — re-including them as degraded fallback`,
+      );
+      out[cat] = entries;
+    } else {
+      if (kept.length < entries.length) {
+        const dropped = entries.length - kept.length;
+        console.warn(
+          `[rank] filtered ${dropped} durably-blocked candidate(s) from ${cat}`,
+        );
+      }
+      out[cat] = kept;
+    }
+  }
+  return out;
+}
+
 export async function rankServices(
   candidates: DiscoveryCandidatesByCategory,
   llm: LlmClient = defaultLlm,
 ): Promise<RankedService[]> {
   const network = candidates.walletNetwork === "base" ? "eip155:8453" : "eip155:84532";
-  const entries = Object.entries(candidates.candidates) as [Category, DiscoveryEntry[]][];
+  const filteredCandidates = filterDurablyBlocked(candidates.candidates);
+  const entries = Object.entries(filteredCandidates) as [Category, DiscoveryEntry[]][];
   if (entries.length === 0) return [];
 
   let selection: RankedSelection | null = null;
   try {
-    const prompt = buildPrompt(candidates.candidates, network);
+    const prompt = buildPrompt(filteredCandidates, network);
     selection = await llm.generateStructured(RankedSelectionSchema, prompt, {
       toolName: "select_services",
       toolDescription:
@@ -164,7 +196,7 @@ export async function rankServices(
 
   if (selection) {
     for (const s of selection.selections) {
-      const list = candidates.candidates[s.category];
+      const list = filteredCandidates[s.category];
       if (!list || s.resourceIndex < 0 || s.resourceIndex >= list.length) continue;
       out.push(toRanked(s.category, list[s.resourceIndex], network, s.rationale));
     }

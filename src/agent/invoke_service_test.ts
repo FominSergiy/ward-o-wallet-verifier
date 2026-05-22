@@ -189,11 +189,11 @@ Deno.test("invokeRankedService does not retry on insufficient_balance", async ()
   }
 });
 
-Deno.test("invokeRankedService tries POST fallback shapes before LLM adapter", async () => {
+Deno.test("invokeRankedService tries the single POST fallback shape before LLM adapter", async () => {
   setupAgnic();
   const orig = globalThis.fetch;
   const cap = captureConsole();
-  // Capture each body sent — fallback shapes should differ.
+  // Capture each body sent — primary and fallback should differ.
   const sentBodies: unknown[] = [];
   let calls = 0;
   globalThis.fetch = (_url, init) => {
@@ -206,20 +206,20 @@ Deno.test("invokeRankedService tries POST fallback shapes before LLM adapter", a
     } catch {
       sentBodies.push(null);
     }
-    // First 2 calls — return upstream 4xx so we try fallback shapes.
-    if (calls <= 2) {
+    // First call (primary) — return upstream 4xx so we try the fallback shape.
+    if (calls === 1) {
       return Promise.resolve(jsonResp(400, {
         error: "upstream_4xx",
         error_description: "wrong key name",
       }));
     }
-    // 3rd call succeeds.
+    // 2nd call (the single { wallet, chain } fallback) succeeds.
     return Promise.resolve(jsonResp(200, { sanctions_match: false }, {
       "X-Agnic-Paid": "true",
       "X-Agnic-Amount": "0.001",
     }));
   };
-  // A POST service so fallback shapes apply.
+  // A POST service so the fallback shape applies.
   const postService = svc({
     resource: "https://post.example/v1/check",
     inputInfo: { method: "POST", body: { address: "0xexample", chain: "base" } },
@@ -235,8 +235,8 @@ Deno.test("invokeRankedService tries POST fallback shapes before LLM adapter", a
     const out = await invokeRankedService(postService, ADDR, "base", { llm });
     assertEquals(out.status, "ok", `expected ok, got ${out.status}: ${out.error}`);
     assertEquals(out.adapterPath, "pattern");
-    // 3 calls = primary + 2 fallback shapes. LLM never invoked.
-    assertEquals(calls, 3);
+    // 2 calls = primary + 1 fallback shape. LLM never invoked.
+    assertEquals(calls, 2);
     assertEquals(llmCalls, 0);
     // At least one warn line about the fallback-shape success.
     assertEquals(
