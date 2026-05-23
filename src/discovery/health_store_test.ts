@@ -3,9 +3,12 @@ import {
   _resetHealthStoreForTests,
   failureRate,
   isDurablyBlocked,
+  isQualityDemoted,
   readHealth,
+  recordEmptyOnRich,
   recordError,
   recordOk,
+  resetEmptyOnRich,
 } from "./health_store.ts";
 
 function withTempStore(fn: () => void) {
@@ -111,5 +114,55 @@ Deno.test("isDurablyBlocked returns false for transient/generic errors", () => {
     assertEquals(isDurablyBlocked("https://svc.transient"), false);
     assertEquals(isDurablyBlocked("https://svc.nocode"), false);
     assertEquals(isDurablyBlocked("https://svc.unseen"), false);
+  });
+});
+
+Deno.test("recordEmptyOnRich accumulates and isQualityDemoted triggers after 3 hits", () => {
+  withTempStore(() => {
+    const r = "https://lbl.weak";
+    recordEmptyOnRich(r);
+    assertEquals(isQualityDemoted(r), false);
+    recordEmptyOnRich(r);
+    assertEquals(isQualityDemoted(r), false);
+    recordEmptyOnRich(r);
+    assertEquals(isQualityDemoted(r), true);
+  });
+});
+
+Deno.test("resetEmptyOnRich clears the counter and removes demotion", () => {
+  withTempStore(() => {
+    const r = "https://lbl.recovering";
+    recordEmptyOnRich(r);
+    recordEmptyOnRich(r);
+    recordEmptyOnRich(r);
+    assertEquals(isQualityDemoted(r), true);
+    resetEmptyOnRich(r);
+    assertEquals(isQualityDemoted(r), false);
+  });
+});
+
+Deno.test("isQualityDemoted is false for an untouched resource", () => {
+  withTempStore(() => {
+    assertEquals(isQualityDemoted("https://nobody-has-tested-this"), false);
+  });
+});
+
+Deno.test("isQualityDemoted is false when emptyOnRichAt is older than 7 days", () => {
+  withTempStore(() => {
+    const r = "https://lbl.stale";
+    recordEmptyOnRich(r);
+    recordEmptyOnRich(r);
+    recordEmptyOnRich(r);
+    // Manually backdate the timestamp to 8 days ago.
+    const stats = readHealth()[r];
+    stats.emptyOnRichAt = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000)
+      .toISOString();
+    const updated = readHealth();
+    updated[r] = stats;
+    Deno.writeTextFileSync(
+      Deno.env.get("HEALTH_STORE_PATH")!,
+      JSON.stringify(updated, null, 2),
+    );
+    assertEquals(isQualityDemoted(r), false);
   });
 });

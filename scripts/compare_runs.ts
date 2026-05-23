@@ -34,9 +34,12 @@ interface Aggregate {
   onchainResolvedCount: number;
 }
 
-const V1_DIR = "docs/real-wallet-tests/runs";
-const V2_DIR = "docs/real-wallet-tests/runs_v2";
-const OUT_PATH = "docs/real-wallet-tests/comparison.md";
+// v7 default: compare the current v6_3 baseline against the post-T1/T2/T3 run.
+// Override via env when comparing other generations.
+const V1_DIR = Deno.env.get("V1_DIR") ?? "docs/real-wallet-tests/runs_v6_3";
+const V2_DIR = Deno.env.get("V2_DIR") ?? "docs/real-wallet-tests/runs_v7";
+const OUT_PATH = Deno.env.get("OUT_PATH") ??
+  "docs/real-wallet-tests/comparison_v6_v7.md";
 
 function fmtPct(num: number, denom: number): string {
   if (denom === 0) return "n/a";

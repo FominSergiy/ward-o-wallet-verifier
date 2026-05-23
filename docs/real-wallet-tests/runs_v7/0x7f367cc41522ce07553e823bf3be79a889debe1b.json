@@ -1,0 +1,83 @@
+{
+  "test": {
+    "address": "0x7F367cC41522cE07553e823bf3be79A889DEbe1B",
+    "chain": "eth",
+    "label": "OFAC SDN Tornado Cash deposit",
+    "category": "OFAC-sanctioned (EOA)",
+    "expected": "do_not_transact",
+    "sourceUrl": "https://home.treasury.gov/policy-issues/financial-sanctions/recent-actions/20220808"
+  },
+  "metrics": {
+    "address": "0x7F367cC41522cE07553e823bf3be79A889DEbe1B",
+    "label": "OFAC SDN Tornado Cash deposit",
+    "expected": "do_not_transact",
+    "actualVerdict": "do_not_transact",
+    "actualConfidence": "high",
+    "verdictMatch": "match",
+    "match": true,
+    "primaryHits": 0,
+    "alternateRescues": 0,
+    "llmAdapterCount": 0,
+    "hardErrors": 0,
+    "errorMessages": [],
+    "totalSpentUsdc": 0,
+    "latencyMs": 2360.745292000007,
+    "resolved": [
+      "sanctions"
+    ],
+    "unresolved": [
+      "labels",
+      "onchain_history",
+      "web_sentiment",
+      "ens"
+    ],
+    "httpStatus": 200
+  },
+  "raw": {
+    "verdict": {
+      "address": "0x7F367cC41522cE07553e823bf3be79A889DEbe1B",
+      "chain": "eth",
+      "safe": false,
+      "verdict": "do_not_transact",
+      "confidence": "high",
+      "headline": "Do not transact — address is flagged by the Chainalysis on-chain sanctions oracle.",
+      "reasoning": "The Chainalysis sanctions oracle (0x40C57923924B5c5c5455c48D93317139ADDaC8fb) returned isSanctioned=true for this address on eth. This oracle is sourced from OFAC SDN and other government sanctions lists. The signal is deterministic and overrides all other evidence; downstream x402 service calls were skipped to avoid unnecessary spend.",
+      "findings": [
+        {
+          "category": "sanctions",
+          "severity": "critical",
+          "finding": "Chainalysis sanctions oracle returned isSanctioned=true at 0x40C57923924B5c5c5455c48D93317139ADDaC8fb."
+        }
+      ],
+      "coverage": {
+        "requested": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment",
+          "ens"
+        ],
+        "resolved": [
+          "sanctions"
+        ],
+        "unresolved": [
+          "labels",
+          "onchain_history",
+          "web_sentiment",
+          "ens"
+        ],
+        "not_applicable": [
+          "contract_analysis"
+        ]
+      },
+      "totalSpentUsdc": 0,
+      "generatedAt": "2026-05-23T19:50:09.820Z"
+    },
+    "plan": {
+      "services": []
+    },
+    "receipts": [],
+    "walletNetwork": "base",
+    "totalSpentUsdc": 0
+  }
+}

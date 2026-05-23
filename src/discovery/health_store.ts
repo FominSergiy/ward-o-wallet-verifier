@@ -13,6 +13,14 @@ export interface ServiceHealth {
   lastSeen: string;
   lastError?: string;
   lastErrorCode?: string;
+  // Number of consecutive calls where the service returned a payload with no
+  // recognizable entity attribution against a wallet that the rest of the
+  // signal said was well-known (rich on-chain history). Reset to 0 on the
+  // next non-empty response. Used to durably demote labelers whose coverage
+  // is provably weak — see invoke_all.ts for the detection logic and rank.ts
+  // for the demotion application.
+  emptyOnRich?: number;
+  emptyOnRichAt?: string;
 }
 
 // Error codes that signal a durable config-level mismatch for a specific
@@ -71,8 +79,8 @@ export function recordOk(resource: string): void {
   const all = readHealth();
   const cur = all[resource] ?? { ok: 0, err: 0, lastSeen: "" };
   all[resource] = {
+    ...cur,
     ok: cur.ok + 1,
-    err: cur.err,
     lastSeen: new Date().toISOString(),
   };
   writeHealth(all);
@@ -87,7 +95,7 @@ export function recordError(
   const all = readHealth();
   const cur = all[resource] ?? { ok: 0, err: 0, lastSeen: "" };
   all[resource] = {
-    ok: cur.ok,
+    ...cur,
     err: cur.err + 1,
     lastSeen: new Date().toISOString(),
     lastError: msg.slice(0, 200),
@@ -106,6 +114,52 @@ export function isDurablyBlocked(resource: string): boolean {
   const stats = readHealth()[resource];
   if (!stats?.lastErrorCode) return false;
   return DURABLE_BLOCK_CODES.has(stats.lastErrorCode);
+}
+
+// A labeler that returns empty payloads for ≥ this many rich-history wallets
+// in a row is considered to have provably weak coverage and gets durably
+// demoted in the next rerank. Threshold tuned to allow some genuine misses
+// (a brand-new but rich-on-paper wallet might legitimately be unlabeled).
+const QUALITY_DEMOTION_THRESHOLD = 3;
+// Demotion expires after this many ms (7 days). After the window, the service
+// gets a fresh chance — provider coverage may improve over time.
+const QUALITY_DEMOTION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+export function recordEmptyOnRich(resource: string): void {
+  if (!ENABLED) return;
+  const all = readHealth();
+  const cur = all[resource] ?? { ok: 0, err: 0, lastSeen: "" };
+  all[resource] = {
+    ...cur,
+    emptyOnRich: (cur.emptyOnRich ?? 0) + 1,
+    emptyOnRichAt: new Date().toISOString(),
+  };
+  writeHealth(all);
+}
+
+export function resetEmptyOnRich(resource: string): void {
+  if (!ENABLED) return;
+  const all = readHealth();
+  const cur = all[resource];
+  if (!cur || !cur.emptyOnRich) return;
+  all[resource] = { ...cur, emptyOnRich: 0 };
+  writeHealth(all);
+}
+
+/**
+ * Returns true if a labeler has accumulated ≥ QUALITY_DEMOTION_THRESHOLD
+ * empty-on-rich-history misses within the last QUALITY_DEMOTION_TTL_MS, and
+ * thus should be deprioritized in subsequent ranking runs. After the TTL
+ * window passes the demotion lifts automatically — provider coverage can
+ * improve and we want to give updated catalogs a fresh shot.
+ */
+export function isQualityDemoted(resource: string): boolean {
+  const stats = readHealth()[resource];
+  if (!stats?.emptyOnRich || !stats.emptyOnRichAt) return false;
+  if (stats.emptyOnRich < QUALITY_DEMOTION_THRESHOLD) return false;
+  const ageMs = Date.now() - Date.parse(stats.emptyOnRichAt);
+  if (Number.isNaN(ageMs) || ageMs > QUALITY_DEMOTION_TTL_MS) return false;
+  return true;
 }
 
 /**

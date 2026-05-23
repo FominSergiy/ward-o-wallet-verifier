@@ -1,0 +1,163 @@
+{
+  "test": {
+    "address": "0x2910543Af39abA0Cd09dBb2D50200b3E800A63D2",
+    "chain": "eth",
+    "label": "Kraken 4 hot wallet",
+    "category": "Verified exchange (EOA)",
+    "expected": "safe_to_transact",
+    "sourceUrl": "https://etherscan.io/address/0x2910543af39aba0cd09dbb2d50200b3e800a63d2"
+  },
+  "metrics": {
+    "address": "0x2910543Af39abA0Cd09dBb2D50200b3E800A63D2",
+    "label": "Kraken 4 hot wallet",
+    "expected": "safe_to_transact",
+    "actualVerdict": "safe_to_transact",
+    "actualConfidence": "medium",
+    "verdictMatch": "match",
+    "match": true,
+    "primaryHits": 4,
+    "alternateRescues": 0,
+    "llmAdapterCount": 0,
+    "hardErrors": 0,
+    "errorMessages": [],
+    "totalSpentUsdc": 0.0174,
+    "latencyMs": 40040.82841700001,
+    "resolved": [
+      "sanctions",
+      "labels",
+      "onchain_history",
+      "web_sentiment",
+      "ens"
+    ],
+    "unresolved": [],
+    "httpStatus": 200
+  },
+  "raw": {
+    "verdict": {
+      "address": "0x2910543Af39abA0Cd09dBb2D50200b3E800A63D2",
+      "chain": "eth",
+      "safe": true,
+      "verdict": "safe_to_transact",
+      "confidence": "medium",
+      "headline": "Safe to transact — sanctions screens are clean and no risk signals were detected on this active Ethereum wallet.",
+      "reasoning": "Both the Chainalysis on-chain oracle (sourced from OFAC SDN) and the x402 sanctions service returned clean results, satisfying the most important screening requirement with high trust. The address labeler returned no known entity and no negative tags (no scam/mixer/phisher markers), and the on-chain history shows a non-zero ETH balance, indicating a live wallet. Web sentiment returned no adverse hits and ENS is absent (neutral). With no negative signals across any category and two independent sanctions sources confirming clean status, the wallet is safe to send funds to, though confidence is held at medium because the address has no positive identifying labels or ENS to corroborate identity.",
+      "findings": [
+        {
+          "category": "sanctions",
+          "severity": "info",
+          "finding": "Chainalysis on-chain oracle and x402 sanctions service both report no match against active sanctions lists."
+        },
+        {
+          "category": "labels",
+          "severity": "info",
+          "finding": "No known label or entity attribution; no risk-related tags (scam/mixer/phisher) present."
+        },
+        {
+          "category": "onchain_history",
+          "severity": "info",
+          "finding": "Active wallet with a non-zero ETH balance (~0.00165 ETH); no negative behavioral indicators surfaced."
+        },
+        {
+          "category": "web_sentiment",
+          "severity": "info",
+          "finding": "No adverse web mentions (scam, hack, exploit, lawsuit) associated with this address."
+        },
+        {
+          "category": "ens",
+          "severity": "info",
+          "finding": "No ENS reverse record set for this address (neutral signal)."
+        }
+      ],
+      "coverage": {
+        "requested": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment",
+          "ens"
+        ],
+        "resolved": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment",
+          "ens"
+        ],
+        "unresolved": [],
+        "not_applicable": [
+          "contract_analysis"
+        ]
+      },
+      "totalSpentUsdc": 0.0174,
+      "generatedAt": "2026-05-23T19:48:22.851Z"
+    },
+    "plan": {
+      "services": [
+        {
+          "category": "sanctions",
+          "resource": "https://api.anchor-x402.com/v1/screen",
+          "priceUsdc": 0.001,
+          "rationale": "Resource 0 is the only sanctions candidate with a confirmed 0% failure rate AND inputInfoCompleteness of 2/3, at the lowest price ($0.001), making it the clear pick over untested or 100%-failing alternatives."
+        },
+        {
+          "category": "labels",
+          "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
+          "priceUsdc": 0.005,
+          "rationale": "Resource 1 is the only labels candidate with a confirmed 0% failure rate, which is the strongest signal; its description covers exchange/mixer/contract/known-entity attribution and it is priced competitively at $0.005."
+        },
+        {
+          "category": "onchain_history",
+          "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+          "priceUsdc": 0.0039,
+          "rationale": "Resource 1 is the only onchain_history candidate combining a confirmed 0% failure rate with inputInfoCompleteness of 2/3, making it clearly superior to all untested or lower-completeness peers."
+        },
+        {
+          "category": "web_sentiment",
+          "resource": "https://orbisapi.com/proxy/address-reputation-score-api-9d7eb2",
+          "priceUsdc": 0.0075,
+          "rationale": "Resource 2 has a confirmed 0% failure rate and its risk-score description (0–100 for any wallet) best matches sentiment/reputation intent; resource 0 also has 0% failure but resource 2's dedicated reputation-score framing is a better category fit, and resource 1 is disqualified by its 100% failure rate."
+        }
+      ]
+    },
+    "receipts": [
+      {
+        "category": "sanctions",
+        "resource": "https://api.anchor-x402.com/v1/screen",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.001,
+        "durationMs": 2882,
+        "paid": true
+      },
+      {
+        "category": "labels",
+        "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
+        "status": "ok",
+        "adapterPath": "pattern+subpath",
+        "amountUsdc": 0.005,
+        "durationMs": 11432,
+        "paid": true
+      },
+      {
+        "category": "onchain_history",
+        "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.0039,
+        "durationMs": 3227,
+        "paid": true
+      },
+      {
+        "category": "web_sentiment",
+        "resource": "https://orbisapi.com/proxy/address-reputation-score-api-9d7eb2",
+        "status": "ok",
+        "adapterPath": "pattern+subpath",
+        "amountUsdc": 0.0075,
+        "durationMs": 12378,
+        "paid": true
+      }
+    ],
+    "walletNetwork": "base",
+    "totalSpentUsdc": 0.0174
+  }
+}

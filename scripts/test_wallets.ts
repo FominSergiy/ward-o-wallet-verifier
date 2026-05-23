@@ -49,6 +49,50 @@ const ADDRESSES: TestAddress[] = [
     expected: "do_not_transact",
     sourceUrl: "https://etherscan.io/address/0xd90e2f925da726b50c4ed8d0fb90ad053324f31b",
   },
+  // Added in v7 — expands coverage for: a 2nd CEX (Coinbase), a 3rd CEX
+  // (Kraken), a 2nd OFAC SDN address (Tornado Cash deposit) that should fire
+  // the Chainalysis oracle short-circuit, and an ENS-doxxed retail wallet
+  // (Nick Johnson, ENS founder) to exercise the new ENS resolver path.
+  {
+    address: "0x71660c4005BA85c37ccec55d0C4493E66Fe775d3",
+    chain: "eth",
+    label: "Coinbase 1 hot wallet",
+    category: "Verified exchange (EOA)",
+    expected: "safe_to_transact",
+    sourceUrl: "https://etherscan.io/address/0x71660c4005ba85c37ccec55d0c4493e66fe775d3",
+  },
+  {
+    address: "0x2910543Af39abA0Cd09dBb2D50200b3E800A63D2",
+    chain: "eth",
+    label: "Kraken 4 hot wallet",
+    category: "Verified exchange (EOA)",
+    expected: "safe_to_transact",
+    sourceUrl: "https://etherscan.io/address/0x2910543af39aba0cd09dbb2d50200b3e800a63d2",
+  },
+  {
+    address: "0x7F367cC41522cE07553e823bf3be79A889DEbe1B",
+    chain: "eth",
+    label: "OFAC SDN Tornado Cash deposit",
+    category: "OFAC-sanctioned (EOA)",
+    expected: "do_not_transact",
+    sourceUrl: "https://home.treasury.gov/policy-issues/financial-sanctions/recent-actions/20220808",
+  },
+  {
+    address: "0xb8c2C29ee19D8307cb7255e1Cd9CbDE883A267d5",
+    chain: "eth",
+    label: "Nick Johnson (nick.eth, ENS founder)",
+    category: "Safe / ENS-doxxed retail (EOA)",
+    expected: "safe_to_transact",
+    sourceUrl: "https://etherscan.io/address/0xb8c2c29ee19d8307cb7255e1cd9cbde883a267d5",
+  },
+  {
+    address: "0xAaBbCcDdEeFf00112233445566778899AaBbCcDd",
+    chain: "eth",
+    label: "Synthetic fresh wallet (no history)",
+    category: "Unknown / brand-new (EOA)",
+    expected: "insufficient_data",
+    sourceUrl: "n/a — synthetic checksum address with no on-chain history",
+  },
 ];
 
 const ENDPOINT = Deno.env.get("VERIFY_AGENT_URL") ??

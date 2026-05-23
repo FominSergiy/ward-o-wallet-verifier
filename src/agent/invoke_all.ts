@@ -4,7 +4,12 @@ import type {
   RankedService,
   WalletNetwork,
 } from "../discovery/types.ts";
-import { recordError, recordOk } from "../discovery/health_store.ts";
+import {
+  recordEmptyOnRich,
+  recordError,
+  recordOk,
+  resetEmptyOnRich,
+} from "../discovery/health_store.ts";
 import { fetchOnchainHistory } from "./onchain_viem.ts";
 import type { LlmClient } from "./llm.ts";
 import type { Category, Chain } from "./types.ts";
@@ -38,6 +43,69 @@ function hostOf(url: string): string {
 function isDomainLevelError(message: string | undefined): boolean {
   if (!message) return false;
   return DOMAIN_LEVEL_ERROR_PATTERNS.some((re) => re.test(message));
+}
+
+// Heuristic: does the on-chain history finding indicate a well-known wallet
+// that any reasonable labeler should have heard of? Used to gate the
+// quality-probe demotion — a labeler returning empty on a brand-new wallet is
+// not evidence of weak coverage, only on rich-history ones.
+const RICH_HISTORY_TX_COUNT = 100;
+
+function isRichHistory(history: unknown): boolean {
+  if (!history || typeof history !== "object") return false;
+  const obj = history as Record<string, unknown>;
+  const candidates = [obj.txCount, obj.transactionCount, obj.tx_count]
+    .filter((v) => typeof v === "number") as number[];
+  if (candidates.length === 0) return false;
+  return candidates.some((n) => n >= RICH_HISTORY_TX_COUNT);
+}
+
+// Description keywords that a meaningful label response should contain — same
+// shape as the rerank entity-attribution hint, plus the negative-signal words
+// the synthesis policy looks at. If a stringified response contains none of
+// these AND is small (< 200 chars of meaningful payload), we call it
+// "empty / unattributed" for quality-probe purposes.
+const LABEL_PAYLOAD_KEYWORDS = [
+  "exchange",
+  "binance",
+  "coinbase",
+  "kraken",
+  "bybit",
+  "okx",
+  "bitfinex",
+  "huobi",
+  "scam",
+  "mixer",
+  "tumbler",
+  "phisher",
+  "phishing",
+  "rugpull",
+  "fraud",
+  "hack",
+  "exploit",
+  "darknet",
+  "stolen",
+  "verified",
+  "protocol",
+  "dao",
+  "foundation",
+  "entity",
+  "name_tag",
+  "name tag",
+  "cluster",
+  "known_safe",
+  "attestation",
+];
+
+function isEmptyAttribution(data: unknown): boolean {
+  if (data === null || data === undefined) return true;
+  const stringified = JSON.stringify(data).toLowerCase();
+  // Trivially-empty container shapes — {}, [], { tags: [] }, etc.
+  if (stringified.length < 30) return true;
+  for (const kw of LABEL_PAYLOAD_KEYWORDS) {
+    if (stringified.includes(kw)) return false;
+  }
+  return true;
 }
 
 export type Findings = Partial<Record<Category, unknown>>;
@@ -233,6 +301,30 @@ export async function invokeAll(
         });
         // Leave the error outcome in place — coverage gap surfaces in synth.
       }
+    }
+  }
+
+  // Quality probe: if onchain_history says the wallet is rich (well-known) and
+  // the labels call came back empty/unattributed, record that as a quality
+  // miss. Persistent misses durably demote the labeler in subsequent rerank.
+  // See health_store.recordEmptyOnRich / isQualityDemoted for the policy.
+  const historyOutcome = outcomes.find((o) => o.category === "onchain_history");
+  const labelsOutcome = outcomes.find((o) => o.category === "labels");
+  if (
+    historyOutcome &&
+    (historyOutcome.status === "ok" ||
+      historyOutcome.status === "fallback_ok") &&
+    isRichHistory(historyOutcome.data) &&
+    labelsOutcome &&
+    (labelsOutcome.status === "ok" || labelsOutcome.status === "fallback_ok")
+  ) {
+    if (isEmptyAttribution(labelsOutcome.data)) {
+      console.warn(
+        `[invoke] labels service ${labelsOutcome.resource} returned empty attribution on rich-history wallet — recording quality miss`,
+      );
+      recordEmptyOnRich(labelsOutcome.resource);
+    } else {
+      resetEmptyOnRich(labelsOutcome.resource);
     }
   }
 

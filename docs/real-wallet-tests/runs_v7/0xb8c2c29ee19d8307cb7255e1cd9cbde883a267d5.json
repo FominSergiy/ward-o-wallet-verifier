@@ -1,0 +1,163 @@
+{
+  "test": {
+    "address": "0xb8c2C29ee19D8307cb7255e1Cd9CbDE883A267d5",
+    "chain": "eth",
+    "label": "Nick Johnson (nick.eth, ENS founder)",
+    "category": "Safe / ENS-doxxed retail (EOA)",
+    "expected": "safe_to_transact",
+    "sourceUrl": "https://etherscan.io/address/0xb8c2c29ee19d8307cb7255e1cd9cbde883a267d5"
+  },
+  "metrics": {
+    "address": "0xb8c2C29ee19D8307cb7255e1Cd9CbDE883A267d5",
+    "label": "Nick Johnson (nick.eth, ENS founder)",
+    "expected": "safe_to_transact",
+    "actualVerdict": "safe_to_transact",
+    "actualConfidence": "high",
+    "verdictMatch": "match",
+    "match": true,
+    "primaryHits": 4,
+    "alternateRescues": 0,
+    "llmAdapterCount": 0,
+    "hardErrors": 0,
+    "errorMessages": [],
+    "totalSpentUsdc": 0.0174,
+    "latencyMs": 37587.10304199997,
+    "resolved": [
+      "sanctions",
+      "labels",
+      "onchain_history",
+      "web_sentiment",
+      "ens"
+    ],
+    "unresolved": [],
+    "httpStatus": 200
+  },
+  "raw": {
+    "verdict": {
+      "address": "0xb8c2C29ee19D8307cb7255e1Cd9CbDE883A267d5",
+      "chain": "eth",
+      "safe": true,
+      "verdict": "safe_to_transact",
+      "confidence": "high",
+      "headline": "Safe to transact — wallet is ENS-doxxed as nick.eth with clean sanctions checks and a long-standing on-chain balance.",
+      "reasoning": "Both the Chainalysis on-chain oracle and the x402 sanctions service returned clean results, satisfying the sanctions requirement with high confidence. The address reverse-resolves to \"nick.eth\" via ENS, a publicly doxxed identity, which is strong positive evidence equivalent to a known-safe label. On-chain history shows a substantial ETH balance (~149.66 ETH), and no negative labels or web-sentiment hits were found. Contract analysis is not applicable (EOA).",
+      "findings": [
+        {
+          "category": "sanctions",
+          "severity": "info",
+          "finding": "Chainalysis on-chain oracle and x402 sanctions service both report no match against active sanctions lists."
+        },
+        {
+          "category": "labels",
+          "severity": "info",
+          "finding": "No known label or entity type assigned; no risk keywords present."
+        },
+        {
+          "category": "onchain_history",
+          "severity": "info",
+          "finding": "Wallet holds ~149.66 ETH, indicating an active, well-funded account."
+        },
+        {
+          "category": "web_sentiment",
+          "severity": "info",
+          "finding": "No adverse web mentions (scam, exploit, hack, lawsuit) surfaced."
+        },
+        {
+          "category": "ens",
+          "severity": "info",
+          "finding": "Address reverse-resolves to ENS name 'nick.eth' — publicly doxxed identity, strong positive signal."
+        }
+      ],
+      "coverage": {
+        "requested": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment",
+          "ens"
+        ],
+        "resolved": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment",
+          "ens"
+        ],
+        "unresolved": [],
+        "not_applicable": [
+          "contract_analysis"
+        ]
+      },
+      "totalSpentUsdc": 0.0174,
+      "generatedAt": "2026-05-23T19:52:03.574Z"
+    },
+    "plan": {
+      "services": [
+        {
+          "category": "sanctions",
+          "resource": "https://api.anchor-x402.com/v1/screen",
+          "priceUsdc": 0.001,
+          "rationale": "Resource 0 is the only candidate with a 0% failure rate AND inputInfoCompleteness of 2/3, making it the strongest pick; it matches the sanctions category description and has the lowest price among equally-complete options."
+        },
+        {
+          "category": "labels",
+          "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
+          "priceUsdc": 0.005,
+          "rationale": "Resource 1 is the only labels candidate with a confirmed 0% failure rate, which is the strongest signal; the description clearly matches the labeling category intent."
+        },
+        {
+          "category": "onchain_history",
+          "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+          "priceUsdc": 0.0039,
+          "rationale": "Resource 1 is the only onchain_history candidate with both a 0% failure rate and inputInfoCompleteness of 2/3, making it decisively the best choice."
+        },
+        {
+          "category": "web_sentiment",
+          "resource": "https://orbisapi.com/proxy/address-reputation-score-api-9d7eb2",
+          "priceUsdc": 0.0075,
+          "rationale": "Resource 2 has a 0% failure rate (resource 1 is disqualified at 100% failure); among the zero-failure candidates it has higher inputInfoCompleteness parity with resource 0 but a more specific risk-score description fitting wallet sentiment assessment, and resource 0's description is better suited to sanctions/risk rather than sentiment."
+        }
+      ]
+    },
+    "receipts": [
+      {
+        "category": "sanctions",
+        "resource": "https://api.anchor-x402.com/v1/screen",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.001,
+        "durationMs": 2770,
+        "paid": true
+      },
+      {
+        "category": "labels",
+        "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
+        "status": "ok",
+        "adapterPath": "pattern+subpath",
+        "amountUsdc": 0.005,
+        "durationMs": 10037,
+        "paid": true
+      },
+      {
+        "category": "onchain_history",
+        "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.0039,
+        "durationMs": 6773,
+        "paid": true
+      },
+      {
+        "category": "web_sentiment",
+        "resource": "https://orbisapi.com/proxy/address-reputation-score-api-9d7eb2",
+        "status": "ok",
+        "adapterPath": "pattern+subpath",
+        "amountUsdc": 0.0075,
+        "durationMs": 10034,
+        "paid": true
+      }
+    ],
+    "walletNetwork": "base",
+    "totalSpentUsdc": 0.0174
+  }
+}

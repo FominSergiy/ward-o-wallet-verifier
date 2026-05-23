@@ -4,6 +4,7 @@ import { rankServices } from "./rank.ts";
 import { mockLlm, type LlmClient } from "../agent/llm.ts";
 import {
   _resetHealthStoreForTests,
+  recordEmptyOnRich,
   recordError,
   recordOk,
 } from "./health_store.ts";
@@ -363,6 +364,143 @@ Deno.test("rankServices re-includes durably-blocked candidates if filtering empt
     assertEquals(captured.includes("https://only-option.example"), true);
     assertEquals(out.length, 1);
     assertEquals(out[0].resource, "https://only-option.example");
+  });
+});
+
+Deno.test("rankServices fallback prefers entity-attribution descriptions for labels (tie-break)", async () => {
+  await withTempHealthStore(async () => {
+    const plain = entry({
+      resource: "https://lbl.plain",
+      amount: "1000",
+      quality: 5,
+      desc: "Generic labeler that returns wallet tags.",
+    });
+    const entityy = entry({
+      resource: "https://lbl.entity",
+      amount: "1000",
+      quality: 5,
+      desc: "Provides entity attribution, name tag and known address database for CEX hot wallet identification.",
+    });
+    const candidates: DiscoveryCandidatesByCategory = {
+      walletNetwork: "base",
+      candidates: { labels: [plain, entityy] },
+      errors: {},
+    };
+    // Force the fallback path by failing the LLM.
+    const failingLlm: LlmClient = {
+      generateStructured<T>(_s: z.ZodType<T>, _p: string): Promise<T> {
+        return Promise.reject(new Error("rerank down"));
+      },
+    };
+    const out = await rankServices(candidates, failingLlm);
+    assertEquals(out.length, 1);
+    assertEquals(out[0].resource, "https://lbl.entity");
+  });
+});
+
+Deno.test("rankServices fallback does NOT apply entity tie-break to non-labels categories", async () => {
+  await withTempHealthStore(async () => {
+    const plain = entry({
+      resource: "https://sanc.plain",
+      amount: "1000",
+      quality: 5,
+      desc: "Sanctions screening.",
+    });
+    const entityy = entry({
+      resource: "https://sanc.entity",
+      amount: "1000",
+      quality: 5,
+      desc: "Sanctions screening with entity attribution and name tag.",
+    });
+    const candidates: DiscoveryCandidatesByCategory = {
+      walletNetwork: "base",
+      candidates: { sanctions: [plain, entityy] },
+      errors: {},
+    };
+    const failingLlm: LlmClient = {
+      generateStructured<T>(_s: z.ZodType<T>, _p: string): Promise<T> {
+        return Promise.reject(new Error("rerank down"));
+      },
+    };
+    const out = await rankServices(candidates, failingLlm);
+    // First entry wins on the bare quality+price comparison (no entity bump).
+    assertEquals(out.length, 1);
+    assertEquals(out[0].resource, "https://sanc.plain");
+  });
+});
+
+Deno.test("rankServices surfaces an entity-attribution hint in the prompt for labels candidates", async () => {
+  await withTempHealthStore(async () => {
+    const plain = entry({
+      resource: "https://lbl.plain",
+      amount: "1000",
+      desc: "Generic labeler returning wallet tags.",
+    });
+    const entityy = entry({
+      resource: "https://lbl.entity",
+      amount: "1000",
+      desc: "Entity attribution with name tag for hot wallet identification.",
+    });
+    const candidates: DiscoveryCandidatesByCategory = {
+      walletNetwork: "base",
+      candidates: { labels: [plain, entityy] },
+      errors: {},
+    };
+    let captured = "";
+    const llm: LlmClient = {
+      generateStructured<T>(s: z.ZodType<T>, prompt: string): Promise<T> {
+        captured = prompt;
+        return Promise.resolve(
+          s.parse({
+            selections: [{ category: "labels", resourceIndex: 1, rationale: "r" }],
+          }),
+        );
+      },
+    };
+    await rankServices(candidates, llm);
+    // The entity-attribution candidate gets the hint annotation.
+    assertEquals(captured.includes("https://lbl.entity"), true);
+    assertEquals(
+      captured.includes("[hint: description mentions entity-attribution keywords]"),
+      true,
+    );
+  });
+});
+
+Deno.test("rankServices pushes quality-demoted candidates to the bottom of their category", async () => {
+  await withTempHealthStore(async () => {
+    // Demote one service via 3 empty-on-rich-history records.
+    const demoted = "https://lbl.demoted";
+    recordEmptyOnRich(demoted);
+    recordEmptyOnRich(demoted);
+    recordEmptyOnRich(demoted);
+
+    const candidates: DiscoveryCandidatesByCategory = {
+      walletNetwork: "base",
+      candidates: {
+        labels: [
+          entry({ resource: demoted, amount: "1000" }),
+          entry({ resource: "https://lbl.fresh", amount: "1000" }),
+        ],
+      },
+      errors: {},
+    };
+    let captured = "";
+    const llm: LlmClient = {
+      generateStructured<T>(s: z.ZodType<T>, prompt: string): Promise<T> {
+        captured = prompt;
+        return Promise.resolve(
+          s.parse({
+            selections: [{ category: "labels", resourceIndex: 0, rationale: "r" }],
+          }),
+        );
+      },
+    };
+    await rankServices(candidates, llm);
+    // Demoted resource appears AFTER the fresh one in the prompt.
+    const idxDemoted = captured.indexOf(demoted);
+    const idxFresh = captured.indexOf("https://lbl.fresh");
+    assertEquals(idxDemoted > idxFresh, true);
   });
 });
 

@@ -1,0 +1,163 @@
+{
+  "test": {
+    "address": "0xd90e2f925da726b50c4ed8d0fb90ad053324f31b",
+    "chain": "eth",
+    "label": "Tornado Cash router contract",
+    "category": "Mixer (smart contract)",
+    "expected": "do_not_transact",
+    "sourceUrl": "https://etherscan.io/address/0xd90e2f925da726b50c4ed8d0fb90ad053324f31b"
+  },
+  "metrics": {
+    "address": "0xd90e2f925da726b50c4ed8d0fb90ad053324f31b",
+    "label": "Tornado Cash router contract",
+    "expected": "do_not_transact",
+    "actualVerdict": "do_not_transact",
+    "actualConfidence": "high",
+    "verdictMatch": "match",
+    "match": true,
+    "primaryHits": 4,
+    "alternateRescues": 0,
+    "llmAdapterCount": 0,
+    "hardErrors": 0,
+    "errorMessages": [],
+    "totalSpentUsdc": 0.0174,
+    "latencyMs": 40393.22029200004,
+    "resolved": [
+      "sanctions",
+      "labels",
+      "onchain_history",
+      "web_sentiment",
+      "ens"
+    ],
+    "unresolved": [],
+    "httpStatus": 200
+  },
+  "raw": {
+    "verdict": {
+      "address": "0xd90e2f925da726b50c4ed8d0fb90ad053324f31b",
+      "chain": "eth",
+      "safe": false,
+      "verdict": "do_not_transact",
+      "confidence": "high",
+      "headline": "Do not transact — this address matches OFAC SDN and Tornado Cash sanctions lists.",
+      "reasoning": "The x402 sanctions service returned a confirmed match against OFAC SDN and Tornado Cash with high risk level, which is a hard veto regardless of other signals. Although the Chainalysis on-chain oracle returned isSanctioned=false (possibly due to oracle list lag or scope), a confirmed sanctions hit from any authoritative source mandates a do_not_transact verdict. Supporting context (no ENS, no known label, zero balance) is consistent with a flagged/abandoned sanctioned address and does nothing to mitigate the risk. Sending funds to this wallet could expose the sender to serious legal and regulatory consequences.",
+      "findings": [
+        {
+          "category": "sanctions",
+          "severity": "critical",
+          "finding": "x402 sanctions check reports a match against OFAC SDN and Tornado Cash programs (risk_level: high). This is a hard veto, despite Chainalysis oracle returning isSanctioned=false."
+        },
+        {
+          "category": "labels",
+          "severity": "info",
+          "finding": "No known label or entity type; address is not in the labeler's known set."
+        },
+        {
+          "category": "onchain_history",
+          "severity": "low",
+          "finding": "Zero ETH balance with no further activity data — consistent with a dormant or flagged address."
+        },
+        {
+          "category": "web_sentiment",
+          "severity": "info",
+          "finding": "No specific adverse web/news findings returned beyond the sanctions data sources already counted."
+        },
+        {
+          "category": "ens",
+          "severity": "info",
+          "finding": "No ENS reverse record — wallet is not publicly doxxed to a real identity."
+        }
+      ],
+      "coverage": {
+        "requested": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment",
+          "ens"
+        ],
+        "resolved": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment",
+          "ens"
+        ],
+        "unresolved": [],
+        "not_applicable": [
+          "contract_analysis"
+        ]
+      },
+      "totalSpentUsdc": 0.0174,
+      "generatedAt": "2026-05-23T19:43:58.724Z"
+    },
+    "plan": {
+      "services": [
+        {
+          "category": "sanctions",
+          "resource": "https://api.anchor-x402.com/v1/screen",
+          "priceUsdc": 0.001,
+          "rationale": "Resource 0 has 0% recent failure rate and inputInfoCompleteness of 2/3 — the strongest combination among all sanctions candidates, and at the lowest price."
+        },
+        {
+          "category": "labels",
+          "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
+          "priceUsdc": 0.005,
+          "rationale": "Resource 1 is the only labels candidate with a confirmed 0% failure rate, making it the clear winner on the strongest signal despite its lower completeness score."
+        },
+        {
+          "category": "onchain_history",
+          "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+          "priceUsdc": 0.0039,
+          "rationale": "Resource 1 is the only onchain_history candidate combining a confirmed 0% failure rate with inputInfoCompleteness of 2/3, making it the top pick."
+        },
+        {
+          "category": "web_sentiment",
+          "resource": "https://orbisapi.com/proxy/address-reputation-score-api-9d7eb2",
+          "priceUsdc": 0.0075,
+          "rationale": "Resource 2 has a confirmed 0% failure rate (eliminating the 100%-failure resource 1), and its reputation-score description is the best match for web sentiment/risk assessment at a reasonable price."
+        }
+      ]
+    },
+    "receipts": [
+      {
+        "category": "sanctions",
+        "resource": "https://api.anchor-x402.com/v1/screen",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.001,
+        "durationMs": 3071,
+        "paid": true
+      },
+      {
+        "category": "labels",
+        "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
+        "status": "ok",
+        "adapterPath": "pattern+subpath",
+        "amountUsdc": 0.005,
+        "durationMs": 11366,
+        "paid": true
+      },
+      {
+        "category": "onchain_history",
+        "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.0039,
+        "durationMs": 3378,
+        "paid": true
+      },
+      {
+        "category": "web_sentiment",
+        "resource": "https://orbisapi.com/proxy/address-reputation-score-api-9d7eb2",
+        "status": "ok",
+        "adapterPath": "pattern+subpath",
+        "amountUsdc": 0.0075,
+        "durationMs": 9111,
+        "paid": true
+      }
+    ],
+    "walletNetwork": "base",
+    "totalSpentUsdc": 0.0174
+  }
+}

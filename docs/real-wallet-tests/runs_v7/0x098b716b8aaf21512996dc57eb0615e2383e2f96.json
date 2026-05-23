@@ -1,0 +1,83 @@
+{
+  "test": {
+    "address": "0x098B716B8Aaf21512996dC57EB0615e2383E2f96",
+    "chain": "eth",
+    "label": "Lazarus Group (Ronin bridge hack)",
+    "category": "OFAC-sanctioned (North Korea, EOA)",
+    "expected": "do_not_transact",
+    "sourceUrl": "https://www.trmlabs.com/resources/blog/north-koreas-lazarus-group-moves-funds-through-tornado-cash"
+  },
+  "metrics": {
+    "address": "0x098B716B8Aaf21512996dC57EB0615e2383E2f96",
+    "label": "Lazarus Group (Ronin bridge hack)",
+    "expected": "do_not_transact",
+    "actualVerdict": "do_not_transact",
+    "actualConfidence": "high",
+    "verdictMatch": "match",
+    "match": true,
+    "primaryHits": 0,
+    "alternateRescues": 0,
+    "llmAdapterCount": 0,
+    "hardErrors": 0,
+    "errorMessages": [],
+    "totalSpentUsdc": 0,
+    "latencyMs": 2727.9577500000014,
+    "resolved": [
+      "sanctions"
+    ],
+    "unresolved": [
+      "labels",
+      "onchain_history",
+      "web_sentiment",
+      "ens"
+    ],
+    "httpStatus": 200
+  },
+  "raw": {
+    "verdict": {
+      "address": "0x098B716B8Aaf21512996dC57EB0615e2383E2f96",
+      "chain": "eth",
+      "safe": false,
+      "verdict": "do_not_transact",
+      "confidence": "high",
+      "headline": "Do not transact — address is flagged by the Chainalysis on-chain sanctions oracle.",
+      "reasoning": "The Chainalysis sanctions oracle (0x40C57923924B5c5c5455c48D93317139ADDaC8fb) returned isSanctioned=true for this address on eth. This oracle is sourced from OFAC SDN and other government sanctions lists. The signal is deterministic and overrides all other evidence; downstream x402 service calls were skipped to avoid unnecessary spend.",
+      "findings": [
+        {
+          "category": "sanctions",
+          "severity": "critical",
+          "finding": "Chainalysis sanctions oracle returned isSanctioned=true at 0x40C57923924B5c5c5455c48D93317139ADDaC8fb."
+        }
+      ],
+      "coverage": {
+        "requested": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment",
+          "ens"
+        ],
+        "resolved": [
+          "sanctions"
+        ],
+        "unresolved": [
+          "labels",
+          "onchain_history",
+          "web_sentiment",
+          "ens"
+        ],
+        "not_applicable": [
+          "contract_analysis"
+        ]
+      },
+      "totalSpentUsdc": 0,
+      "generatedAt": "2026-05-23T19:42:03.481Z"
+    },
+    "plan": {
+      "services": []
+    },
+    "receipts": [],
+    "walletNetwork": "base",
+    "totalSpentUsdc": 0
+  }
+}

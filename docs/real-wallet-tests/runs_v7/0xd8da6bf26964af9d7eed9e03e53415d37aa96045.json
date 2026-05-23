@@ -1,0 +1,163 @@
+{
+  "test": {
+    "address": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    "chain": "eth",
+    "label": "Vitalik's main wallet (vitalik.eth)",
+    "category": "Safe / ENS-doxxed (EOA)",
+    "expected": "safe_to_transact",
+    "sourceUrl": "https://etherscan.io/address/0xd8da6bf26964af9d7eed9e03e53415d37aa96045"
+  },
+  "metrics": {
+    "address": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    "label": "Vitalik's main wallet (vitalik.eth)",
+    "expected": "safe_to_transact",
+    "actualVerdict": "safe_to_transact",
+    "actualConfidence": "high",
+    "verdictMatch": "match",
+    "match": true,
+    "primaryHits": 4,
+    "alternateRescues": 0,
+    "llmAdapterCount": 0,
+    "hardErrors": 0,
+    "errorMessages": [],
+    "totalSpentUsdc": 0.0174,
+    "latencyMs": 43905.262667,
+    "resolved": [
+      "sanctions",
+      "labels",
+      "onchain_history",
+      "web_sentiment",
+      "ens"
+    ],
+    "unresolved": [],
+    "httpStatus": 200
+  },
+  "raw": {
+    "verdict": {
+      "address": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+      "chain": "eth",
+      "safe": true,
+      "verdict": "safe_to_transact",
+      "confidence": "high",
+      "headline": "Safe to transact — wallet resolves to the publicly doxxed ENS \"vitalik.eth\" with clean sanctions screening.",
+      "reasoning": "Both the Chainalysis on-chain oracle and the x402 sanctions service returned no match, satisfying the sanctions-clean requirement at high confidence. ENS reverse resolution returns \"vitalik.eth\", which is a strong positive identity signal (publicly doxxed wallet of a well-known individual). On-chain history shows a non-zero balance (~5.68 ETH), providing supporting positive evidence. No negative labels or adverse web sentiment were surfaced, and contract analysis is N/A (EOA).",
+      "findings": [
+        {
+          "category": "sanctions",
+          "severity": "info",
+          "finding": "Chainalysis on-chain oracle and x402 sanctions check both report no match against OFAC/SDN or other active sanctions lists."
+        },
+        {
+          "category": "labels",
+          "severity": "info",
+          "finding": "No known label returned from address labeler; entity_type unknown with no negative tags."
+        },
+        {
+          "category": "onchain_history",
+          "severity": "info",
+          "finding": "Wallet holds ~5.68 ETH at check time, indicating an active, funded account."
+        },
+        {
+          "category": "web_sentiment",
+          "severity": "info",
+          "finding": "No adverse web mentions (scam, exploit, hack, lawsuit) surfaced."
+        },
+        {
+          "category": "ens",
+          "severity": "info",
+          "finding": "ENS reverse lookup resolves to vitalik.eth — wallet is publicly doxxed to a well-known identity, a strong positive signal."
+        }
+      ],
+      "coverage": {
+        "requested": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment",
+          "ens"
+        ],
+        "resolved": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment",
+          "ens"
+        ],
+        "unresolved": [],
+        "not_applicable": [
+          "contract_analysis"
+        ]
+      },
+      "totalSpentUsdc": 0.0174,
+      "generatedAt": "2026-05-23T19:38:05.829Z"
+    },
+    "plan": {
+      "services": [
+        {
+          "category": "sanctions",
+          "resource": "https://api.anchor-x402.com/v1/screen",
+          "priceUsdc": 0.001,
+          "rationale": "Resource 0 has a confirmed 0% failure rate and inputInfoCompleteness of 2/3 — the strongest combination among sanctions candidates — while matching on price with its untested twin (index 1) and beating index 2's lower completeness."
+        },
+        {
+          "category": "labels",
+          "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
+          "priceUsdc": 0.005,
+          "rationale": "Resource 1 is the only labels candidate with a confirmed 0% failure rate, making it the clear winner over all untested alternatives despite lower completeness (1/3) shared by the whole field."
+        },
+        {
+          "category": "onchain_history",
+          "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+          "priceUsdc": 0.0039,
+          "rationale": "Resource 1 is the only onchain_history candidate with both a confirmed 0% failure rate AND inputInfoCompleteness of 2/3, making it strictly dominant over all others in the field."
+        },
+        {
+          "category": "web_sentiment",
+          "resource": "https://orbisapi.com/proxy/address-reputation-score-api-9d7eb2",
+          "priceUsdc": 0.0075,
+          "rationale": "Resource 2 has a confirmed 0% failure rate (ruling out index 1 at 100%) and its description — a 0–100 risk/reputation score for wallet addresses — is the closest match to web sentiment/reputation intent among the passing candidates; index 0 shares 0% failure but is a weaker semantic fit for reputation scoring."
+        }
+      ]
+    },
+    "receipts": [
+      {
+        "category": "sanctions",
+        "resource": "https://api.anchor-x402.com/v1/screen",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.001,
+        "durationMs": 3182,
+        "paid": true
+      },
+      {
+        "category": "labels",
+        "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
+        "status": "ok",
+        "adapterPath": "pattern+subpath",
+        "amountUsdc": 0.005,
+        "durationMs": 13526,
+        "paid": true
+      },
+      {
+        "category": "onchain_history",
+        "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.0039,
+        "durationMs": 9430,
+        "paid": true
+      },
+      {
+        "category": "web_sentiment",
+        "resource": "https://orbisapi.com/proxy/address-reputation-score-api-9d7eb2",
+        "status": "ok",
+        "adapterPath": "pattern+subpath",
+        "amountUsdc": 0.0075,
+        "durationMs": 6665,
+        "paid": true
+      }
+    ],
+    "walletNetwork": "base",
+    "totalSpentUsdc": 0.0174
+  }
+}
