@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "wardo-api",
+      "runtimeExecutable": "/Users/sfomin/.deno/bin/deno",
+      "runtimeArgs": ["task", "dev"],
+      "port": 8765
+    },
+    {
       "name": "wardo-web",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--prefix", "web"],

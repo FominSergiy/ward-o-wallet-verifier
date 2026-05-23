@@ -1,0 +1,164 @@
+.flow-diagram {
+  background: #1A1A1A;
+  border: 1px solid var(--faint);
+  padding: 16px;
+  height: 320px;
+  margin-bottom: 20px;
+  overflow: hidden;
+  position: relative;
+}
+
+.flow-diagram svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.flow-diagram .node-shape {
+  fill: transparent;
+  stroke: #8A8888;
+  stroke-width: 1.5;
+  transition: stroke 200ms ease, fill 200ms ease;
+}
+
+.flow-diagram .node-shape.idle {
+  stroke: #4A4A4A;
+}
+
+.flow-diagram .node-shape.active {
+  stroke: #E8E5DD;
+  stroke-width: 2;
+  animation: flow-pulse 1.3s ease-in-out infinite;
+}
+
+.flow-diagram .node-shape.ok {
+  stroke: #3E8B57;
+  fill: rgba(62, 139, 87, 0.18);
+}
+
+.flow-diagram .node-shape.error {
+  stroke: #B0413E;
+  fill: rgba(176, 65, 62, 0.22);
+}
+
+.flow-diagram .node-shape.fallback {
+  stroke: #C28A2C;
+  fill: rgba(194, 138, 44, 0.16);
+  stroke-dasharray: 4 3;
+}
+
+.flow-diagram .node-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  fill: #E8E5DD;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
+}
+
+.flow-diagram .node-label.muted {
+  fill: #8A8888;
+}
+
+.flow-diagram .node-sublabel {
+  font-family: var(--mono);
+  font-size: 9px;
+  fill: #9AB8DC;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.flow-diagram .node-sublabel.ok {
+  fill: #9AB8A2;
+}
+
+.flow-diagram .node-sublabel.error {
+  fill: #E08A86;
+}
+
+.flow-diagram .edge {
+  fill: none;
+  stroke: #4A4A4A;
+  stroke-width: 1.3;
+  transition: stroke 250ms ease, opacity 250ms ease;
+}
+
+.flow-diagram .edge.lit {
+  stroke: #8A8888;
+}
+
+.flow-diagram .edge.ok {
+  stroke: #3E8B57;
+}
+
+.flow-diagram .edge.error {
+  stroke: #B0413E;
+}
+
+.flow-diagram .edge.fallback {
+  stroke: #C28A2C;
+  stroke-dasharray: 4 3;
+}
+
+.flow-diagram .verdict-label.safe { fill: #9AB8A2; }
+.flow-diagram .verdict-label.risky { fill: #E08A86; }
+.flow-diagram .verdict-label.insufficient_data { fill: #8A8888; }
+
+.flow-diagram .empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8A8888;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.flow-diagram .spend-line {
+  position: absolute;
+  bottom: 8px;
+  right: 14px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: #8A8888;
+  letter-spacing: 0.5px;
+}
+
+.flow-diagram .spend-line strong {
+  color: #9AB8A2;
+  font-weight: 600;
+}
+
+@keyframes flow-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.view-toggle {
+  display: inline-flex;
+  margin-left: auto;
+  border: 1px solid var(--faint);
+  border-bottom: none;
+  background: var(--bg);
+}
+
+.view-toggle button {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.view-toggle button.active {
+  background: var(--fg);
+  color: var(--bg);
+}
+
+.tab-strip.with-toggle {
+  align-items: stretch;
+}
