@@ -38,7 +38,8 @@ Deno.test("fetchCandidates collects partial results", async () => {
     if (params.query.includes("OFAC")) {
       return Promise.resolve([makeEntry("eip155:8453", "https://sanc")]);
     }
-    if (params.query.includes("attribution")) {
+    // Both label queries (attribution + phishing) fail with the same error.
+    if (params.query.includes("attribution") || params.query.includes("phishing")) {
       return Promise.reject(new Error("upstream 500"));
     }
     // onchain → empty
@@ -50,9 +51,56 @@ Deno.test("fetchCandidates collects partial results", async () => {
     { client },
   );
   assertEquals(out.candidates.sanctions?.length, 1);
-  assertEquals(out.errors.labels, "upstream 500");
+  assertEquals(out.errors.labels?.includes("upstream 500"), true);
   assertEquals(out.errors.onchain_history, "no results");
   assertEquals("sanctions" in out.errors, false);
+});
+
+Deno.test("fetchCandidates unions and de-dupes multi-query labels", async () => {
+  const callsByQuery: Record<string, number> = {};
+  const client = (params: SearchParams) => {
+    callsByQuery[params.query] = (callsByQuery[params.query] ?? 0) + 1;
+    if (params.query.includes("attribution")) {
+      // First query returns two distinct services.
+      return Promise.resolve([
+        makeEntry("eip155:8453", "https://attribute.example/a"),
+        makeEntry("eip155:8453", "https://shared.example/b"),
+      ]);
+    }
+    if (params.query.includes("phishing")) {
+      // Second query returns one new + one overlap (b) — overlap must dedupe.
+      return Promise.resolve([
+        makeEntry("eip155:8453", "https://shared.example/b"),
+        makeEntry("eip155:8453", "https://phish.example/c"),
+      ]);
+    }
+    return Promise.resolve([]);
+  };
+  const out = await fetchCandidates(["labels"], "base", { client });
+  // 2 distinct queries fired.
+  assertEquals(Object.keys(callsByQuery).length, 2);
+  // Union has 3 unique resources (a, b, c) — b deduped.
+  const urls = out.candidates.labels?.map((e) => e.resource).sort() ?? [];
+  assertEquals(urls, [
+    "https://attribute.example/a",
+    "https://phish.example/c",
+    "https://shared.example/b",
+  ]);
+  assertEquals("labels" in out.errors, false);
+});
+
+Deno.test("fetchCandidates surfaces partial success when one labels query empty", async () => {
+  const client = (params: SearchParams) => {
+    if (params.query.includes("attribution")) {
+      return Promise.resolve([makeEntry("eip155:8453", "https://attribute.example/a")]);
+    }
+    // Phishing query returns empty.
+    return Promise.resolve([]);
+  };
+  const out = await fetchCandidates(["labels"], "base", { client });
+  assertEquals(out.candidates.labels?.length, 1);
+  // Some results found → no error reported, even though one sub-query was empty.
+  assertEquals("labels" in out.errors, false);
 });
 
 Deno.test("fetchCandidates drops ens from input", async () => {

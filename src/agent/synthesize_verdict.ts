@@ -59,9 +59,9 @@ You MUST follow these per-signal weighting rules in order:
    • If sanctions is in coverage.unresolved → confidence drops to "low" at best; this is the single most important signal.
 
 **2. labels — STRONG**
-   • Words in returned labels signaling risk (scam, scammer, mixer, tumbler, darknet, phisher, phishing, hack, hacker, exploit, exploiter, rugpull, fraud, stolen) → bias verdict toward "do_not_transact".
-   • Words signaling safety (exchange, verified, protocol, dao, foundation, known_safe, attestation) → bias toward "safe_to_transact".
-   • Empty labels with no negative hits = neutral.
+   • Words in returned labels signaling risk (scam, scammer, mixer, tumbler, darknet, phisher, phishing, hack, hacker, exploit, exploiter, rugpull, fraud, stolen, blocked, blacklist, malicious) → bias verdict toward "do_not_transact" with severity "high" or "critical".
+   • Words signaling safety (exchange, verified, protocol, dao, foundation, known_safe, attestation) → count as a POSITIVE IDENTITY CONFIRMATION.
+   • Empty labels with no negative hits = neutral — NOT a positive signal. The absence of a community phishing tag is not proof of safety; many phishing wallets are unlabeled in any single provider's database.
 
 **3. onchain_history — SUPPORTING**
    • Long history (>1 year, >100 transactions) + non-zero balance → positive supporting evidence.
@@ -81,15 +81,22 @@ You MUST follow these per-signal weighting rules in order:
    • Confirmed ENS reverse lookup → minor positive (suggests a real, doxxed entity).
    • Absence → neutral.
 
+**Positive identity confirmation (POIC) — REQUIRED for "safe_to_transact":**
+A POIC is one of:
+   • A positive \`labels\` finding containing exchange / verified / protocol / dao / foundation / known_safe / attestation / known-entity attribution.
+   • A confirmed \`ens\` reverse-lookup resolving to a non-empty name.
+   • A confirmed contract_analysis finding identifying the address as a clean, well-known protocol contract (e.g. Uniswap router, audited token).
+A non-zero balance or a long transaction history is NOT a POIC — it indicates activity, not safety.
+
 **Confidence rules:**
-   • "high" — sanctions hit; OR 3+ supporting categories with consistent signals.
-   • "medium" — 3+ categories returned signals, mixed but interpretable.
-   • "low" — ≤2 categories returned usable signals, OR all signals weak/inconclusive.
+   • "high" — sanctions hit; OR sanctions clean + a POIC + 3+ supporting categories with consistent signals.
+   • "medium" — sanctions clean + a POIC, with mixed but interpretable supporting signals.
+   • "low" — ≤2 categories returned usable signals, OR no POIC present, OR all signals weak/inconclusive.
 
 **Verdict mapping:**
-   • "safe_to_transact" — safe=true. No critical signals; sanctions clean; at least one positive (label/onchain) signal; no strong negative labels.
-   • "do_not_transact" — safe=false. Sanctions hit, OR clear negative labels, OR contract vulnerabilities, OR coverage explicitly says sanctions failed AND any other risk signal is present.
-   • "insufficient_data" — safe=false. Fewer than 2 categories returned usable findings, OR sanctions in unresolved without any compensating high-confidence positives.
+   • "safe_to_transact" — safe=true. REQUIRES all of: sanctions clean, no negative labels, no critical findings, AND at least one POIC. If there is no POIC, you MUST NOT return "safe_to_transact" — return "insufficient_data" instead.
+   • "do_not_transact" — safe=false. Sanctions hit, OR any negative label keyword present, OR contract vulnerabilities, OR coverage explicitly says sanctions failed AND any other risk signal is present.
+   • "insufficient_data" — safe=false. Use whenever sanctions are clean but no POIC was returned (the common case for unlabeled wallets), OR fewer than 2 categories returned usable findings, OR sanctions in unresolved without any compensating high-confidence positives. The headline should make clear that absence of risk signals is NOT proof of safety.
 
 **Output requirements:**
    • The \`findings\` array should contain ONE entry per category that contributed evidence (positive or negative), with a short human-readable \`finding\` string.

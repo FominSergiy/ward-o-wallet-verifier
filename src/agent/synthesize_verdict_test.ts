@@ -137,6 +137,37 @@ Deno.test("synthesizeVerdict returns parsed WalletVerdict (sanctioned fixture)",
   assertEquals(out.confidence, "high");
 });
 
+Deno.test("synthesizeVerdict prompt requires positive identity confirmation for safe verdict", async () => {
+  const captured: { model?: string; prompt?: string } = {};
+  const llm = fixtureLlm(SAFE_VERDICT, captured);
+  await synthesizeVerdict(
+    inputWith({ findings: {}, resolved: [] }),
+    { llm },
+  );
+  const prompt = captured.prompt ?? "";
+  // The policy MUST explicitly call out that absence of risk signals != safety,
+  // and that a POIC (positive identity confirmation) is required for safe_to_transact.
+  assertEquals(
+    prompt.includes("Positive identity confirmation") || prompt.includes("POIC"),
+    true,
+    "prompt missing POIC requirement",
+  );
+  assertEquals(
+    prompt.includes("not a POIC") || prompt.includes("NOT a POIC") ||
+      prompt.includes("NOT a positive signal"),
+    true,
+    "prompt missing explicit non-POIC clarifier",
+  );
+  // Ensure the unlabeled-wallet escape hatch is wired up: insufficient_data
+  // is the right verdict when no POIC is returned even if sanctions clean.
+  assertEquals(prompt.includes("insufficient_data"), true);
+  assertEquals(
+    prompt.includes("MUST NOT return") || prompt.includes("must not return"),
+    true,
+    "prompt missing hard ban on safe_to_transact without POIC",
+  );
+});
+
 Deno.test("synthesizeVerdict returns insufficient_data when fixture says so", async () => {
   const llm = fixtureLlm(INSUFFICIENT_VERDICT);
   const out = await synthesizeVerdict(
