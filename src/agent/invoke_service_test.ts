@@ -325,6 +325,147 @@ Deno.test("invokeRankedService does NOT retry on insufficient_balance (regressio
   }
 });
 
+Deno.test("invokeRankedService surfaces adapter_build_failed on pattern-build throw", async () => {
+  setupAgnic();
+  const orig = globalThis.fetch;
+  let fetchCalls = 0;
+  globalThis.fetch = (_url, _init) => {
+    fetchCalls++;
+    return Promise.resolve(jsonResp(200, { ok: true }));
+  };
+  const llm = mockLlm({});
+  // Malformed resource URL — buildCallFromInfo throws AdapterFailedError
+  // before any fetch is issued.
+  const bad = svc({ resource: "not-a-url" });
+  try {
+    const out = await invokeRankedService(bad, ADDR, "base", { llm });
+    assertEquals(out.status, "error");
+    assertEquals(out.adapterPath, "pattern");
+    assertEquals(out.errorCode, "adapter_build_failed");
+    assertEquals(fetchCalls, 0);
+  } finally {
+    globalThis.fetch = orig;
+    teardownAgnic();
+  }
+});
+
+Deno.test("invokeRankedService surfaces adapter_llm_build_failed when LLM throws", async () => {
+  setupAgnic();
+  const orig = globalThis.fetch;
+  const cap = captureConsole();
+  // Pattern call returns an upstream_4xx so we fall through to the LLM layer.
+  globalThis.fetch = (_url, _init) =>
+    Promise.resolve(
+      jsonResp(400, { error: "upstream_4xx", error_description: "wrong shape" }),
+    );
+  const llm: LlmClient = {
+    generateStructured<T>(_schema: z.ZodType<T>, _p: string): Promise<T> {
+      return Promise.reject(new Error("simulated llm outage"));
+    },
+  };
+  try {
+    const out = await invokeRankedService(svc(), ADDR, "base", { llm });
+    assertEquals(out.status, "error");
+    assertEquals(out.adapterPath, "llm");
+    assertEquals(out.errorCode, "adapter_llm_build_failed");
+  } finally {
+    cap.restore();
+    globalThis.fetch = orig;
+    teardownAgnic();
+  }
+});
+
+Deno.test("invokeRankedService surfaces adapter_call_failed on non-Agnic exec throw in LLM layer", async () => {
+  setupAgnic();
+  const orig = globalThis.fetch;
+  const cap = captureConsole();
+  let calls = 0;
+  globalThis.fetch = (_url, _init) => {
+    calls++;
+    if (calls === 1) {
+      // Pattern primary — upstream_4xx forces LLM fallback.
+      return Promise.resolve(
+        jsonResp(400, { error: "upstream_4xx", error_description: "bad shape" }),
+      );
+    }
+    // LLM call: simulate a transport-level failure (non-AgnicFetchError).
+    return Promise.reject(new TypeError("network down"));
+  };
+  const llm: LlmClient = {
+    generateStructured<T>(schema: z.ZodType<T>, _p: string): Promise<T> {
+      return Promise.resolve(
+        schema.parse({ url: "https://svc.example/v1/screen?wallet=" + ADDR, method: "GET" }),
+      );
+    },
+  };
+  try {
+    const out = await invokeRankedService(svc(), ADDR, "base", { llm });
+    assertEquals(out.status, "error");
+    assertEquals(out.adapterPath, "llm");
+    assertEquals(out.errorCode, "adapter_call_failed");
+    assertEquals(calls, 2);
+  } finally {
+    cap.restore();
+    globalThis.fetch = orig;
+    teardownAgnic();
+  }
+});
+
+Deno.test("invokeRankedService skips pattern adapter when FORCE_LLM_ADAPTER=true", async () => {
+  setupAgnic();
+  Deno.env.set("FORCE_LLM_ADAPTER", "true");
+  const orig = globalThis.fetch;
+  const cap = captureConsole();
+  let fetchCalls = 0;
+  // agnicFetch passes the target as ?url= on its own request — inspect that
+  // to confirm the address was substituted (LLM path) rather than the bare
+  // catalog URL (which would mean pattern ran).
+  const seenTargets: string[] = [];
+  globalThis.fetch = (url, _init) => {
+    fetchCalls++;
+    const u = new URL(url.toString());
+    const target = u.searchParams.get("url");
+    if (target) seenTargets.push(target);
+    return Promise.resolve(jsonResp(200, { ok: true }, {
+      "X-Agnic-Paid": "true",
+      "X-Agnic-Amount": "0.001",
+    }));
+  };
+  let llmCalls = 0;
+  const llm: LlmClient = {
+    generateStructured<T>(schema: z.ZodType<T>, _p: string): Promise<T> {
+      llmCalls++;
+      return Promise.resolve(
+        schema.parse({
+          url: "https://svc.example/v1/screen?wallet=" + ADDR,
+          method: "GET",
+        }),
+      );
+    },
+  };
+  try {
+    const out = await invokeRankedService(svc(), ADDR, "base", { llm });
+    assertEquals(out.status, "fallback_ok");
+    assertEquals(out.adapterPath, "llm");
+    assertEquals(llmCalls, 1, "LLM must be invoked exactly once");
+    assertEquals(fetchCalls, 1, "only the LLM-built call should hit the network");
+    assertEquals(
+      seenTargets[0].includes("?wallet=") || seenTargets[0].includes("?address="),
+      true,
+      `first fetch target should be the LLM-built URL with substituted address, got: ${seenTargets[0]}`,
+    );
+    assertEquals(
+      cap.warn.some((l) => l.includes("FORCE_LLM_ADAPTER=true")),
+      true,
+    );
+  } finally {
+    cap.restore();
+    Deno.env.delete("FORCE_LLM_ADAPTER");
+    globalThis.fetch = orig;
+    teardownAgnic();
+  }
+});
+
 Deno.test("invokeRankedService records amountUsdc and paid from response headers", async () => {
   setupAgnic();
   const orig = globalThis.fetch;

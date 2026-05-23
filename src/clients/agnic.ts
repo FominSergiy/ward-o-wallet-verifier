@@ -51,7 +51,23 @@ export async function agnicFetch<T = unknown>(
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 
-  const json = await resp.json();
+  // Read body as text first, then JSON.parse — upstream can return HTML error
+  // pages or empty bodies on certain failures. If we call resp.json() directly,
+  // the throw is a SyntaxError that loses the HTTP status + body preview and
+  // leaks past AgnicFetchError, leaving the health store without a useful
+  // lastErrorCode. Surfacing a synthetic non_json_response code keeps the
+  // observability story clean.
+  const text = await resp.text();
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    const preview = text.slice(0, 200).replace(/\s+/g, " ").trim();
+    throw new AgnicFetchError(
+      "non_json_response",
+      `agnicFetch [non_json_response]: HTTP ${resp.status} ${resp.statusText} returned non-JSON body (${preview})`,
+    );
+  }
 
   if (!resp.ok) {
     const rawCode = (json as { error?: string }).error ?? "unknown_error";

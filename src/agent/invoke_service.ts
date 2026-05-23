@@ -145,13 +145,29 @@ export async function invokeRankedService(
   const llm = opts.llm ?? defaultLlm;
   const start = Date.now();
 
+  // DEV-ONLY stress hook: when FORCE_LLM_ADAPTER=true, skip Layer 1 entirely
+  // so we can exercise the LLM-built call path + URL-rewrite validator on
+  // real production traffic. Production runs should leave this unset.
+  if (Deno.env.get("FORCE_LLM_ADAPTER") === "true") {
+    console.warn(
+      `[invoke] FORCE_LLM_ADAPTER=true — skipping pattern adapter for ${service.resource}`,
+    );
+    return await invokeViaLlmOnly(service, address, chain, llm, start);
+  }
+
   // Layer 1: pattern-match adapter — try the primary shape, then any
   // fallback shapes for POST endpoints.
   let callSet;
   try {
     callSet = buildCallSetFromInfo(service, address, chain);
   } catch (e) {
-    return errorOutcome(service, `pattern-adapter: ${(e as Error).message}`, start, "pattern");
+    return errorOutcome(
+      service,
+      `pattern-adapter: ${(e as Error).message}`,
+      start,
+      "pattern",
+      "adapter_build_failed",
+    );
   }
 
   const patternShapes: BuiltCall[] = [callSet.primary, ...callSet.fallbacks];
@@ -180,7 +196,16 @@ export async function invokeRankedService(
   console.warn(
     `[invoke] pattern-match failed for ${service.resource} (${patternShapes.length} shape(s) tried) — trying LLM fallback (${(lastError as Error)?.message})`,
   );
+  return await invokeViaLlmOnly(service, address, chain, llm, start);
+}
 
+async function invokeViaLlmOnly(
+  service: RankedService,
+  address: string,
+  chain: Chain,
+  llm: LlmClient,
+  start: number,
+): Promise<ServiceInvocationOutcome> {
   let llmBuilt: BuiltCall;
   try {
     llmBuilt = await buildCallFromInfoViaLlm(service, address, chain, llm);
@@ -191,7 +216,7 @@ export async function invokeRankedService(
     console.error(
       `[invoke] both adapters failed for ${service.resource}: ${reason}`,
     );
-    return errorOutcome(service, reason, start, "llm");
+    return errorOutcome(service, reason, start, "llm", "adapter_llm_build_failed");
   }
 
   try {
@@ -199,7 +224,7 @@ export async function invokeRankedService(
     return okOutcome(service, r, start, "fallback_ok", "llm");
   } catch (e2) {
     const msg = (e2 as Error).message;
-    const code = e2 instanceof AgnicFetchError ? e2.code : undefined;
+    const code = e2 instanceof AgnicFetchError ? e2.code : "adapter_call_failed";
     console.error(`[invoke] both adapters failed for ${service.resource}: ${msg}`);
     return errorOutcome(service, msg, start, "llm", code);
   }
