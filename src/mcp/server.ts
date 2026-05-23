@@ -19,7 +19,7 @@ interface VerifyWalletArgs {
 // tool surface against different transports.
 export function buildMcpServer(): McpServer {
   const server = new McpServer({
-    name: "agnic-wallet-verifier",
+    name: "ward-o-wallet-verifier",
     version: "0.1.0",
   });
 
@@ -28,8 +28,8 @@ export function buildMcpServer(): McpServer {
     {
       title: "Verify wallet risk",
       description:
-        "Run the full Agnic wallet risk pipeline: discover x402 risk " +
-        "services, pay for them via Agnic, and synthesize a verdict " +
+        "Run the full Ward-o wallet risk pipeline: discover x402 risk " +
+        "services, pay for them, and synthesize a verdict " +
         "(safe_to_transact | do_not_transact | insufficient_data). " +
         "Costs ~$0.01-$0.05 USDC per call. Set budgetCeiling to cap spend.",
       inputSchema: {
