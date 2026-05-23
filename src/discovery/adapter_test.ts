@@ -5,6 +5,8 @@ import {
   buildCallFromInfo,
   buildCallFromInfoViaLlm,
   buildCallSetFromInfo,
+  isServiceDescriptor,
+  pickActionEndpoint,
 } from "./adapter.ts";
 import type { LlmClient } from "../agent/llm.ts";
 import type { BazaarInfo, RankedService } from "./types.ts";
@@ -305,5 +307,147 @@ Deno.test("buildCallFromInfoViaLlm throws when LLM returns malformed call", asyn
         llm,
       ),
     AdapterFailedError,
+  );
+});
+
+// --- service-descriptor detection -----------------------------------------
+
+Deno.test("isServiceDescriptor detects {name, endpoints[]} shape", () => {
+  const r = isServiceDescriptor({
+    name: "Crypto Address Labeler API",
+    endpoints: ["/label", "/openapi"],
+    docs: "/openapi",
+  });
+  assertEquals(r, { endpoints: ["/label", "/openapi"] });
+});
+
+Deno.test("isServiceDescriptor detects bare {endpoints[]} without name", () => {
+  const r = isServiceDescriptor({ endpoints: ["/score"] });
+  assertEquals(r, { endpoints: ["/score"] });
+});
+
+Deno.test("isServiceDescriptor rejects payload with address key", () => {
+  const r = isServiceDescriptor({
+    address: ADDR,
+    endpoints: ["/extra"],
+    known_label: "Binance",
+  });
+  assertEquals(r, null);
+});
+
+Deno.test("isServiceDescriptor rejects payload with wallet key", () => {
+  const r = isServiceDescriptor({ wallet: ADDR, endpoints: ["/x"] });
+  assertEquals(r, null);
+});
+
+Deno.test("isServiceDescriptor rejects null, primitives, arrays, empty object", () => {
+  assertEquals(isServiceDescriptor(null), null);
+  assertEquals(isServiceDescriptor(undefined), null);
+  assertEquals(isServiceDescriptor("foo"), null);
+  assertEquals(isServiceDescriptor(42), null);
+  assertEquals(isServiceDescriptor([1, 2, 3]), null);
+  assertEquals(isServiceDescriptor({}), null);
+});
+
+Deno.test("isServiceDescriptor rejects when endpoints is not an array of strings", () => {
+  assertEquals(isServiceDescriptor({ endpoints: "label" }), null);
+  assertEquals(isServiceDescriptor({ endpoints: [] }), null);
+  assertEquals(isServiceDescriptor({ endpoints: [1, 2] }), null);
+  assertEquals(isServiceDescriptor({ endpoints: ["/ok", 5] }), null);
+});
+
+Deno.test("pickActionEndpoint skips /openapi, /docs, /health, '/'", () => {
+  assertEquals(
+    pickActionEndpoint(["/openapi", "/label", "/docs"]),
+    "/label",
+  );
+  assertEquals(
+    pickActionEndpoint(["/health", "/", "/score"]),
+    "/score",
+  );
+});
+
+Deno.test("pickActionEndpoint returns null when only info endpoints exist", () => {
+  assertEquals(pickActionEndpoint(["/openapi", "/docs"]), null);
+  assertEquals(pickActionEndpoint(["/"]), null);
+});
+
+Deno.test("pickActionEndpoint is case-insensitive on info path filter", () => {
+  assertEquals(
+    pickActionEndpoint(["/OpenAPI", "/Docs", "/label"]),
+    "/label",
+  );
+});
+
+Deno.test('pickActionEndpoint category="labels" prefers /label over /score', () => {
+  assertEquals(
+    pickActionEndpoint(["/score", "/label", "/openapi"], "labels"),
+    "/label",
+  );
+  // Order-independent.
+  assertEquals(
+    pickActionEndpoint(["/label", "/score"], "labels"),
+    "/label",
+  );
+  // Token match is substring, not exact.
+  assertEquals(
+    pickActionEndpoint(["/v1/tag-lookup", "/score"], "labels"),
+    "/v1/tag-lookup",
+  );
+});
+
+Deno.test('pickActionEndpoint category="web_sentiment" prefers /sentiment over /label', () => {
+  assertEquals(
+    pickActionEndpoint(["/label", "/sentiment", "/score"], "web_sentiment"),
+    "/sentiment",
+  );
+  assertEquals(
+    pickActionEndpoint(["/social-mentions", "/random"], "web_sentiment"),
+    "/social-mentions",
+  );
+});
+
+Deno.test("pickActionEndpoint unknown category falls back to first non-info", () => {
+  assertEquals(
+    pickActionEndpoint(["/openapi", "/random-thing"], "ens"),
+    "/random-thing",
+  );
+  assertEquals(
+    pickActionEndpoint(["/openapi", "/screen"], undefined),
+    "/screen",
+  );
+});
+
+Deno.test('pickActionEndpoint category="labels" matches /score when label tokens absent (reputation service)', () => {
+  // Mirrors orbisapi address-reputation-score-api: 11 endpoints, no /label,
+  // action endpoint is /score. Categorized as "labels" because the app's
+  // Category enum has no separate risk/score value.
+  const orbisReputationEndpoints = [
+    "/",
+    "/info",
+    "/validate",
+    "/parse",
+    "/score",
+    "/bulk",
+    "/classify",
+    "/describe",
+    "/compare",
+    "/analyze",
+    "/format",
+  ];
+  assertEquals(
+    pickActionEndpoint(orbisReputationEndpoints, "labels"),
+    "/score",
+  );
+});
+
+Deno.test('pickActionEndpoint category="sanctions" prefers /screen over generic paths', () => {
+  assertEquals(
+    pickActionEndpoint(["/info", "/screen", "/random"], "sanctions"),
+    "/screen",
+  );
+  assertEquals(
+    pickActionEndpoint(["/info", "/ofac-check"], "sanctions"),
+    "/ofac-check",
   );
 });

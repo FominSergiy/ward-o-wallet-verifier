@@ -4,6 +4,8 @@ import {
   buildCallFromInfoViaLlm,
   buildCallSetFromInfo,
   type BuiltCall,
+  isServiceDescriptor,
+  pickActionEndpoint,
 } from "../discovery/adapter.ts";
 import type { RankedService } from "../discovery/types.ts";
 import { defaultLlm, type LlmClient } from "./llm.ts";
@@ -21,7 +23,19 @@ export interface ServiceInvocationOutcome {
   durationMs: number;
   paid: boolean;
   network: string | null;
-  adapterPath: "pattern" | "llm";
+  adapterPath: "pattern" | "pattern+subpath" | "llm";
+}
+
+// Joins a sub-path onto a built URL while preserving any existing query
+// string. Collapses duplicate slashes at the seam. Used when a service's root
+// URL returns a descriptor and we retry against one of the declared endpoints.
+export function appendSubPath(builtUrl: string, subPath: string): string {
+  const qIdx = builtUrl.indexOf("?");
+  const base = qIdx >= 0 ? builtUrl.slice(0, qIdx) : builtUrl;
+  const query = qIdx >= 0 ? builtUrl.slice(qIdx) : "";
+  const baseTrimmed = base.replace(/\/+$/, "");
+  const subTrimmed = subPath.replace(/^\/+/, "");
+  return `${baseTrimmed}/${subTrimmed}${query}`;
 }
 
 // Error codes from agnicFetch that should NEVER trigger an LLM fallback —
@@ -98,7 +112,7 @@ function errorOutcome(
   service: RankedService,
   message: string,
   start: number,
-  adapterPath: "pattern" | "llm",
+  adapterPath: "pattern" | "pattern+subpath" | "llm",
   errorCode?: string,
 ): ServiceInvocationOutcome {
   return {
@@ -121,7 +135,7 @@ function okOutcome(
   r: Awaited<ReturnType<typeof performCall>>,
   start: number,
   status: "ok" | "fallback_ok",
-  adapterPath: "pattern" | "llm",
+  adapterPath: "pattern" | "pattern+subpath" | "llm",
 ): ServiceInvocationOutcome {
   return {
     category: service.category,
@@ -181,6 +195,14 @@ export async function invokeRankedService(
           `[invoke] ${service.resource} succeeded with fallback POST shape ${i} (body=${JSON.stringify(built.body).slice(0, 80)})`,
         );
       }
+      // Service-descriptor detection: some catalogs publish only the base URL
+      // (e.g. orbisapi), and hitting it returns a descriptor like
+      // `{name, endpoints: ["/label", "/openapi"]}` instead of address data.
+      // Detect that and retry once against the first action sub-endpoint.
+      const descriptor = isServiceDescriptor(r.data);
+      if (descriptor) {
+        return await handleDescriptorResponse(service, built, descriptor.endpoints, start);
+      }
       return okOutcome(service, r, start, "ok", "pattern");
     } catch (e) {
       lastError = e;
@@ -228,4 +250,68 @@ async function invokeViaLlmOnly(
     console.error(`[invoke] both adapters failed for ${service.resource}: ${msg}`);
     return errorOutcome(service, msg, start, "llm", code);
   }
+}
+
+// Called after a successful pattern call whose response shape matched the
+// service-descriptor heuristic (`{endpoints: string[]}`). Picks the first
+// action sub-endpoint (category-hinted), retries once against
+// `${baseUrl}/{subPath}`, and returns the retry's outcome. Does NOT fall
+// through to the LLM adapter — its URL validator forbids path drift, so it
+// can't help with this failure mode.
+async function handleDescriptorResponse(
+  service: RankedService,
+  built: BuiltCall,
+  endpoints: string[],
+  start: number,
+): Promise<ServiceInvocationOutcome> {
+  const action = pickActionEndpoint(endpoints, service.category);
+  if (!action) {
+    console.warn(
+      `[invoke] ${service.resource} returned descriptor with no action endpoint; endpoints=${JSON.stringify(endpoints)}`,
+    );
+    return errorOutcome(
+      service,
+      `service returned descriptor with no action endpoint (endpoints=${JSON.stringify(endpoints)})`,
+      start,
+      "pattern+subpath",
+      "descriptor_only_response",
+    );
+  }
+
+  const retryUrl = appendSubPath(built.url, action);
+  const retryCall: BuiltCall = built.method === "POST"
+    ? { url: retryUrl, method: "POST", body: built.body }
+    : { url: retryUrl, method: "GET" };
+
+  console.warn(
+    `[invoke] ${service.resource} returned descriptor — retrying against sub-path ${action}`,
+  );
+
+  let r: Awaited<ReturnType<typeof performCall>>;
+  try {
+    r = await performCallWithRateLimitRetry(retryCall, service.priceUsdc, service.resource);
+  } catch (e) {
+    const msg = (e as Error).message;
+    const code = e instanceof AgnicFetchError ? e.code : "descriptor_retry_failed";
+    console.warn(
+      `[invoke] ${service.resource} descriptor sub-path retry (${action}) failed: ${msg}`,
+    );
+    return errorOutcome(service, msg, start, "pattern+subpath", code);
+  }
+
+  const stillDescriptor = isServiceDescriptor(r.data);
+  if (stillDescriptor) {
+    console.warn(
+      `[invoke] ${service.resource} sub-path ${action} also returned descriptor; endpoints=${JSON.stringify(stillDescriptor.endpoints)}`,
+    );
+    return errorOutcome(
+      service,
+      `descriptor still returned after sub-path retry (sub-path=${action})`,
+      start,
+      "pattern+subpath",
+      "descriptor_only_response",
+    );
+  }
+
+  return okOutcome(service, r, start, "ok", "pattern+subpath");
 }

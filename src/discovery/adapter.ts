@@ -105,6 +105,71 @@ function alternateBodyShapes(
   ];
 }
 
+// --- service-descriptor detection ------------------------------------------
+
+// Info paths that should never be treated as action endpoints when a service's
+// root URL returns a descriptor listing its sub-endpoints.
+const INFO_PATH_PATTERNS = new Set(["/openapi", "/docs", "/health", "/", ""]);
+
+// Per-category preferences for which sub-endpoint to try first. Keys match the
+// Category enum in agent/types.ts. Kept deliberately small — if a service has
+// multiple action endpoints and this picks wrong, widen the table; do not
+// reach for an LLM picker (the LLM fallback adapter's URL validator is built
+// to reject path drift, and adding runtime endpoint selection there is a
+// different shape of feature.)
+//
+// The `labels` category here is broad — it covers both name/entity labelers
+// (orbisapi crypto-address-labeler → `/label`) and reputation/risk scorers
+// (orbisapi address-reputation-score → `/score`) because the Category enum
+// has no separate "risk" or "score" value. Score/risk/reputation tokens are
+// listed AFTER the label tokens so a true labeler is preferred when both
+// endpoints exist.
+const CATEGORY_PREFERRED_TOKENS: Record<string, string[]> = {
+  labels: ["label", "tag", "entity", "score", "risk", "reputation"],
+  web_sentiment: ["sentiment", "social"],
+  sanctions: ["sanctions", "screen", "ofac"],
+};
+
+// Returns the endpoints array when `data` looks like a service descriptor
+// (object with `endpoints: string[]` and no top-level address-like key).
+// The address-key guard prevents false positives on real payloads that happen
+// to include an `endpoints` field alongside actual analysis data.
+export function isServiceDescriptor(
+  data: unknown,
+): { endpoints: string[] } | null {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  const obj = data as Record<string, unknown>;
+  const endpoints = obj.endpoints;
+  if (!Array.isArray(endpoints) || endpoints.length === 0) return null;
+  if (!endpoints.every((e) => typeof e === "string")) return null;
+  for (const key of Object.keys(obj)) {
+    if (ADDRESS_KEY_PATTERN.test(key)) return null;
+  }
+  return { endpoints: endpoints as string[] };
+}
+
+// Picks the best action sub-endpoint from a descriptor's endpoints list.
+// Skips info paths (/openapi, /docs, /health, /, ""). When `category` matches
+// CATEGORY_PREFERRED_TOKENS, prefers an endpoint whose path contains one of
+// the preferred tokens; otherwise returns the first non-info entry. Returns
+// null when no non-info endpoint exists.
+export function pickActionEndpoint(
+  endpoints: string[],
+  category?: string,
+): string | null {
+  const isInfo = (p: string) => INFO_PATH_PATTERNS.has(p.trim().toLowerCase());
+  const actions = endpoints.filter((e) => !isInfo(e));
+  if (actions.length === 0) return null;
+  const preferred = category ? CATEGORY_PREFERRED_TOKENS[category] : undefined;
+  if (preferred && preferred.length > 0) {
+    for (const tok of preferred) {
+      const hit = actions.find((e) => e.toLowerCase().includes(tok));
+      if (hit) return hit;
+    }
+  }
+  return actions[0];
+}
+
 // --- pattern-match adapter -------------------------------------------------
 
 export function buildCallSetFromInfo(

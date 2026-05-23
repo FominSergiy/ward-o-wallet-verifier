@@ -1,6 +1,6 @@
 import { assertEquals } from "@std/assert";
 import { z } from "zod";
-import { invokeRankedService } from "./invoke_service.ts";
+import { appendSubPath, invokeRankedService } from "./invoke_service.ts";
 import { mockLlm, type LlmClient } from "./llm.ts";
 import type { RankedService } from "../discovery/types.ts";
 
@@ -486,4 +486,292 @@ Deno.test("invokeRankedService records amountUsdc and paid from response headers
     globalThis.fetch = orig;
     teardownAgnic();
   }
+});
+
+// --- service-descriptor retry --------------------------------------------
+
+// Extracts the target URL that agnicFetch wrapped into its outgoing fetch
+// (sent as `?url=<target>` on the wrapper request). Mirrors the trick the
+// FORCE_LLM_ADAPTER test uses.
+function targetUrlOf(fetchInput: string | URL | Request): string | null {
+  const u = new URL(fetchInput.toString());
+  return u.searchParams.get("url");
+}
+
+const ORBIS_LABELS_URL =
+  "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80";
+
+Deno.test("invokeRankedService retries against sub-path on descriptor response", async () => {
+  setupAgnic();
+  const orig = globalThis.fetch;
+  const cap = captureConsole();
+  const seenTargets: string[] = [];
+  let calls = 0;
+  globalThis.fetch = (url, _init) => {
+    calls++;
+    const t = targetUrlOf(url);
+    if (t) seenTargets.push(t);
+    if (calls === 1) {
+      // Descriptor response — base URL returns endpoints list.
+      return Promise.resolve(jsonResp(200, {
+        name: "Crypto Address Labeler API",
+        endpoints: ["/label", "/openapi"],
+        docs: "/openapi",
+      }, {
+        "X-Agnic-Paid": "true",
+        "X-Agnic-Amount": "0.005",
+      }));
+    }
+    // Sub-path retry — real address payload.
+    return Promise.resolve(jsonResp(200, {
+      address: ADDR,
+      known_label: "Vitalik",
+      entity_type: "EOA",
+      risk_level: "low",
+      is_known: true,
+    }, {
+      "X-Agnic-Paid": "true",
+      "X-Agnic-Amount": "0.005",
+    }));
+  };
+  const llm = mockLlm({});
+  try {
+    const out = await invokeRankedService(
+      svc({
+        category: "labels",
+        resource: ORBIS_LABELS_URL,
+        inputInfo: { method: "GET" },
+      }),
+      ADDR,
+      "base",
+      { llm },
+    );
+    assertEquals(out.status, "ok", `expected ok, got ${out.status}: ${out.error}`);
+    assertEquals(out.adapterPath, "pattern+subpath");
+    assertEquals((out.data as Record<string, unknown>).known_label, "Vitalik");
+    assertEquals(calls, 2);
+    // First call hits the base URL; second includes the /label sub-path.
+    assertEquals(seenTargets[0], `${ORBIS_LABELS_URL}?address=${encodeURIComponent(ADDR)}`);
+    assertEquals(
+      seenTargets[1].startsWith(`${ORBIS_LABELS_URL}/label`),
+      true,
+      `expected second call to hit /label, got: ${seenTargets[1]}`,
+    );
+    assertEquals(
+      cap.warn.some((l) => l.includes("returned descriptor") && l.includes("/label")),
+      true,
+    );
+  } finally {
+    cap.restore();
+    globalThis.fetch = orig;
+    teardownAgnic();
+  }
+});
+
+Deno.test("invokeRankedService returns descriptor_only_response when only info endpoints present", async () => {
+  setupAgnic();
+  const orig = globalThis.fetch;
+  const cap = captureConsole();
+  let calls = 0;
+  globalThis.fetch = (_url, _init) => {
+    calls++;
+    return Promise.resolve(jsonResp(200, {
+      name: "Bare Descriptor Service",
+      endpoints: ["/openapi", "/docs"],
+    }, {
+      "X-Agnic-Paid": "true",
+      "X-Agnic-Amount": "0.005",
+    }));
+  };
+  const llm = mockLlm({});
+  try {
+    const out = await invokeRankedService(
+      svc({ category: "labels", resource: "https://x.example/svc", inputInfo: { method: "GET" } }),
+      ADDR,
+      "base",
+      { llm },
+    );
+    assertEquals(out.status, "error");
+    assertEquals(out.errorCode, "descriptor_only_response");
+    assertEquals(out.adapterPath, "pattern+subpath");
+    assertEquals(calls, 1, "no retry should be attempted when no action endpoint exists");
+    assertEquals(
+      cap.warn.some((l) => l.includes("no action endpoint") && l.includes("/openapi")),
+      true,
+      "warn log should include the endpoints array verbatim",
+    );
+  } finally {
+    cap.restore();
+    globalThis.fetch = orig;
+    teardownAgnic();
+  }
+});
+
+Deno.test("invokeRankedService surfaces descriptor_only_response when retry also returns descriptor", async () => {
+  setupAgnic();
+  const orig = globalThis.fetch;
+  const cap = captureConsole();
+  let calls = 0;
+  globalThis.fetch = (_url, _init) => {
+    calls++;
+    return Promise.resolve(jsonResp(200, {
+      name: "Recursive Descriptor",
+      endpoints: ["/label", "/openapi"],
+    }, {
+      "X-Agnic-Paid": "true",
+      "X-Agnic-Amount": "0.005",
+    }));
+  };
+  const llm = mockLlm({});
+  try {
+    const out = await invokeRankedService(
+      svc({ category: "labels", resource: "https://x.example/svc", inputInfo: { method: "GET" } }),
+      ADDR,
+      "base",
+      { llm },
+    );
+    assertEquals(out.status, "error");
+    assertEquals(out.errorCode, "descriptor_only_response");
+    assertEquals(out.adapterPath, "pattern+subpath");
+    assertEquals(calls, 2, "exactly one retry should be attempted");
+    assertEquals(
+      cap.warn.some((l) => l.includes("also returned descriptor")),
+      true,
+    );
+  } finally {
+    cap.restore();
+    globalThis.fetch = orig;
+    teardownAgnic();
+  }
+});
+
+Deno.test("invokeRankedService propagates sub-path retry failure code", async () => {
+  setupAgnic();
+  const orig = globalThis.fetch;
+  const cap = captureConsole();
+  let calls = 0;
+  globalThis.fetch = (_url, _init) => {
+    calls++;
+    if (calls === 1) {
+      return Promise.resolve(jsonResp(200, {
+        endpoints: ["/label", "/openapi"],
+      }, {
+        "X-Agnic-Paid": "true",
+        "X-Agnic-Amount": "0.005",
+      }));
+    }
+    return Promise.resolve(
+      jsonResp(400, {
+        error: "upstream_4xx",
+        error_description: "subpath rejected",
+      }),
+    );
+  };
+  const llm = mockLlm({});
+  try {
+    const out = await invokeRankedService(
+      svc({ category: "labels", resource: "https://x.example/svc", inputInfo: { method: "GET" } }),
+      ADDR,
+      "base",
+      { llm },
+    );
+    assertEquals(out.status, "error");
+    assertEquals(out.adapterPath, "pattern+subpath");
+    assertEquals(out.errorCode, "upstream_4xx");
+    assertEquals(calls, 2);
+    assertEquals(
+      cap.warn.some((l) => l.includes("sub-path retry") && l.includes("failed")),
+      true,
+    );
+  } finally {
+    cap.restore();
+    globalThis.fetch = orig;
+    teardownAgnic();
+  }
+});
+
+Deno.test("invokeRankedService descriptor retry preserves POST body and appends sub-path", async () => {
+  setupAgnic();
+  const orig = globalThis.fetch;
+  const cap = captureConsole();
+  const seenTargets: string[] = [];
+  const seenBodies: unknown[] = [];
+  let calls = 0;
+  globalThis.fetch = (url, init) => {
+    calls++;
+    const t = targetUrlOf(url);
+    if (t) seenTargets.push(t);
+    // The agnicFetch wrapper request body is JSON-stringified { url, method, body? }.
+    const wrapperBody = ((init as { body?: string } | undefined)?.body) ?? "";
+    try {
+      const wrapper = JSON.parse(wrapperBody) as { body?: unknown };
+      seenBodies.push(wrapper.body ?? null);
+    } catch {
+      seenBodies.push(null);
+    }
+    if (calls === 1) {
+      return Promise.resolve(jsonResp(200, {
+        endpoints: ["/label", "/openapi"],
+      }, {
+        "X-Agnic-Paid": "true",
+        "X-Agnic-Amount": "0.005",
+      }));
+    }
+    return Promise.resolve(jsonResp(200, {
+      address: ADDR,
+      known_label: "Some Entity",
+    }, {
+      "X-Agnic-Paid": "true",
+      "X-Agnic-Amount": "0.005",
+    }));
+  };
+  const llm = mockLlm({});
+  try {
+    const out = await invokeRankedService(
+      svc({
+        category: "labels",
+        resource: "https://post.example/v1",
+        inputInfo: { method: "POST", body: { address: "0xexample", chain: "base" } },
+      }),
+      ADDR,
+      "base",
+      { llm },
+    );
+    assertEquals(out.status, "ok");
+    assertEquals(out.adapterPath, "pattern+subpath");
+    assertEquals(calls, 2);
+    // Retry URL has /label appended; body matches primary.
+    assertEquals(seenTargets[1], "https://post.example/v1/label");
+    assertEquals(
+      JSON.stringify(seenBodies[1]),
+      JSON.stringify(seenBodies[0]),
+      "retry body should match primary POST body",
+    );
+  } finally {
+    cap.restore();
+    globalThis.fetch = orig;
+    teardownAgnic();
+  }
+});
+
+Deno.test("appendSubPath preserves query string on GET URLs", () => {
+  assertEquals(
+    appendSubPath("https://x.example/y?a=1&b=2", "/label"),
+    "https://x.example/y/label?a=1&b=2",
+  );
+});
+
+Deno.test("appendSubPath collapses duplicate slashes at the join", () => {
+  assertEquals(
+    appendSubPath("https://x.example/y/", "/label"),
+    "https://x.example/y/label",
+  );
+  assertEquals(
+    appendSubPath("https://x.example/y", "label"),
+    "https://x.example/y/label",
+  );
+  assertEquals(
+    appendSubPath("https://x.example/y//", "//label"),
+    "https://x.example/y/label",
+  );
 });
