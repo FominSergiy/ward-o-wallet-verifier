@@ -1,7 +1,9 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { verifyAgentRouter } from "./routes/verify_agent.ts";
+import { verifyAgentStreamRouter } from "./routes/verify_agent_stream.ts";
 import { discoverRouter } from "./routes/discover.ts";
+import { discoverStreamRouter } from "./routes/discover_stream.ts";
 import { invokeRouter } from "./routes/invoke.ts";
 
 const app = new Hono();
@@ -18,7 +20,9 @@ app.use(
 app.get("/health", (c) => c.json({ status: "ok" }));
 
 app.route("/verify-agent", verifyAgentRouter);
+app.route("/verify-agent-stream", verifyAgentStreamRouter);
 app.route("/discover", discoverRouter);
+app.route("/discover-stream", discoverStreamRouter);
 app.route("/invoke", invokeRouter);
 
 app.onError((err, c) => {

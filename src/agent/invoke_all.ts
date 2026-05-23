@@ -8,6 +8,7 @@ import { recordError, recordOk } from "../discovery/health_store.ts";
 import { fetchOnchainHistory } from "./onchain_viem.ts";
 import type { LlmClient } from "./llm.ts";
 import type { Category, Chain } from "./types.ts";
+import { type EventEmitter, now, safeEmit } from "./events.ts";
 
 const VIEM_SUPPORTED_CHAINS: Chain[] = ["eth", "base", "polygon", "arbitrum", "optimism"];
 
@@ -69,6 +70,7 @@ export interface InvokeAllOpts {
   onchainViemFetcher?: typeof fetchOnchainHistory;
   // Disable the viem fallback entirely (used in some tests).
   disableViemFallback?: boolean;
+  onEvent?: EventEmitter;
 }
 
 async function invokeWithAlternates(
@@ -78,6 +80,7 @@ async function invokeWithAlternates(
   chain: Chain,
   invoker: NonNullable<InvokeAllOpts["invoker"]>,
   llm?: LlmClient,
+  emit?: EventEmitter,
 ): Promise<ServiceInvocationOutcome> {
   const candidates = [primary, ...alternates.slice(0, MAX_ALTERNATES_PER_CATEGORY)];
   const failedHosts = new Set<string>();
@@ -91,6 +94,14 @@ async function invokeWithAlternates(
       );
       continue;
     }
+    safeEmit(emit, {
+      type: "service",
+      status: "start",
+      category: svc.category,
+      resource: svc.resource,
+      priceUsdc: svc.priceUsdc,
+      at: now(),
+    });
     const outcome = await invoker(svc, address, chain, { llm });
     // Update health stats so future rerank calls can weight this service.
     if (outcome.status === "ok" || outcome.status === "fallback_ok") {
@@ -100,6 +111,16 @@ async function invokeWithAlternates(
           `[invoke] primary failed for ${primary.category}; succeeded on alternate ${svc.resource}`,
         );
       }
+      safeEmit(emit, {
+        type: "service",
+        status: "ok",
+        category: svc.category,
+        resource: svc.resource,
+        priceUsdc: svc.priceUsdc,
+        amountUsdc: outcome.amountUsdc,
+        durationMs: outcome.durationMs,
+        at: now(),
+      });
       return outcome;
     }
     recordError(svc.resource, outcome.error ?? "(unknown)", outcome.errorCode);
@@ -107,7 +128,18 @@ async function invokeWithAlternates(
     if (isDomainLevelError(outcome.error)) {
       failedHosts.add(host);
     }
-    if (i < candidates.length - 1) {
+    const hasNextCandidate = i < candidates.length - 1;
+    safeEmit(emit, {
+      type: "service",
+      status: hasNextCandidate ? "fallback" : "error",
+      category: svc.category,
+      resource: svc.resource,
+      priceUsdc: svc.priceUsdc,
+      durationMs: outcome.durationMs,
+      error: outcome.error,
+      at: now(),
+    });
+    if (hasNextCandidate) {
       console.warn(
         `[invoke] ${primary.category}: ${svc.resource} errored (${outcome.error}); trying next alternate`,
       );
@@ -124,6 +156,7 @@ export async function invokeAll(
   const invoker = opts.invoker ?? invokeRankedService;
   const viemFetcher = opts.onchainViemFetcher ?? fetchOnchainHistory;
   const viemEnabled = !opts.disableViemFallback;
+  const emit = opts.onEvent;
 
   const outcomes = await Promise.all(
     plan.services.map((s) =>
@@ -134,6 +167,7 @@ export async function invokeAll(
         chain,
         invoker,
         opts.llm,
+        emit,
       )
     ),
   );
@@ -143,19 +177,29 @@ export async function invokeAll(
     for (let i = 0; i < outcomes.length; i++) {
       const o = outcomes[i];
       if (o.category !== "onchain_history" || o.status !== "error") continue;
+      const viemResource = `viem://${chain}`;
+      safeEmit(emit, {
+        type: "service",
+        status: "start",
+        category: "onchain_history",
+        resource: viemResource,
+        priceUsdc: 0,
+        at: now(),
+      });
       try {
         const start = Date.now();
         const viemData = await viemFetcher(plan.address, chain);
+        const durationMs = Date.now() - start;
         console.warn(
           `[invoke] onchain_history x402 failed; viem fallback succeeded (txCount=${viemData.txCount}, balanceEth=${viemData.balanceEth.toFixed(4)})`,
         );
         outcomes[i] = {
           category: "onchain_history",
-          resource: `viem://${chain}`,
+          resource: viemResource,
           data: viemData,
           status: "fallback_ok",
           amountUsdc: 0,
-          durationMs: Date.now() - start,
+          durationMs,
           paid: false,
           network: chain,
           // We use the existing "llm" adapter path slot for viem so the
@@ -163,10 +207,30 @@ export async function invokeAll(
           // enough that this overload is acceptable.
           adapterPath: "llm",
         };
+        safeEmit(emit, {
+          type: "service",
+          status: "ok",
+          category: "onchain_history",
+          resource: viemResource,
+          priceUsdc: 0,
+          amountUsdc: 0,
+          durationMs,
+          at: now(),
+        });
       } catch (e) {
+        const msg = (e as Error).message;
         console.warn(
-          `[invoke] viem fallback for onchain_history failed: ${(e as Error).message}`,
+          `[invoke] viem fallback for onchain_history failed: ${msg}`,
         );
+        safeEmit(emit, {
+          type: "service",
+          status: "error",
+          category: "onchain_history",
+          resource: viemResource,
+          priceUsdc: 0,
+          error: msg,
+          at: now(),
+        });
         // Leave the error outcome in place — coverage gap surfaces in synth.
       }
     }

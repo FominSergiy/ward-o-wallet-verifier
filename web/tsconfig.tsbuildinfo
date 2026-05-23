@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/api.ts","./src/main.tsx","./src/storage.ts","./src/types.ts","./src/vite-env.d.ts","./src/components/inputform.tsx","./src/components/logstream.tsx","./src/components/logo.tsx","./src/components/plancard.tsx","./src/components/terminaltabs.tsx","./src/components/verdictcard.tsx"],"version":"5.9.3"}

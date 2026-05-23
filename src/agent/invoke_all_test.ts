@@ -395,3 +395,70 @@ Deno.test("invokeAll echoes walletNetwork in result", async () => {
   });
   assertEquals(r.walletNetwork, "base");
 });
+
+import type { VerifyEvent } from "./events.ts";
+
+Deno.test("invokeAll onEvent emits service start/ok per resolved category", async () => {
+  const events: VerifyEvent[] = [];
+  const services = [svc("sanctions", "https://s"), svc("labels", "https://l")];
+  await invokeAll(plan(services), "base", {
+    invoker: (s) => Promise.resolve(okOutcome(s.category, { ok: true })),
+    onEvent: (e) => events.push(e),
+    disableViemFallback: true,
+  });
+  const svcEvents = events.filter((e) => e.type === "service");
+  // Two services × (start + ok) = 4 events
+  assertEquals(svcEvents.length, 4);
+  // sanctions
+  const sancStart = svcEvents.find(
+    (e) => e.type === "service" && e.category === "sanctions" && e.status === "start",
+  );
+  const sancOk = svcEvents.find(
+    (e) => e.type === "service" && e.category === "sanctions" && e.status === "ok",
+  );
+  assertEquals(sancStart !== undefined, true);
+  assertEquals(sancOk !== undefined, true);
+  if (sancOk?.type === "service") {
+    assertEquals(sancOk.amountUsdc, 0.001);
+  }
+});
+
+Deno.test("invokeAll onEvent emits service fallback when primary errors and alternate succeeds", async () => {
+  const services = [svc("sanctions", "https://sanc.example")];
+  const planWithAlts: DiscoveryPlan = {
+    ...plan([
+      svc("sanctions", "https://sanc.example"),
+      svc("labels", "https://primary-host.example/labels"),
+    ]),
+    alternates: {
+      labels: [svc("labels", "https://other-host.example/labels")],
+    },
+  };
+  const events: VerifyEvent[] = [];
+  const invoker = (s: RankedService) => {
+    if (s.category === "sanctions") return Promise.resolve(okOutcome("sanctions", { ok: true }));
+    if (s.resource.includes("primary-host")) {
+      return Promise.resolve(errorOutcome("labels", "Bad Request"));
+    }
+    return Promise.resolve(okOutcome("labels", ["exchange"]));
+  };
+  await invokeAll(planWithAlts, "base", {
+    invoker,
+    onEvent: (e) => events.push(e),
+    disableViemFallback: true,
+  });
+  const labelEvents = events.filter(
+    (e) => e.type === "service" && e.category === "labels",
+  );
+  // Primary should emit start + fallback (since alternate exists)
+  const fallback = labelEvents.find(
+    (e) => e.type === "service" && e.status === "fallback",
+  );
+  const ok = labelEvents.find(
+    (e) => e.type === "service" && e.status === "ok",
+  );
+  assertEquals(fallback !== undefined, true);
+  assertEquals(ok !== undefined, true);
+  // Avoid unused-import lint complaint
+  assertEquals(services.length, 1);
+});

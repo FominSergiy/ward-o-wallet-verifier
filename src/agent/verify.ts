@@ -7,6 +7,7 @@ import { synthesizeVerdict } from "./synthesize_verdict.ts";
 import type { WalletVerdict } from "./verdict.ts";
 import type { DiscoveryPlan, WalletNetwork } from "../discovery/types.ts";
 import type { ServiceInvocationOutcome } from "./invoke_service.ts";
+import { type EventEmitter, now, safeEmit } from "./events.ts";
 
 const DEFAULT_CATEGORIES: Category[] = [
   "sanctions",
@@ -32,6 +33,7 @@ export interface VerifyAgentOpts {
   budgetCeiling?: number;
   llm?: LlmClient;
   categories?: Category[];
+  onEvent?: EventEmitter;
   // Injection seam for unit tests — replace any of the discovery-flow
   // collaborators. Real callers leave undefined and the default
   // implementations are used.
@@ -74,17 +76,36 @@ export async function verifyAgent(
 ): Promise<VerifyAgentResult> {
   const categories = opts.categories ?? DEFAULT_CATEGORIES;
   const llm = opts.llm;
+  const emit = opts.onEvent;
   const hooks = opts._testHooks ?? {};
   const discoverFn = hooks.discover ?? discover;
   const invokeAllFn = hooks.invokeAll ?? invokeAll;
   const synthesizeFn = hooks.synthesizeVerdict ?? synthesizeVerdict;
 
-  const plan = await discoverFn(req.address, categories, { llm });
-  const invocation = await invokeAllFn(plan, req.chain, { llm });
+  safeEmit(emit, { type: "phase", phase: "discover", status: "start", at: now() });
+  const plan = await discoverFn(req.address, categories, { llm, onEvent: emit });
+  safeEmit(emit, {
+    type: "plan",
+    services: plan.services.map((s) => ({
+      category: s.category,
+      resource: s.resource,
+      priceUsdc: s.priceUsdc,
+      rationale: s.rationale,
+    })),
+    totalEstimatedCostUsdc: plan.totalEstimatedCostUsdc,
+    walletNetwork: plan.walletNetwork,
+    at: now(),
+  });
+  safeEmit(emit, { type: "phase", phase: "discover", status: "end", at: now() });
+
+  safeEmit(emit, { type: "phase", phase: "invoke", status: "start", at: now() });
+  const invocation = await invokeAllFn(plan, req.chain, { llm, onEvent: emit });
+  safeEmit(emit, { type: "phase", phase: "invoke", status: "end", at: now() });
 
   const resolved = Object.keys(invocation.findings) as Category[];
   let verdict: WalletVerdict;
   let synthesisError: string | undefined;
+  safeEmit(emit, { type: "phase", phase: "synthesize", status: "start", at: now() });
   try {
     verdict = await synthesizeFn({
       address: req.address,
@@ -102,6 +123,12 @@ export async function verifyAgent(
     console.error(
       `[verify-agent] synthesis failed; returning stub verdict with preserved receipts: ${synthesisError}`,
     );
+    safeEmit(emit, {
+      type: "log",
+      level: "error",
+      message: `synthesis failed: ${synthesisError}`,
+      at: now(),
+    });
     verdict = stubVerdict(
       req,
       categories,
@@ -111,6 +138,7 @@ export async function verifyAgent(
       synthesisError,
     );
   }
+  safeEmit(emit, { type: "phase", phase: "synthesize", status: "end", at: now() });
 
   return {
     verdict,

@@ -113,3 +113,59 @@ Deno.test("discover excludes ens from unresolvedCategories", async () => {
   assertEquals(plan.unresolvedCategories.includes("ens"), false);
   assertEquals(plan.unresolvedCategories.length, 0);
 });
+
+import type { VerifyEvent } from "../agent/events.ts";
+
+Deno.test("discover onEvent emits per-category candidate count log lines", async () => {
+  const events: VerifyEvent[] = [];
+  const entry = (resource: string) => ({
+    resource,
+    description: "",
+    accepts: [
+      {
+        amount: "1000",
+        asset: "USDC",
+        network: "eip155:8453",
+        payTo: "0xpay",
+        scheme: "exact" as const,
+        maxTimeoutSeconds: 30,
+      },
+    ],
+  });
+  await discover("0xABC", ["sanctions", "labels"], {
+    detectNetwork: () => Promise.resolve("base"),
+    fetcher: () =>
+      Promise.resolve({
+        walletNetwork: "base",
+        candidates: {
+          sanctions: [entry("https://s1"), entry("https://s2")],
+          labels: [],
+        },
+        errors: {},
+      }),
+    ranker: () =>
+      Promise.resolve([
+        ranked({ category: "sanctions", resource: "https://s1" }),
+      ]),
+    llm: mockLlm({}),
+    onEvent: (e) => events.push(e),
+  });
+  const logs = events.filter((e) => e.type === "log");
+  // network detection + 1 per category = 3 logs
+  assertEquals(
+    logs.some((e) => e.type === "log" && e.message.includes("base")),
+    true,
+  );
+  assertEquals(
+    logs.some(
+      (e) => e.type === "log" && e.message.includes("2 candidates for sanctions"),
+    ),
+    true,
+  );
+  assertEquals(
+    logs.some(
+      (e) => e.type === "log" && e.message.includes("0 candidates for labels"),
+    ),
+    true,
+  );
+});
