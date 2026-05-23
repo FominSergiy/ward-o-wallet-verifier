@@ -3,7 +3,7 @@
     "address": "0xf977814e90da44bfa03b6295a0616a897441acec",
     "chain": "eth",
     "label": "Binance Hot Wallet 20",
-    "category": "Verified exchange",
+    "category": "Verified exchange (EOA)",
     "expected": "safe_to_transact",
     "sourceUrl": "https://etherscan.io/address/0xf977814e90da44bfa03b6295a0616a897441acec"
   },
@@ -12,26 +12,25 @@
     "label": "Binance Hot Wallet 20",
     "expected": "safe_to_transact",
     "actualVerdict": "safe_to_transact",
-    "actualConfidence": "high",
+    "actualConfidence": "medium",
     "verdictMatch": "match",
     "match": true,
     "primaryHits": 3,
-    "alternateRescues": 1,
-    "llmAdapterCount": 2,
+    "alternateRescues": 0,
+    "llmAdapterCount": 1,
     "hardErrors": 1,
     "errorMessages": [
-      "[onchain_history] agnicFetch [Target API is not X402 enabled]: Bad Request"
+      "[web_sentiment] agnicFetch [Not found]: Not Found"
     ],
-    "totalSpentUsdc": 0.016,
-    "latencyMs": 47891.908834,
+    "totalSpentUsdc": 0.009899999999999999,
+    "latencyMs": 40348.880584,
     "resolved": [
       "sanctions",
       "labels",
-      "web_sentiment",
-      "contract_analysis"
+      "onchain_history"
     ],
     "unresolved": [
-      "onchain_history"
+      "web_sentiment"
     ],
     "httpStatus": 200
   },
@@ -41,34 +40,34 @@
       "chain": "eth",
       "safe": true,
       "verdict": "safe_to_transact",
-      "confidence": "high",
-      "headline": "Safe to transact: this address is Binance Hot Wallet 20, a well-known centralized exchange wallet with no sanctions hits.",
-      "reasoning": "The sanctions check returned a clean result with no matches against the active sanctions corpus. Web sentiment evidence strongly identifies this address as 'Binance: Hot Wallet 20' on Blockscan, holding tens of billions of dollars across 24 chains — consistent with a major, publicly-known exchange hot wallet rather than a malicious actor. The labels and contract_analysis endpoints returned only API metadata (no specific risk labels or vulnerabilities), and on-chain history was unresolved, but the strong exchange identification combined with clean sanctions outweighs those gaps. Users should still always confirm the deposit address with their exchange before sending.",
+      "confidence": "medium",
+      "headline": "Safe to transact — sanctions screen is clean and the wallet holds a very large, long-standing ETH balance consistent with a major institutional address.",
+      "reasoning": "Sanctions screening returned no matches against the active corpus, removing the hard-veto risk. The wallet currently holds ~656,224 ETH, a balance characteristic of a major exchange/institutional cold wallet (this address is widely known as Binance 8), which is a strong positive on-chain signal. The label provider did not return a known tag and web sentiment was unresolved, so some confirmatory context is missing, keeping confidence at medium rather than high. No negative labels, contract risk (EOA, N/A), or adverse signals were detected.",
       "findings": [
         {
           "category": "sanctions",
           "severity": "info",
-          "finding": "No matches against the active sanctions corpus (risk_level: low)."
+          "finding": "No matches against active sanctions lists; risk_level reported as low."
         },
         {
           "category": "labels",
           "severity": "info",
-          "finding": "Label API returned only metadata; no specific risk or safety labels surfaced from this source."
+          "finding": "No known label returned by the labeler; entity_type unknown. No risk keywords present."
+        },
+        {
+          "category": "onchain_history",
+          "severity": "info",
+          "finding": "Wallet holds ~656,224 ETH, an extremely large balance consistent with a major institutional/exchange cold wallet."
         },
         {
           "category": "web_sentiment",
-          "severity": "info",
-          "finding": "Multiple explorer sources (Blockscan) identify this address as 'Binance: Hot Wallet 20', a known centralized exchange wallet holding ~$40B across 24 chains."
+          "severity": "low",
+          "finding": "Web sentiment check was unresolved; no adverse press identified but coverage gap remains."
         },
         {
           "category": "contract_analysis",
           "severity": "info",
-          "finding": "No contract vulnerabilities reported; address behaves as an EOA/exchange wallet, so contract analysis is not applicable."
-        },
-        {
-          "category": "onchain_history",
-          "severity": "low",
-          "finding": "On-chain history signal was unresolved by the data layer; not factored into the verdict."
+          "finding": "Not applicable — address is an EOA."
         }
       ],
       "coverage": {
@@ -76,53 +75,48 @@
           "sanctions",
           "labels",
           "onchain_history",
-          "web_sentiment",
-          "contract_analysis"
+          "web_sentiment"
         ],
         "resolved": [
           "sanctions",
           "labels",
-          "web_sentiment",
-          "contract_analysis"
+          "onchain_history"
         ],
         "unresolved": [
-          "onchain_history"
+          "web_sentiment"
+        ],
+        "not_applicable": [
+          "contract_analysis"
         ]
       },
-      "totalSpentUsdc": 0.016,
-      "generatedAt": "2026-05-22T01:18:14.412Z"
+      "totalSpentUsdc": 0.009899999999999999,
+      "generatedAt": "2026-05-23T14:15:49.617Z"
     },
     "plan": {
       "services": [
         {
           "category": "sanctions",
-          "resource": "https://mru-oracle.com/compliance/wallet",
+          "resource": "https://api.anchor-x402.com/v1/screen",
           "priceUsdc": 0.001,
-          "rationale": "Screens against 12,997+ sanctioned/blacklisted crypto addresses across the broadest set of lists (OFAC SDN, USDT/USDC Blacklist, Ransomwhere, OpenSanctions, UK OFSI) at the lowest tier price of $0.001, making it the strongest wallet-specific sanctions candidate."
+          "rationale": "Only candidate with a confirmed 0% recent failure rate; inputInfoCompleteness of 2/3 and lowest price ($0.001) make it the clear choice over untested or 100%-failing alternatives."
         },
         {
           "category": "labels",
           "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
           "priceUsdc": 0.005,
-          "rationale": "Explicitly labels crypto addresses as exchange, mixer, contract, or known entity — the clearest match to the 'labels' category intent — at a competitive $0.005 price with all qualityScores unknown."
+          "rationale": "Only candidate with a confirmed 0% recent failure rate, making it the strongest pick despite its 1/3 inputInfoCompleteness, and its price ($0.005) is competitive."
         },
         {
           "category": "onchain_history",
-          "resource": "https://orbisapi.com/proxy/wallet-balance-api-5575de/v1/transactions/:address",
-          "priceUsdc": 0.001,
-          "rationale": "Provides on-chain ETH & ERC20 transaction history at the lowest available price ($0.001), directly matching the category intent for a risk-verification run."
+          "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+          "priceUsdc": 0.0039,
+          "rationale": "Only candidate with a confirmed 0% recent failure rate combined with the highest inputInfoCompleteness (2/3) in the category, at the joint-lowest price ($0.0039)."
         },
         {
           "category": "web_sentiment",
-          "resource": "https://blockrun.ai/api/v1/surf/search/web",
+          "resource": "https://orbisapi.com/proxy/wallet-risk-score-api-d4822c",
           "priceUsdc": 0.005,
-          "rationale": "Broad web search across crypto sources is the best fit for surfacing wallet/entity web sentiment signals, and shares the same price tier as alternatives while being crypto-focused."
-        },
-        {
-          "category": "contract_analysis",
-          "resource": "https://orbisapi.com/proxy/smart-contract-audit-pro-api-eec894",
-          "priceUsdc": 0.005,
-          "rationale": "Combines vulnerability scanning, risk scoring, and an audit checklist in one purpose-built AI-agent tool at a low $0.005 price, offering the most comprehensive coverage for contract analysis."
+          "rationale": "With index 1 carrying a 100% failure rate (skipped) and index 0 being 1/3 completeness, index 3 is untested but has a risk-score description closest to web/sentiment signal and a mid-low price ($0.005) with no observed failures."
         }
       ]
     },
@@ -133,48 +127,40 @@
         "status": "ok",
         "adapterPath": "pattern",
         "amountUsdc": 0.001,
-        "durationMs": 3135,
+        "durationMs": 3424,
         "paid": true
       },
       {
         "category": "labels",
         "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
         "status": "ok",
-        "adapterPath": "pattern",
+        "adapterPath": "pattern+subpath",
         "amountUsdc": 0.005,
-        "durationMs": 3584,
+        "durationMs": 11715,
         "paid": true
       },
       {
         "category": "onchain_history",
-        "resource": "https://orbisapi.com/proxy/wallet-balance-api-5575de/balance/:address",
-        "status": "error",
-        "adapterPath": "llm",
-        "amountUsdc": 0,
-        "durationMs": 5324,
-        "paid": false,
-        "error": "agnicFetch [Target API is not X402 enabled]: Bad Request"
+        "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.0039,
+        "durationMs": 8541,
+        "paid": true
       },
       {
         "category": "web_sentiment",
-        "resource": "https://blockrun.ai/api/v1/surf/search/web",
-        "status": "fallback_ok",
+        "resource": "https://orbisapi.com/proxy/wallet-risk-score-api-d4822c",
+        "status": "error",
         "adapterPath": "llm",
-        "amountUsdc": 0.005,
-        "durationMs": 19269,
-        "paid": true
-      },
-      {
-        "category": "contract_analysis",
-        "resource": "https://orbisapi.com/proxy/smart-contract-audit-pro-api-eec894",
-        "status": "ok",
-        "adapterPath": "pattern",
-        "amountUsdc": 0.005,
-        "durationMs": 7885,
-        "paid": true
+        "amountUsdc": 0,
+        "durationMs": 15402,
+        "paid": false,
+        "error": "agnicFetch [Not found]: Not Found",
+        "errorCode": "not_found"
       }
     ],
     "walletNetwork": "base",
-    "totalSpentUsdc": 0.016
+    "totalSpentUsdc": 0.009899999999999999
   }
 }
