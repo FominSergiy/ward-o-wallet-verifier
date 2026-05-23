@@ -44,3 +44,20 @@ Deno.test("queriesForCategories returns empty for empty input", () => {
 Deno.test("queriesForCategories returns empty when only ens", () => {
   assertEquals(queriesForCategories(["ens"]), {});
 });
+
+Deno.test("labels query contains entity-attribution discovery terms", () => {
+  const q = CATEGORY_QUERIES.labels.toLowerCase();
+  // The terms that nudge discovery toward higher-coverage labelers — must all
+  // be present so the candidate set isn't bottlenecked by the previous
+  // narrower phrasing.
+  for (const term of ["name tag", "hot wallet", "entity attribution"]) {
+    assertEquals(q.includes(term), true, `labels query missing term: ${term}`);
+  }
+});
+
+Deno.test("labels query preserves the original CEX/mixer terms", () => {
+  const q = CATEGORY_QUERIES.labels.toLowerCase();
+  for (const term of ["exchange", "cex", "mixer", "entity"]) {
+    assertEquals(q.includes(term), true, `labels query lost prior term: ${term}`);
+  }
+});

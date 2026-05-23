@@ -1,6 +1,6 @@
 import type { Category } from "../agent/types.ts";
 import { defaultLlm, type LlmClient } from "../agent/llm.ts";
-import { failureRate, isDurablyBlocked } from "./health_store.ts";
+import { failureRate, isDurablyBlocked, isQualityDemoted } from "./health_store.ts";
 import {
   extractBazaarInfo,
   RankedSelectionSchema,
@@ -12,6 +12,28 @@ import {
 } from "./types.ts";
 
 const MAX_DESC_CHARS = 200;
+
+// Description keywords that hint at strong entity-attribution coverage. Used
+// as a soft signal in the rerank prompt for the `labels` category — services
+// describing themselves with these terms get a small preference, all else
+// equal. Operates on description text only — no provider IDs or URLs are
+// hard-coded.
+const ENTITY_ATTRIBUTION_KEYWORDS = [
+  "entity attribution",
+  "name tag",
+  "hot wallet",
+  "known address",
+  "exchange identification",
+  "cex labels",
+  "address database",
+  "cluster",
+];
+
+function describesEntityAttribution(description: string | undefined): boolean {
+  if (!description) return false;
+  const lower = description.toLowerCase();
+  return ENTITY_ATTRIBUTION_KEYWORDS.some((k) => lower.includes(k));
+}
 
 // Score how completely a service has documented its input shape. Used as a
 // secondary signal in the rerank prompt — services with rich `bazaar.info`
@@ -61,8 +83,12 @@ function buildPrompt(
         ? "unknown (untested)"
         : `${(fr * 100).toFixed(0)}%`;
       const info = extractBazaarInfo(e);
+      const entityHint = cat === "labels" &&
+          describesEntityAttribution(e.description)
+        ? "  [hint: description mentions entity-attribution keywords]"
+        : "";
       sections.push(
-        `  [${idx}] resource: ${e.resource}`,
+        `  [${idx}] resource: ${e.resource}${entityHint}`,
         `      description: ${(e.description ?? "").slice(0, MAX_DESC_CHARS)}`,
         `      priceUsdc: ${priceUsdcFor(e, network)}`,
         `      qualityScore: ${qualityFor(e) ?? "unknown"}`,
@@ -83,6 +109,7 @@ Selection criteria, in priority order:
 3. Higher qualityScore (l30DaysUniquePayers — proven, recently used) is the next-best signal.
 4. Lower priceUsdc breaks ties between similar-quality entries.
 5. The description must clearly match the category intent. If no candidate fits, omit that category.
+6. For the \`labels\` category specifically: when two candidates are otherwise tied on the above criteria, prefer one whose description mentions entity attribution (look for hints like "entity attribution", "name tag", "hot wallet", "known address database", "cluster" — these correlate with better CEX/known-entity coverage). The pre-computed "[hint: …]" tag next to a resource line surfaces this; otherwise inspect the description directly. This is a SOFT preference — never override a stronger failure-rate / quality / completeness signal.
 
 Return one selection per category as { category, resourceIndex, rationale }. The rationale is one short sentence that mentions which of the above signals drove the pick.
 
@@ -91,18 +118,33 @@ ${sections.join("\n")}
 `.trim();
 }
 
-function fallbackPick(entries: DiscoveryEntry[], network: string): number {
-  // Highest l30DaysUniquePayers, tie-break by lowest price.
+function fallbackPick(
+  entries: DiscoveryEntry[],
+  network: string,
+  category: Category,
+): number {
+  // Highest l30DaysUniquePayers, tie-break by lowest price. For labels, prefer
+  // entries whose description mentions entity-attribution keywords when scores
+  // are tied — this is the only non-discovery-honest signal we use here, and
+  // it operates purely on the catalog-provided text.
   let bestIdx = 0;
   let bestQuality = -1;
   let bestPrice = Number.POSITIVE_INFINITY;
+  let bestEntity = false;
   entries.forEach((e, i) => {
     const q = qualityFor(e) ?? 0;
     const p = priceUsdcFor(e, network);
-    if (q > bestQuality || (q === bestQuality && p < bestPrice)) {
+    const entityHit = category === "labels" &&
+      describesEntityAttribution(e.description);
+    if (
+      q > bestQuality ||
+      (q === bestQuality && p < bestPrice) ||
+      (q === bestQuality && p === bestPrice && entityHit && !bestEntity)
+    ) {
       bestIdx = i;
       bestQuality = q;
       bestPrice = p;
+      bestEntity = entityHit;
     }
   });
   return bestIdx;
@@ -141,11 +183,12 @@ function filterDurablyBlocked(
   const out: Partial<Record<Category, DiscoveryEntry[]>> = {};
   for (const [cat, entries] of Object.entries(candidates) as [Category, DiscoveryEntry[]][]) {
     const kept = entries.filter((e) => !isDurablyBlocked(e.resource));
+    let final: DiscoveryEntry[];
     if (kept.length === 0 && entries.length > 0) {
       console.warn(
         `[rank] all candidates for ${cat} are durably blocked — re-including them as degraded fallback`,
       );
-      out[cat] = entries;
+      final = entries;
     } else {
       if (kept.length < entries.length) {
         const dropped = entries.length - kept.length;
@@ -153,8 +196,23 @@ function filterDurablyBlocked(
           `[rank] filtered ${dropped} durably-blocked candidate(s) from ${cat}`,
         );
       }
-      out[cat] = kept;
+      final = kept;
     }
+    // Quality demotion: push services with proven weak coverage to the end
+    // (preserve relative order otherwise). Doesn't drop them — they can still
+    // be picked if no better candidate exists, but they're no longer the
+    // default. The LLM rerank also sees their position and biases away.
+    if (final.some((e) => isQualityDemoted(e.resource))) {
+      const promoted = final.filter((e) => !isQualityDemoted(e.resource));
+      const demoted = final.filter((e) => isQualityDemoted(e.resource));
+      if (demoted.length > 0) {
+        console.warn(
+          `[rank] quality-demoted ${demoted.length} candidate(s) in ${cat} (empty-on-rich-history pattern detected)`,
+        );
+      }
+      final = [...promoted, ...demoted];
+    }
+    out[cat] = final;
   }
   return out;
 }
@@ -202,7 +260,7 @@ export async function rankServices(
     }
   } else {
     for (const [cat, list] of entries) {
-      const idx = fallbackPick(list, network);
+      const idx = fallbackPick(list, network, cat);
       out.push(
         toRanked(
           cat,

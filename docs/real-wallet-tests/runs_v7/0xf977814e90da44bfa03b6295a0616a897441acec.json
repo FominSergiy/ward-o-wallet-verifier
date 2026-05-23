@@ -1,0 +1,163 @@
+{
+  "test": {
+    "address": "0xf977814e90da44bfa03b6295a0616a897441acec",
+    "chain": "eth",
+    "label": "Binance Hot Wallet 20",
+    "category": "Verified exchange (EOA)",
+    "expected": "safe_to_transact",
+    "sourceUrl": "https://etherscan.io/address/0xf977814e90da44bfa03b6295a0616a897441acec"
+  },
+  "metrics": {
+    "address": "0xf977814e90da44bfa03b6295a0616a897441acec",
+    "label": "Binance Hot Wallet 20",
+    "expected": "safe_to_transact",
+    "actualVerdict": "safe_to_transact",
+    "actualConfidence": "high",
+    "verdictMatch": "match",
+    "match": true,
+    "primaryHits": 4,
+    "alternateRescues": 0,
+    "llmAdapterCount": 0,
+    "hardErrors": 0,
+    "errorMessages": [],
+    "totalSpentUsdc": 0.0174,
+    "latencyMs": 41032.73679199998,
+    "resolved": [
+      "sanctions",
+      "labels",
+      "onchain_history",
+      "web_sentiment",
+      "ens"
+    ],
+    "unresolved": [],
+    "httpStatus": 200
+  },
+  "raw": {
+    "verdict": {
+      "address": "0xf977814e90da44bfa03b6295a0616a897441acec",
+      "chain": "eth",
+      "safe": true,
+      "verdict": "safe_to_transact",
+      "confidence": "high",
+      "headline": "Safe to transact — sanctions checks are clean and the wallet has a long-standing, high-balance on-chain footprint consistent with a major known entity (Binance cold wallet).",
+      "reasoning": "Both the Chainalysis on-chain oracle and the x402 sanctions service returned clean (not sanctioned). The wallet holds ~656,224 ETH, a balance consistent with a major institutional/exchange wallet (widely known as a Binance cold wallet), which is strong positive supporting evidence. Labels and ENS returned no explicit match, and web sentiment surfaced no negative reports. With two independent sanctions-clean sources plus very substantial verified on-chain activity, confidence is high.",
+      "findings": [
+        {
+          "category": "sanctions",
+          "severity": "info",
+          "finding": "Clean on both Chainalysis on-chain oracle (isSanctioned: false) and x402 sanctions service (no matches, risk_level: low)."
+        },
+        {
+          "category": "labels",
+          "severity": "info",
+          "finding": "No explicit label returned by Address Labeler; entity_type unknown. (Address is widely known off-platform as a Binance cold wallet.)"
+        },
+        {
+          "category": "onchain_history",
+          "severity": "info",
+          "finding": "Very large balance (~656,224 ETH), consistent with a major institutional/exchange wallet — strong positive supporting evidence."
+        },
+        {
+          "category": "web_sentiment",
+          "severity": "info",
+          "finding": "No negative reputation hits (no scam, hack, exploit, or lawsuit references surfaced)."
+        },
+        {
+          "category": "ens",
+          "severity": "info",
+          "finding": "No ENS reverse record; neutral signal."
+        }
+      ],
+      "coverage": {
+        "requested": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment",
+          "ens"
+        ],
+        "resolved": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment",
+          "ens"
+        ],
+        "unresolved": [],
+        "not_applicable": [
+          "contract_analysis"
+        ]
+      },
+      "totalSpentUsdc": 0.0174,
+      "generatedAt": "2026-05-23T19:40:16.899Z"
+    },
+    "plan": {
+      "services": [
+        {
+          "category": "sanctions",
+          "resource": "https://api.anchor-x402.com/v1/screen",
+          "priceUsdc": 0.001,
+          "rationale": "Only candidate with 0% failure rate AND inputInfoCompleteness of 2/3, while also having the lowest price — all stronger signals than the untested alternatives."
+        },
+        {
+          "category": "labels",
+          "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
+          "priceUsdc": 0.005,
+          "rationale": "Only labels candidate with a confirmed 0% failure rate, which is the strongest signal; description clearly matches label-classification intent (exchange, mixer, contract, known entity)."
+        },
+        {
+          "category": "onchain_history",
+          "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+          "priceUsdc": 0.0039,
+          "rationale": "Only onchain_history candidate with both a confirmed 0% failure rate and inputInfoCompleteness of 2/3, giving it a decisive advantage over all untested alternatives."
+        },
+        {
+          "category": "web_sentiment",
+          "resource": "https://orbisapi.com/proxy/address-reputation-score-api-9d7eb2",
+          "priceUsdc": 0.0075,
+          "rationale": "Resource index 2 has a confirmed 0% failure rate like index 0, but its description ('Risk score 0-100 for any wallet address') more directly maps to a sentiment/reputation signal; index 1 is disqualified by 100% failure rate."
+        }
+      ]
+    },
+    "receipts": [
+      {
+        "category": "sanctions",
+        "resource": "https://api.anchor-x402.com/v1/screen",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.001,
+        "durationMs": 4198,
+        "paid": true
+      },
+      {
+        "category": "labels",
+        "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
+        "status": "ok",
+        "adapterPath": "pattern+subpath",
+        "amountUsdc": 0.005,
+        "durationMs": 10545,
+        "paid": true
+      },
+      {
+        "category": "onchain_history",
+        "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.0039,
+        "durationMs": 6855,
+        "paid": true
+      },
+      {
+        "category": "web_sentiment",
+        "resource": "https://orbisapi.com/proxy/address-reputation-score-api-9d7eb2",
+        "status": "ok",
+        "adapterPath": "pattern+subpath",
+        "amountUsdc": 0.0075,
+        "durationMs": 15665,
+        "paid": true
+      }
+    ],
+    "walletNetwork": "base",
+    "totalSpentUsdc": 0.0174
+  }
+}

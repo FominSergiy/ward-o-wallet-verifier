@@ -7,6 +7,7 @@ import {
   _resetHealthStoreForTests,
   readHealth,
 } from "../discovery/health_store.ts";
+import { isQualityDemoted } from "../discovery/health_store.ts";
 
 function withTempHealthStore(fn: () => Promise<void>): Promise<void> {
   const tmp = Deno.makeTempFileSync({ suffix: ".json" });
@@ -461,4 +462,157 @@ Deno.test("invokeAll onEvent emits service fallback when primary errors and alte
   assertEquals(ok !== undefined, true);
   // Avoid unused-import lint complaint
   assertEquals(services.length, 1);
+});
+
+Deno.test("invokeAll records empty-on-rich-history when labeler returns nothing for a rich wallet", async () => {
+  await withTempHealthStore(async () => {
+    const labelsResource = "https://lbl.weak";
+    const services: RankedService[] = [
+      svc("labels", labelsResource),
+      svc("onchain_history", "https://hist"),
+      svc("sanctions", "https://sanc"),
+    ];
+    const invoker = (s: RankedService) => {
+      if (s.category === "labels") {
+        return Promise.resolve({
+          category: "labels" as const,
+          resource: labelsResource,
+          data: { tags: [], notes: "" },
+          status: "ok" as const,
+          amountUsdc: 0.001,
+          durationMs: 5,
+          paid: true,
+          network: "base",
+          adapterPath: "pattern" as const,
+        });
+      }
+      if (s.category === "onchain_history") {
+        return Promise.resolve({
+          category: "onchain_history" as const,
+          resource: "https://hist",
+          data: { txCount: 5000, balance: "1000000000000000000" },
+          status: "ok" as const,
+          amountUsdc: 0.001,
+          durationMs: 5,
+          paid: true,
+          network: "base",
+          adapterPath: "pattern" as const,
+        });
+      }
+      return Promise.resolve(okOutcome("sanctions", { sanctions_match: false }));
+    };
+    // Record 3 times to trigger quality demotion.
+    for (let i = 0; i < 3; i++) {
+      await invokeAll(plan(services), "base", {
+        invoker,
+        disableViemFallback: true,
+      });
+    }
+    assertEquals(isQualityDemoted(labelsResource), true);
+  });
+});
+
+Deno.test("invokeAll does NOT record empty-on-rich when wallet history is sparse", async () => {
+  await withTempHealthStore(async () => {
+    const labelsResource = "https://lbl.unknown";
+    const services: RankedService[] = [
+      svc("labels", labelsResource),
+      svc("onchain_history", "https://hist"),
+      svc("sanctions", "https://sanc"),
+    ];
+    const invoker = (s: RankedService) => {
+      if (s.category === "labels") {
+        return Promise.resolve({
+          category: "labels" as const,
+          resource: labelsResource,
+          data: { tags: [] },
+          status: "ok" as const,
+          amountUsdc: 0.001,
+          durationMs: 5,
+          paid: true,
+          network: "base",
+          adapterPath: "pattern" as const,
+        });
+      }
+      if (s.category === "onchain_history") {
+        return Promise.resolve({
+          category: "onchain_history" as const,
+          resource: "https://hist",
+          data: { txCount: 3, balance: "0" },
+          status: "ok" as const,
+          amountUsdc: 0.001,
+          durationMs: 5,
+          paid: true,
+          network: "base",
+          adapterPath: "pattern" as const,
+        });
+      }
+      return Promise.resolve(okOutcome("sanctions", { sanctions_match: false }));
+    };
+    for (let i = 0; i < 5; i++) {
+      await invokeAll(plan(services), "base", {
+        invoker,
+        disableViemFallback: true,
+      });
+    }
+    // Empty labels on a brand-new wallet ≠ a quality miss.
+    assertEquals(isQualityDemoted(labelsResource), false);
+  });
+});
+
+Deno.test("invokeAll resets empty-on-rich counter when labels returns a real attribution", async () => {
+  await withTempHealthStore(async () => {
+    const labelsResource = "https://lbl.recovering";
+    const services: RankedService[] = [
+      svc("labels", labelsResource),
+      svc("onchain_history", "https://hist"),
+      svc("sanctions", "https://sanc"),
+    ];
+    let attempt = 0;
+    const invoker = (s: RankedService) => {
+      if (s.category === "labels") {
+        attempt++;
+        return Promise.resolve({
+          category: "labels" as const,
+          resource: labelsResource,
+          // First 3 calls: empty; 4th: real attribution.
+          data: attempt < 4 ? { tags: [] } : { entity: "Binance", tags: ["exchange"] },
+          status: "ok" as const,
+          amountUsdc: 0.001,
+          durationMs: 5,
+          paid: true,
+          network: "base",
+          adapterPath: "pattern" as const,
+        });
+      }
+      if (s.category === "onchain_history") {
+        return Promise.resolve({
+          category: "onchain_history" as const,
+          resource: "https://hist",
+          data: { txCount: 5000 },
+          status: "ok" as const,
+          amountUsdc: 0.001,
+          durationMs: 5,
+          paid: true,
+          network: "base",
+          adapterPath: "pattern" as const,
+        });
+      }
+      return Promise.resolve(okOutcome("sanctions", { sanctions_match: false }));
+    };
+    for (let i = 0; i < 3; i++) {
+      await invokeAll(plan(services), "base", {
+        invoker,
+        disableViemFallback: true,
+      });
+    }
+    assertEquals(isQualityDemoted(labelsResource), true);
+    // 4th call returns real attribution — counter resets.
+    await invokeAll(plan(services), "base", {
+      invoker,
+      disableViemFallback: true,
+    });
+    assertEquals(isQualityDemoted(labelsResource), false);
+    assertEquals(readHealth()[labelsResource]?.emptyOnRich, 0);
+  });
 });

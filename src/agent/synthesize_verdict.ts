@@ -52,11 +52,12 @@ You are the final judgment layer of a wallet risk-verification agent. You will r
 You MUST follow these per-signal weighting rules in order:
 
 **1. sanctions — HARD VETO**
-   • If findings.sanctions indicates a match (any of: \`sanctions_match: true\`, non-empty \`sanctioned_lists\`, \`is_sanctioned: true\`, or any wording confirming a hit) →
+   • If findings.sanctions indicates a match (any of: \`sanctions_match: true\`, non-empty \`sanctioned_lists\`, \`is_sanctioned: true\`, \`chainalysis_oracle.isSanctioned: true\`, or any wording confirming a hit) →
        safe = false, verdict = "do_not_transact", confidence = "high".
        Other signals MUST NOT override this.
-   • If sanctions returned a clean check (no match) → strong positive contribution.
-   • If sanctions is in coverage.unresolved → confidence drops to "low" at best; this is the single most important signal.
+   • If findings.sanctions includes \`chainalysis_oracle: { isSanctioned: false }\` → treat this as STRONG positive evidence: the on-chain Chainalysis oracle is sourced from OFAC SDN and is a high-trust deterministic signal. An oracle-clean result is sufficient to satisfy the "sanctions clean" requirement on its own, regardless of whether the x402 sanctions service also returned data.
+   • If sanctions returned a clean check from an x402 service (no match) → also strong positive contribution.
+   • If sanctions is in coverage.unresolved AND no oracle result is present → confidence drops to "low" at best; this is the single most important signal.
 
 **2. labels — STRONG**
    • Words in returned labels signaling risk (scam, scammer, mixer, tumbler, darknet, phisher, phishing, hack, hacker, exploit, exploiter, rugpull, fraud, stolen) → bias verdict toward "do_not_transact".
@@ -78,8 +79,9 @@ You MUST follow these per-signal weighting rules in order:
    • If a category appears in \`coverage.not_applicable\`, treat it as N/A (not a coverage gap) — do NOT mention it as "unresolved" or let it lower confidence.
 
 **6. ens — CONFIRMATORY**
-   • Confirmed ENS reverse lookup → minor positive (suggests a real, doxxed entity).
-   • Absence → neutral.
+   • findings.ens is the result of a free on-chain ENS reverse lookup. If \`ensName\` is a non-null string (e.g. "vitalik.eth"), the wallet is publicly doxxed to a real identity — this is STRONG positive evidence; clearly-doxxed wallets are very rarely actively malicious. Treat this as roughly equivalent to a known-safe label.
+   • If ensName is null → neutral (most wallets don't have ENS; absence is not a negative).
+   • COMBINATION RULE — when findings.ens.ensName is non-null AND sanctions are clean (oracle or x402) AND there is any positive onchain_history evidence (non-zero balance OR txCount > 0), you SHOULD return verdict="safe_to_transact" with at least confidence="medium" even if labels were empty/unresolved. The "insufficient_data" verdict is reserved for genuinely unknowable cases — ENS-doxxed + sanctions-clean is not unknowable.
 
 **Confidence rules:**
    • "high" — sanctions hit; OR 3+ supporting categories with consistent signals.
