@@ -51,6 +51,7 @@ function resultPayload(result: VerifyAgentResult): Record<string, unknown> {
       durationMs: o.durationMs,
       paid: o.paid,
       error: o.error,
+      errorCode: o.errorCode,
     })),
     walletNetwork: result.walletNetwork,
     totalSpentUsdc: result.totalSpentUsdc,

@@ -135,6 +135,48 @@ Deno.test("agnicFetch: 'Not found' upstream error is normalized to not_found cod
   }
 });
 
+Deno.test("agnicFetch: HTML response throws AgnicFetchError with non_json_response code", async () => {
+  Deno.env.set("AGNIC_API_KEY", "test-key");
+  const orig = globalThis.fetch;
+  globalThis.fetch = (_url, _init) =>
+    Promise.resolve(
+      new Response(
+        "<html><body><h1>502 Bad Gateway</h1><p>nginx</p></body></html>",
+        { status: 502, headers: { "Content-Type": "text/html" } },
+      ),
+    );
+  try {
+    const err = await assertRejects(
+      () => agnicFetch("https://example.com/html"),
+      AgnicFetchError,
+    );
+    assertEquals(err.code, "non_json_response");
+    assertEquals(err.message.includes("HTTP 502"), true);
+    // Body preview is included so we know what the upstream actually sent.
+    assertEquals(err.message.includes("502 Bad Gateway"), true);
+  } finally {
+    globalThis.fetch = orig;
+    Deno.env.delete("AGNIC_API_KEY");
+  }
+});
+
+Deno.test("agnicFetch: empty body throws non_json_response (no spurious SyntaxError)", async () => {
+  Deno.env.set("AGNIC_API_KEY", "test-key");
+  const orig = globalThis.fetch;
+  globalThis.fetch = (_url, _init) =>
+    Promise.resolve(new Response("", { status: 500 }));
+  try {
+    const err = await assertRejects(
+      () => agnicFetch("https://example.com/empty"),
+      AgnicFetchError,
+    );
+    assertEquals(err.code, "non_json_response");
+  } finally {
+    globalThis.fetch = orig;
+    Deno.env.delete("AGNIC_API_KEY");
+  }
+});
+
 Deno.test("agnicFetch: missing AGNIC_API_KEY throws before making any fetch call", async () => {
   Deno.env.delete("AGNIC_API_KEY");
   let fetchCalled = false;
