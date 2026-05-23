@@ -1,0 +1,946 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>WARD-o &mdash; Business Pitch</title>
+<style>
+  :root {
+    --bg: #F5F2EC;
+    --fg: #1A1A1A;
+    --muted: #8A8888;
+    --faint: #D9D5CC;
+    --safe: #3E8B57;
+    --risk: #B0413E;
+    --header: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --body:   "Helvetica Neue", Helvetica, Arial, sans-serif;
+    --mono:   Menlo, Consolas, "SF Mono", monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: #000; }
+  body {
+    font-family: var(--body);
+    color: var(--fg);
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+  }
+  /* Stage = 16:9, scaled to viewport */
+  .stage {
+    position: relative;
+    width: 1600px;
+    height: 900px;
+    transform-origin: center center;
+    background: var(--bg);
+    overflow: hidden;
+  }
+  .slide {
+    position: absolute;
+    inset: 0;
+    padding: 80px;
+    display: none;
+    background: var(--bg);
+  }
+  .slide.active { display: flex; flex-direction: column; }
+
+  .num {
+    position: absolute;
+    top: 54px; left: 72px;
+    font-size: 13px;
+    color: var(--muted);
+    letter-spacing: 6px;
+  }
+  .corner-logo {
+    position: absolute;
+    right: 56px; bottom: 56px;
+    width: 60px; height: 60px;
+    opacity: 0.7;
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--muted);
+    letter-spacing: 4px;
+    text-transform: uppercase;
+  }
+  h2 {
+    font-family: var(--header);
+    font-size: 72px;
+    font-weight: 800;
+    letter-spacing: -1.5px;
+    line-height: 1.04;
+    margin-top: 28px;
+  }
+  h3 {
+    font-family: var(--header);
+    font-size: 36px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    line-height: 1.1;
+  }
+  .sub {
+    font-size: 26px;
+    color: var(--muted);
+    line-height: 1.35;
+    margin-top: 28px;
+    max-width: 1100px;
+  }
+  .rule {
+    width: 140px; height: 3px;
+    background: var(--fg);
+    margin: 32px 0 24px;
+  }
+
+  /* --- Slide 1: cold open --- */
+  .s1 { align-items: center; justify-content: center; text-align: center; }
+  .s1 .scene {
+    font-family: var(--header);
+    font-size: 76px;
+    font-weight: 800;
+    letter-spacing: -2px;
+    line-height: 1.08;
+    max-width: 1280px;
+  }
+  .s1 .scene .accent { color: var(--risk); }
+  .s1 .villain { width: 240px; height: 240px; margin-bottom: 40px; }
+  .s1 .footer {
+    position: absolute;
+    bottom: 60px;
+    font-size: 12px;
+    letter-spacing: 5px;
+    color: var(--muted);
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  /* --- Slide 2: the new problem --- */
+  .s2 .grid2 {
+    display: grid;
+    grid-template-columns: 1.55fr 1fr;
+    gap: 60px;
+    height: 100%;
+    align-items: center;
+  }
+  .s2 .villain-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .s2 .villain-col img { width: 360px; height: 360px; }
+  .s2 .villain-col .label {
+    margin-top: 18px;
+    font-family: var(--mono);
+    font-size: 16px;
+    color: var(--muted);
+    letter-spacing: 2px;
+  }
+  .s2 .stat {
+    margin-top: 36px;
+    display: flex;
+    gap: 48px;
+  }
+  .s2 .stat .item .n {
+    font-family: var(--header);
+    font-size: 64px;
+    font-weight: 800;
+    letter-spacing: -1.5px;
+    color: var(--fg);
+  }
+  .s2 .stat .item .l {
+    font-size: 16px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  /* --- Slide 3: ICP / persona --- */
+  .s3 .grid2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 70px;
+    margin-top: 50px;
+    flex: 1;
+  }
+  .s3 .col h3 { margin-bottom: 16px; }
+  .s3 .col .lead { font-size: 22px; color: var(--muted); margin-bottom: 28px; line-height: 1.35; }
+  .s3 .col ul { list-style: none; }
+  .s3 .col li {
+    font-size: 21px;
+    line-height: 1.5;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--faint);
+  }
+  .s3 .col li:last-child { border-bottom: 0; }
+  .s3 .col li::before {
+    content: "—  ";
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+
+  /* --- Slide 4: solution / one-breath --- */
+  .s4 { align-items: center; justify-content: center; text-align: center; }
+  .s4 .mascot { width: 200px; height: 200px; margin-bottom: 30px; }
+  .s4 .seatbelt {
+    font-family: var(--header);
+    font-size: 84px;
+    font-weight: 800;
+    letter-spacing: -2px;
+    line-height: 1.05;
+    max-width: 1300px;
+  }
+  .s4 .seatbelt em { color: var(--safe); font-style: normal; }
+  .s4 .one {
+    margin-top: 50px;
+    display: flex;
+    gap: 60px;
+    align-items: center;
+    justify-content: center;
+  }
+  .s4 .one .chip {
+    font-family: var(--mono);
+    font-size: 20px;
+    padding: 14px 22px;
+    border: 1.5px solid var(--fg);
+    border-radius: 4px;
+  }
+  .s4 .one .arrow { font-size: 30px; }
+
+  /* --- Slide 5: benefits --- */
+  .s5 .cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 32px;
+    margin-top: 60px;
+    flex: 1;
+  }
+  .s5 .card {
+    background: #fff;
+    border: 1px solid var(--faint);
+    padding: 40px 36px;
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+  }
+  .s5 .card .icon {
+    font-family: var(--header);
+    font-size: 64px;
+    font-weight: 800;
+    color: var(--safe);
+    letter-spacing: -2px;
+  }
+  .s5 .card h3 {
+    font-size: 38px;
+    margin-top: 18px;
+    margin-bottom: 18px;
+  }
+  .s5 .card p {
+    font-size: 20px;
+    line-height: 1.4;
+    color: var(--fg);
+    margin-bottom: 14px;
+  }
+  .s5 .card .vs {
+    margin-top: auto;
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--muted);
+    letter-spacing: 1px;
+    border-top: 1px solid var(--faint);
+    padding-top: 18px;
+  }
+
+  /* --- Slide 6: why now --- */
+  .s6 .timeline {
+    margin-top: 60px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 24px;
+    flex: 1;
+  }
+  .s6 .pin {
+    border-top: 3px solid var(--fg);
+    padding-top: 24px;
+  }
+  .s6 .pin .yr {
+    font-family: var(--mono);
+    font-size: 16px;
+    color: var(--muted);
+    letter-spacing: 3px;
+  }
+  .s6 .pin .what {
+    font-family: var(--header);
+    font-size: 28px;
+    font-weight: 800;
+    margin-top: 14px;
+    line-height: 1.15;
+  }
+  .s6 .pin .who {
+    font-size: 18px;
+    color: var(--muted);
+    margin-top: 10px;
+    line-height: 1.35;
+  }
+
+  /* --- Slide 7: competitive 2x2 --- */
+  .s7 .quad {
+    margin-top: 40px;
+    flex: 1;
+    position: relative;
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    grid-template-rows: 1fr 60px;
+    gap: 10px;
+  }
+  .s7 .y-axis {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--muted);
+    letter-spacing: 3px;
+    padding: 20px 0;
+  }
+  .s7 .x-axis {
+    grid-column: 2;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--muted);
+    letter-spacing: 3px;
+    padding: 0 20px;
+  }
+  .s7 .grid-box {
+    position: relative;
+    background: #fff;
+    border: 1px solid var(--fg);
+  }
+  .s7 .grid-box::before,
+  .s7 .grid-box::after {
+    content: "";
+    position: absolute;
+    background: var(--faint);
+  }
+  .s7 .grid-box::before {
+    top: 0; bottom: 0; left: 50%;
+    width: 1px;
+  }
+  .s7 .grid-box::after {
+    left: 0; right: 0; top: 50%;
+    height: 1px;
+  }
+  .s7 .dot {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    text-align: center;
+  }
+  .s7 .dot .marker {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    margin: 0 auto 8px;
+  }
+  .s7 .dot .name {
+    font-family: var(--header);
+    font-weight: 800;
+    font-size: 20px;
+  }
+  .s7 .dot.us .marker { background: var(--safe); }
+  .s7 .dot.us .name { color: var(--safe); }
+  .s7 .dot.them .marker { background: var(--muted); }
+
+  /* --- Slide 8: market & GTM --- */
+  .s8 .grid2 {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 70px;
+    margin-top: 50px;
+    flex: 1;
+  }
+  .s8 .market { display: flex; flex-direction: column; gap: 24px; }
+  .s8 .market .row {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    gap: 24px;
+    align-items: baseline;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--faint);
+  }
+  .s8 .market .row .k {
+    font-family: var(--mono);
+    font-size: 18px;
+    color: var(--muted);
+    letter-spacing: 2px;
+  }
+  .s8 .market .row .v .n {
+    font-family: var(--header);
+    font-size: 42px;
+    font-weight: 800;
+    letter-spacing: -1px;
+  }
+  .s8 .market .row .v .d {
+    font-size: 17px;
+    color: var(--muted);
+    margin-top: 4px;
+    line-height: 1.35;
+  }
+  .s8 .market .caveat {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+  .s8 .gtm h3 { margin-bottom: 20px; }
+  .s8 .gtm ol { list-style: none; counter-reset: step; }
+  .s8 .gtm li {
+    counter-increment: step;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--faint);
+    font-size: 20px;
+    line-height: 1.4;
+    position: relative;
+    padding-left: 50px;
+  }
+  .s8 .gtm li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: 14px;
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--muted);
+    letter-spacing: 2px;
+  }
+  .s8 .gtm li b {
+    display: block;
+    font-size: 22px;
+    margin-bottom: 4px;
+  }
+  .s8 .gtm li span { color: var(--muted); font-size: 18px; }
+
+  /* --- Slide 9: team / ask / demo --- */
+  .s9 .grid2 {
+    display: grid;
+    grid-template-columns: 1fr 1.1fr;
+    gap: 70px;
+    margin-top: 40px;
+    flex: 1;
+  }
+  .s9 .left h3 { font-size: 32px; margin-bottom: 16px; }
+  .s9 .left p { font-size: 20px; line-height: 1.5; color: var(--muted); margin-bottom: 24px; }
+  .s9 .ask {
+    background: #fff;
+    border: 1.5px solid var(--fg);
+    padding: 32px;
+    border-radius: 6px;
+  }
+  .s9 .ask .label {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--muted);
+    letter-spacing: 4px;
+  }
+  .s9 .ask .ask-text {
+    font-family: var(--header);
+    font-size: 30px;
+    font-weight: 800;
+    margin-top: 16px;
+    line-height: 1.25;
+  }
+  .s9 .right {
+    background: var(--fg);
+    color: var(--bg);
+    border-radius: 6px;
+    padding: 50px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+  }
+  .s9 .right img { width: 200px; height: 200px; margin-bottom: 30px; }
+  .s9 .right .cta {
+    font-family: var(--header);
+    font-size: 40px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    line-height: 1.15;
+  }
+  .s9 .right .arrow {
+    margin-top: 24px;
+    font-family: var(--mono);
+    font-size: 22px;
+    color: var(--bg);
+    opacity: 0.7;
+    letter-spacing: 4px;
+  }
+
+  /* --- Nav --- */
+  .progress {
+    position: fixed;
+    bottom: 18px; left: 50%;
+    transform: translateX(-50%);
+    display: flex; gap: 8px;
+    z-index: 100;
+    pointer-events: none;
+  }
+  .progress .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.18);
+    transition: background 0.2s;
+  }
+  .progress .dot.active { background: var(--fg); }
+  .hint {
+    position: fixed;
+    bottom: 12px; right: 16px;
+    font-size: 11px;
+    color: rgba(0,0,0,0.4);
+    letter-spacing: 1px;
+    font-family: var(--mono);
+    z-index: 100;
+  }
+
+  /* Speaker notes — hidden by default, shown when body has .show-notes */
+  .speaker-notes { display: none; }
+  body.show-notes {
+    overflow: auto;
+    display: block;
+    background: #1A1A1A;
+    padding: 40px 0;
+  }
+  body.show-notes .stage {
+    width: 1200px;
+    height: auto;
+    margin: 0 auto 40px;
+    transform: none !important;
+    display: block;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  body.show-notes .slide {
+    position: relative;
+    display: flex !important;
+    flex-direction: column;
+    height: 675px;
+    margin-bottom: 0;
+  }
+  body.show-notes .speaker-notes {
+    display: block;
+    background: #fff;
+    color: #1A1A1A;
+    max-width: 1200px;
+    margin: -40px auto 60px;
+    padding: 28px 36px;
+    font-size: 16px;
+    line-height: 1.55;
+    border-radius: 0 0 6px 6px;
+    border-top: 3px solid var(--safe);
+  }
+  body.show-notes .speaker-notes h4 {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 3px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  body.show-notes .speaker-notes p { margin-bottom: 10px; }
+  body.show-notes .speaker-notes b { color: var(--safe); }
+  body.show-notes .progress,
+  body.show-notes .hint { display: none; }
+  body.show-notes .slide-wrap {
+    max-width: 1200px;
+    margin: 0 auto 60px;
+  }
+</style>
+</head>
+<body>
+  <div class="stage" id="stage">
+
+    <!-- SLIDE 1: COLD OPEN -->
+    <section class="slide s1" data-slide="1">
+      <img class="villain" src="assets/ward-o-villain.svg" alt="Ward-o villain" />
+      <div class="scene">
+        An AI agent just sent <span class="accent">$5,000</span><br/>
+        to a sanctioned wallet.<br/>
+        <span style="color: var(--muted); font-style: italic; font-size: 56px;">No one was watching.</span>
+      </div>
+      <div class="footer">WARD-o &middot; A SEATBELT FOR AGENTS THAT SPEND MONEY</div>
+    </section>
+
+    <!-- SLIDE 2: THE NEW PROBLEM -->
+    <section class="slide s2" data-slide="2">
+      <div class="num">02 / THE NEW PROBLEM</div>
+      <div class="grid2">
+        <div class="text">
+          <div class="eyebrow">Agents are starting to spend money</div>
+          <h2>Toddlers<br/>with credit cards.</h2>
+          <div class="rule"></div>
+          <div class="sub">
+            AI agents now move USDC autonomously &mdash; for shopping, procurement, payments.
+            They have <b>no idea</b> which wallets are safe to pay.
+            Every transaction is a coin flip.
+          </div>
+          <div class="stat">
+            <div class="item"><div class="n">$2.3B+</div><div class="l">stolen / sanctioned-wallet flow in 2025</div></div>
+            <div class="item"><div class="n">0</div><div class="l">agent-native risk layers exist today</div></div>
+          </div>
+        </div>
+        <div class="villain-col">
+          <img src="assets/ward-o-villain.svg" alt="risky wallet" />
+          <div class="label">UNKNOWN COUNTERPARTY</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 3: WHO FEELS THE PAIN -->
+    <section class="slide s3" data-slide="3">
+      <div class="num">03 / WHO FEELS IT</div>
+      <div class="eyebrow">Our customer</div>
+      <h2>Meet Maya.</h2>
+      <div class="grid2">
+        <div class="col">
+          <h3>She builds a B2B procurement agent.</h3>
+          <p class="lead">5-person startup, Crew.ai stack, agent pays vendors in USDC. She's not a compliance officer. She just wants her agent to not lose her customers' money.</p>
+        </div>
+        <div class="col">
+          <h3>Her week today:</h3>
+          <ul>
+            <li>15+ hours wiring Etherscan + sanctions lists by hand</li>
+            <li>Paying $0.30 per LLM call so the agent can "research" each wallet mid-loop</li>
+            <li>Quoted $80k/yr by Chainalysis &mdash; built for analysts, not agents</li>
+            <li>Still wakes up at 3am wondering if her agent paid a scammer</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 4: SOLUTION / ONE BREATH -->
+    <section class="slide s4" data-slide="4">
+      <img class="mascot" src="assets/ward-o-safe.svg" alt="Ward-o safe" />
+      <div class="seatbelt">
+        Ward-o is the <em>seatbelt</em><br/>
+        for agents that spend money.
+      </div>
+      <div class="one">
+        <div class="chip">wallet address</div>
+        <div class="arrow">&rarr;</div>
+        <div class="chip" style="border-color: var(--safe); color: var(--safe);">safe to pay</div>
+      </div>
+      <div class="sub" style="text-align: center; margin-top: 40px;">
+        One question. One answer. In seconds, for cents.
+      </div>
+    </section>
+
+    <!-- SLIDE 5: BENEFITS -->
+    <section class="slide s5" data-slide="5">
+      <div class="num">05 / WHAT MAYA GETS</div>
+      <div class="eyebrow">Benefits</div>
+      <h2>Time. Money. Trust.</h2>
+      <div class="cards">
+        <div class="card">
+          <div class="icon">T</div>
+          <h3>Time back.</h3>
+          <p>Maya ships safety in one afternoon, not one quarter.</p>
+          <p>Her agent stays in its work loop, not a research loop.</p>
+          <div class="vs">vs. 15+ eng-hours/wallet, in-house</div>
+        </div>
+        <div class="card">
+          <div class="icon">$</div>
+          <h3>Money saved.</h3>
+          <p>Cents per check &mdash; pay only when an agent actually asks.</p>
+          <p>No LLM token burn polluting the user's agent context.</p>
+          <div class="vs">vs. $50k&ndash;$250k/yr enterprise contracts</div>
+        </div>
+        <div class="card">
+          <div class="icon">&#10003;</div>
+          <h3>Trust kept.</h3>
+          <p>Her users keep letting her agent spend &mdash;</p>
+          <p>because it stops at the right addresses, every time.</p>
+          <div class="vs">vs. a 3am wake-up call</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 6: WHY NOW -->
+    <section class="slide s6" data-slide="6">
+      <div class="num">06 / WHY NOW</div>
+      <div class="eyebrow">The agent-payment wave</div>
+      <h2>Agents started spending<br/>this year.</h2>
+      <div class="timeline">
+        <div class="pin">
+          <div class="yr">2024</div>
+          <div class="what">x402 protocol ships</div>
+          <div class="who">Coinbase opens the door to machine-paced payments</div>
+        </div>
+        <div class="pin">
+          <div class="yr">2025</div>
+          <div class="what">Smart Wallets &amp; Skyfire scale</div>
+          <div class="who">Every major wallet ships an "agent mode"</div>
+        </div>
+        <div class="pin">
+          <div class="yr">2026</div>
+          <div class="what">Agentic commerce goes live</div>
+          <div class="who">Crew, LangGraph, MCP agents move real USD</div>
+        </div>
+        <div class="pin">
+          <div class="yr">NOW</div>
+          <div class="what">No safety layer exists</div>
+          <div class="who">Chainalysis is built for humans. We're built for agents.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 7: COMPETITIVE 2x2 -->
+    <section class="slide s7" data-slide="7">
+      <div class="num">07 / LANDSCAPE</div>
+      <div class="eyebrow">Why we win</div>
+      <h2>Built for agents,<br/>not for analysts.</h2>
+      <div class="quad">
+        <div class="y-axis"><span>FAST &middot; CHEAP</span><span>SLOW &middot; EXPENSIVE</span></div>
+        <div class="grid-box">
+          <div class="dot them" style="left: 22%; top: 22%;">
+            <div class="marker"></div>
+            <div class="name">Chainalysis</div>
+            <div style="font-size: 14px; color: var(--muted); margin-top: 4px;">$80k+ /yr &middot; human-led</div>
+          </div>
+          <div class="dot them" style="left: 28%; top: 72%;">
+            <div class="marker"></div>
+            <div class="name">Etherscan + LLM</div>
+            <div style="font-size: 14px; color: var(--muted); margin-top: 4px;">DIY &middot; slow &middot; unstructured</div>
+          </div>
+          <div class="dot them" style="left: 72%; top: 30%;">
+            <div class="marker"></div>
+            <div class="name">TRM Labs</div>
+            <div style="font-size: 14px; color: var(--muted); margin-top: 4px;">API exists &middot; analyst UX</div>
+          </div>
+          <div class="dot us" style="left: 78%; top: 76%;">
+            <div class="marker"></div>
+            <div class="name">WARD-o</div>
+            <div style="font-size: 14px; color: var(--safe); margin-top: 4px;">Agent-native &middot; pay-per-call</div>
+          </div>
+        </div>
+        <div class="x-axis"><span>HUMAN-CURATED</span><span>AGENT-NATIVE</span></div>
+      </div>
+    </section>
+
+    <!-- SLIDE 8: MARKET & GTM -->
+    <section class="slide s8" data-slide="8">
+      <div class="num">08 / MARKET &amp; PATH</div>
+      <div class="eyebrow">Where we play, how we land</div>
+      <h2>A new market, opening fast.</h2>
+      <div class="grid2">
+        <div class="market">
+          <div class="row">
+            <div class="k">TAM</div>
+            <div class="v"><div class="n">$11B</div><div class="d">Crypto compliance &amp; risk software by 2030</div></div>
+          </div>
+          <div class="row">
+            <div class="k">SAM</div>
+            <div class="v"><div class="n">$400M</div><div class="d">Agentic-payment risk slice by 2028</div></div>
+          </div>
+          <div class="row">
+            <div class="k">SOM</div>
+            <div class="v"><div class="n">$8&ndash;15M</div><div class="d">3-yr capture: ~3% of agent-platform builders + 2 enterprise design partners</div></div>
+          </div>
+          <div class="caveat">DIRECTIONAL &middot; SOURCES: GARTNER, A16Z, INTERNAL MODEL</div>
+        </div>
+        <div class="gtm">
+          <h3>Path to traction</h3>
+          <ol>
+            <li><b>0&ndash;60 days</b><span>Free tier + 5 design partners from x402/Agnic ecosystem</span></li>
+            <li><b>60&ndash;180 days</b><span>Public MCP server + SDK in Crew.ai &amp; LangChain registries</span></li>
+            <li><b>180+ days</b><span>Enterprise tier for exchanges &amp; wallet providers</span></li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 9: TEAM + ASK + DEMO -->
+    <section class="slide s9" data-slide="9">
+      <div class="num">09 / TEAM &middot; ASK &middot; DEMO</div>
+      <div class="grid2">
+        <div class="left">
+          <div class="eyebrow">Who's building it</div>
+          <h3 style="margin-top: 24px;">Sergiy &mdash; engineer, agent builder.</h3>
+          <p>Ships agents day-to-day. Business background from running a club at scale. Looking for a crypto-native advisor and a commercial co-founder.</p>
+          <div class="ask">
+            <div class="label">THE ASK</div>
+            <div class="ask-text">
+              Mentorship &amp; intros &mdash; agent-platform founders and a crypto-native advisor to push Ward-o into production with real design partners.
+            </div>
+          </div>
+        </div>
+        <div class="right">
+          <img src="assets/ward-o-safe.svg" alt="Ward-o" />
+          <div class="cta">Now &mdash; watch Ward-o<br/>stop a payment, live.</div>
+          <div class="arrow">DEMO &rarr;</div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Speaker notes (only visible with ?notes) -->
+  <div class="notes-block" data-for="1">
+    <aside class="speaker-notes">
+      <h4>Slide 1 &middot; Cold open (~15s)</h4>
+      <p><b>Open cold, no intro.</b> Read the line. Pause. Let it land. This is the only emotional beat you get before the audience decides whether to listen.</p>
+      <p>If pressed: yes, this is a real category of incident. Sanctioned-address payments are now a known compliance failure mode for agent-driven flows.</p>
+    </aside>
+  </div>
+  <div class="notes-block" data-for="2">
+    <aside class="speaker-notes">
+      <h4>Slide 2 &middot; The new problem (~25s)</h4>
+      <p><b>Frame:</b> agents are toddlers with credit cards. They can transact, they cannot judge.</p>
+      <p><b>If asked about the $2.3B figure:</b> directional &mdash; aggregated from Chainalysis 2025 crime report (sanctioned + scam flows). The point is order of magnitude, not the decimal.</p>
+      <p><b>If asked "why hasn't this been solved":</b> all existing tools (Chainalysis, TRM, Etherscan) were built for human analysts on a desk. None of them speak agent-native (structured verdict, pay-per-call, sub-second).</p>
+    </aside>
+  </div>
+  <div class="notes-block" data-for="3">
+    <aside class="speaker-notes">
+      <h4>Slide 3 &middot; Who feels the pain (~25s)</h4>
+      <p><b>ICP:</b> agent platform builders &mdash; teams of 5&ndash;50 engineers shipping agents that move USDC. Examples: Crew.ai builders, LangGraph teams, x402/Bazaar app developers, agentic-commerce startups (Skyfire-adjacent).</p>
+      <p><b>Why this ICP:</b> they feel the pain today, they can integrate one API call, and they have no budget for Chainalysis. Short cycle, high logo count &mdash; ideal for post-hackathon validation.</p>
+      <p><b>Adjacent (mention if asked):</b> crypto exchanges &amp; wallet providers (bigger contracts), and RegTech/AML compliance teams.</p>
+    </aside>
+  </div>
+  <div class="notes-block" data-for="4">
+    <aside class="speaker-notes">
+      <h4>Slide 4 &middot; Ward-o, in one breath (~25s)</h4>
+      <p><b>The line to memorize:</b> "Ward-o is the seatbelt for agents that spend money." Don't say "API". Don't say "endpoint". Don't say "x402". The seatbelt metaphor does the work &mdash; it's automatic, it's invisible until you need it, and you'd never build a car without it.</p>
+      <p><b>What it actually is:</b> one input (wallet address), one structured verdict (safe / risk_flag / insufficient_data), in seconds, for cents. The 12-year-old test: "you ask the agent a question, it tells you if the wallet is safe to pay."</p>
+    </aside>
+  </div>
+  <div class="notes-block" data-for="5">
+    <aside class="speaker-notes">
+      <h4>Slide 5 &middot; Benefits (~20s)</h4>
+      <p><b>Pitch the three words, then move.</b> Time. Money. Trust. Don't read every bullet &mdash; the slide does that.</p>
+      <p><b>If pressed on "money saved":</b> Chainalysis enterprise contracts start at ~$50k/yr and ramp to $250k+ for full API access. Ward-o pay-per-call lets a Maya-sized team get coverage for under $100/month.</p>
+      <p><b>If pressed on "trust kept":</b> the real product is end-user willingness to keep the agent funded. Every sanctioned-address mistake collapses that trust permanently.</p>
+    </aside>
+  </div>
+  <div class="notes-block" data-for="6">
+    <aside class="speaker-notes">
+      <h4>Slide 6 &middot; Why now (~20s)</h4>
+      <p><b>The thesis:</b> agent payments became real in the last 12 months. x402, Coinbase Smart Wallet agent mode, Skyfire, the MCP economy. Before now, "wallet risk for agents" was a paper. Today it's a production blocker.</p>
+      <p><b>If asked about competitor response:</b> Chainalysis can't pivot down-market &mdash; their pricing, sales cycle, and analyst-first UX are structural. By the time they ship an agent-native tier, the integration ecosystem will be wired around us.</p>
+    </aside>
+  </div>
+  <div class="notes-block" data-for="7">
+    <aside class="speaker-notes">
+      <h4>Slide 7 &middot; Competitive landscape (~20s)</h4>
+      <p><b>Position:</b> we own the bottom-right quadrant &mdash; fast/cheap and agent-native. Everyone else is built around human analysts on a desk.</p>
+      <p><b>Direct competitors:</b> Chainalysis, TRM Labs, Elliptic.</p>
+      <p><b>Indirect:</b> Etherscan + ad-hoc LLM crawls + bespoke MCP tools &mdash; free-ish, slow, agent has to assemble the story itself.</p>
+      <p><b>One-liner positioning:</b> Chainalysis is the bank vault. Etherscan is the public library. Ward-o is the seatbelt &mdash; the only one that snaps on automatically.</p>
+    </aside>
+  </div>
+  <div class="notes-block" data-for="8">
+    <aside class="speaker-notes">
+      <h4>Slide 8 &middot; Market &amp; GTM (~20s)</h4>
+      <p><b>TAM/SAM/SOM are directional</b> &mdash; say so out loud if the room is investor-heavy. TAM ($11B) is the broader crypto compliance market. SAM ($400M) is the agentic-payment risk slice. SOM is what we believe we can capture in 3 years.</p>
+      <p><b>GTM mechanism:</b> distribute as MCP server &amp; SDK in the registries the ICP already uses. No outbound sales for the first 6 months.</p>
+      <p><b>Validation signals to watch:</b> weekly active agents, calls per agent, design-partner false-positive feedback.</p>
+    </aside>
+  </div>
+  <div class="notes-block" data-for="9">
+    <aside class="speaker-notes">
+      <h4>Slide 9 &middot; Team, ask, demo handoff (~20s)</h4>
+      <p><b>Team:</b> keep it tight &mdash; engineer, day-to-day agent builder, business education background. Honest about the gap (crypto-native advisor + commercial co-founder).</p>
+      <p><b>Ask:</b> mentorship and intros. Specifically: agent-platform founders and a crypto-native advisor. This is the honest hackathon ask &mdash; don't oversell to investment.</p>
+      <p><b>Demo handoff:</b> hard transition &mdash; "Let me show you Ward-o stop a payment, live." Then switch to the live UI. The pitch has done its job; the demo proves it.</p>
+    </aside>
+  </div>
+
+  <div class="progress" id="progress"></div>
+  <div class="hint">&larr; &rarr;  space &middot; ?notes</div>
+
+<script>
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const prog = document.getElementById('progress');
+  let cur = 0;
+
+  // Build progress dots
+  slides.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === 0 ? ' active' : '');
+    prog.appendChild(d);
+  });
+  const dots = Array.from(prog.children);
+
+  function show(i) {
+    cur = Math.max(0, Math.min(slides.length - 1, i));
+    slides.forEach((s, k) => s.classList.toggle('active', k === cur));
+    dots.forEach((d, k) => d.classList.toggle('active', k === cur));
+  }
+  show(0);
+
+  document.addEventListener('keydown', (e) => {
+    if (document.body.classList.contains('show-notes')) return;
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+      e.preventDefault(); show(cur + 1);
+    } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+      e.preventDefault(); show(cur - 1);
+    } else if (e.key === 'Home') {
+      show(0);
+    } else if (e.key === 'End') {
+      show(slides.length - 1);
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (document.body.classList.contains('show-notes')) return;
+    const w = window.innerWidth;
+    if (e.clientX > w / 2) show(cur + 1); else show(cur - 1);
+  });
+
+  let touchX = null;
+  document.addEventListener('touchstart', e => { touchX = e.changedTouches[0].screenX; });
+  document.addEventListener('touchend', e => {
+    if (touchX == null) return;
+    const dx = e.changedTouches[0].screenX - touchX;
+    if (Math.abs(dx) > 40) show(cur + (dx < 0 ? 1 : -1));
+    touchX = null;
+  });
+
+  function fit() {
+    if (document.body.classList.contains('show-notes')) return;
+    const stage = document.getElementById('stage');
+    const sx = window.innerWidth  / 1600;
+    const sy = window.innerHeight / 900;
+    const s  = Math.min(sx, sy);
+    stage.style.transform = `scale(${s})`;
+  }
+  window.addEventListener('resize', fit);
+  fit();
+
+  // Speaker-notes mode: ?notes shows all slides stacked with their notes
+  if (window.location.search.includes('notes')) {
+    document.body.classList.add('show-notes');
+    const stage = document.getElementById('stage');
+    const notes = Array.from(document.querySelectorAll('.notes-block'));
+    // Rebuild as stacked: for each slide, wrap with its notes after.
+    const parent = document.body;
+    slides.forEach((slide, idx) => {
+      slide.classList.add('active');
+      const note = notes.find(n => n.dataset.for === String(idx + 1));
+      const wrap = document.createElement('div');
+      wrap.className = 'slide-wrap';
+      slide.parentNode.removeChild(slide);
+      wrap.appendChild(slide);
+      if (note) {
+        note.parentNode.removeChild(note);
+        wrap.appendChild(note);
+      }
+      parent.appendChild(wrap);
+    });
+    // Remove now-empty stage
+    if (stage.parentNode) stage.parentNode.removeChild(stage);
+  }
+</script>
+</body>
+</html>
