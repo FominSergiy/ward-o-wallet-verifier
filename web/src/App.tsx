@@ -39,6 +39,20 @@ export function App() {
   // Execute (and vice versa).
   const planAbortRef = useRef<AbortController | null>(null);
   const verifyAbortRef = useRef<AbortController | null>(null);
+  const lastRunAddressRef = useRef<string>("");
+
+  function flushIfNewAddress(trimmed: string) {
+    if (lastRunAddressRef.current && lastRunAddressRef.current !== trimmed) {
+      planAbortRef.current?.abort();
+      verifyAbortRef.current?.abort();
+      setPlan(null);
+      setVerifyResult(null);
+      setPlanEvents([]);
+      setVerifyEvents([]);
+      setUnfunded(null);
+    }
+    lastRunAddressRef.current = trimmed;
+  }
 
   useEffect(() => {
     const saved = loadLastPlan();
@@ -64,6 +78,8 @@ export function App() {
   }
 
   async function handlePlan() {
+    const trimmed = address.trim();
+    flushIfNewAddress(trimmed);
     setUnfunded(null);
     setPlan(null);
     setPlanEvents([]);
@@ -75,7 +91,7 @@ export function App() {
     setPlanStreaming(true);
 
     try {
-      await streamDiscover(address.trim(), (e) => {
+      await streamDiscover(trimmed, (e) => {
         appendPlan(e);
         if (e.type === "plan") {
           setPlan({
@@ -107,6 +123,8 @@ export function App() {
   }
 
   async function handleExecute() {
+    const trimmed = address.trim();
+    flushIfNewAddress(trimmed);
     setVerifyResult(null);
     setVerifyEvents([]);
     setActiveTab("verify");
@@ -117,7 +135,7 @@ export function App() {
     setVerifyStreaming(true);
 
     try {
-      await streamVerify(address.trim(), chain, (e) => {
+      await streamVerify(trimmed, chain, (e) => {
         appendVerify(e);
         if (e.type === "result") setVerifyResult(e.payload);
       }, ctl.signal);

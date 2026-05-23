@@ -19,10 +19,9 @@ export function TerminalTabs(props: Props) {
   const { active, onChange, planEvents, verifyEvents, planStreaming, verifyStreaming } = props;
   const [view, setView] = useState<View>("flow");
   const events = active === "plan" ? planEvents : verifyEvents;
-  const showToggle = active === "verify";
   return (
     <div className="terminal-tabs" data-testid="terminal-tabs">
-      <div className={`tab-strip ${showToggle ? "with-toggle" : ""}`}>
+      <div className="tab-strip with-toggle">
         <button
           type="button"
           className={`tab ${active === "plan" ? "active" : ""}`}
@@ -43,28 +42,26 @@ export function TerminalTabs(props: Props) {
           <span className="count">{verifyEvents.length}</span>
           {verifyStreaming && <span className="dot" />}
         </button>
-        {showToggle && (
-          <div className="view-toggle" data-testid="view-toggle">
-            <button
-              type="button"
-              className={view === "logs" ? "active" : ""}
-              onClick={() => setView("logs")}
-              data-testid="view-logs"
-            >
-              logs
-            </button>
-            <button
-              type="button"
-              className={view === "flow" ? "active" : ""}
-              onClick={() => setView("flow")}
-              data-testid="view-flow"
-            >
-              flow
-            </button>
-          </div>
-        )}
+        <div className="view-toggle" data-testid="view-toggle">
+          <button
+            type="button"
+            className={view === "logs" ? "active" : ""}
+            onClick={() => setView("logs")}
+            data-testid="view-logs"
+          >
+            logs
+          </button>
+          <button
+            type="button"
+            className={view === "flow" ? "active" : ""}
+            onClick={() => setView("flow")}
+            data-testid="view-flow"
+          >
+            flow
+          </button>
+        </div>
       </div>
-      {showToggle && view === "flow" ? (
+      {view === "flow" ? (
         <FlowDiagram events={events} />
       ) : (
         <LogStream events={events} />
