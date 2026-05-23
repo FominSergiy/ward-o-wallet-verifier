@@ -1,0 +1,61 @@
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
+import {
+  type Category,
+  CategorySchema,
+  type Chain,
+  ChainSchema,
+} from "../agent/types.ts";
+import { verifyAgent } from "../agent/verify.ts";
+
+interface VerifyWalletArgs {
+  address: string;
+  chain: Chain;
+  budgetCeiling?: number;
+  categories?: Category[];
+}
+
+// Transport-agnostic factory. Both `stdio.ts` and `http.ts` mount the same
+// tool surface against different transports.
+export function buildMcpServer(): McpServer {
+  const server = new McpServer({
+    name: "ward-o-wallet-verifier",
+    version: "0.1.0",
+  });
+
+  server.registerTool(
+    "verify_wallet",
+    {
+      title: "Verify wallet risk",
+      description:
+        "Run the full Ward-o wallet risk pipeline: discover x402 risk " +
+        "services, pay for them, and synthesize a verdict " +
+        "(safe_to_transact | do_not_transact | insufficient_data). " +
+        "Costs ~$0.01-$0.05 USDC per call. Set budgetCeiling to cap spend.",
+      inputSchema: {
+        address: z
+          .string()
+          .regex(/^0x[0-9a-fA-F]{40}$/, "Must be a valid EVM address"),
+        chain: ChainSchema,
+        budgetCeiling: z.number().positive().optional(),
+        categories: z.array(CategorySchema).optional(),
+      },
+    },
+    async (
+      { address, chain, budgetCeiling, categories }: VerifyWalletArgs,
+    ) => {
+      const result = await verifyAgent(
+        { address, chain },
+        { budgetCeiling, categories },
+      );
+      return {
+        content: [
+          { type: "text", text: JSON.stringify(result.verdict, null, 2) },
+        ],
+        structuredContent: result.verdict as unknown as Record<string, unknown>,
+      };
+    },
+  );
+
+  return server;
+}

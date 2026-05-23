@@ -7,7 +7,7 @@ interface Props {
 }
 
 const VIEW_W = 760;
-const VIEW_H = 320;
+const VIEW_H = 480;
 
 const ORIGIN = { x: 70, y: VIEW_H / 2 };
 const CATEGORY_X = 220;
