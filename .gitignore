@@ -1,2 +1,3 @@
 .env
 data/service_health.json
+.DS_Store

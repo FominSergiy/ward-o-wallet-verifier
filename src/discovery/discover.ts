@@ -3,6 +3,7 @@ import { defaultLlm, type LlmClient } from "../agent/llm.ts";
 import { detectWalletNetwork } from "./network.ts";
 import { fetchCandidates } from "./orchestrator.ts";
 import { rankServices } from "./rank.ts";
+import { type EventEmitter, now, safeEmit } from "../agent/events.ts";
 import {
   extractBazaarInfo,
   type DiscoveryCandidatesByCategory,
@@ -19,6 +20,7 @@ export interface DiscoverOpts {
   ranker?: typeof rankServices;
   limit?: number;
   maxUsdPrice?: number;
+  onEvent?: EventEmitter;
 }
 
 export async function discover(
@@ -30,13 +32,30 @@ export async function discover(
   const fetcher = opts.fetcher ?? fetchCandidates;
   const ranker = opts.ranker ?? rankServices;
   const llm = opts.llm ?? defaultLlm;
+  const emit = opts.onEvent;
 
   const walletNetwork = await detect();
+  safeEmit(emit, {
+    type: "log",
+    level: "info",
+    message: `wallet network detected: ${walletNetwork}`,
+    at: now(),
+  });
 
   const candidates = await fetcher(categories, walletNetwork, {
     limit: opts.limit,
     maxUsdPrice: opts.maxUsdPrice,
   });
+
+  for (const cat of categories) {
+    const entries = candidates.candidates[cat] ?? [];
+    safeEmit(emit, {
+      type: "log",
+      level: "info",
+      message: `fetched ${entries.length} candidates for ${cat}`,
+      at: now(),
+    });
+  }
 
   const services: RankedService[] = await ranker(candidates, llm);
   const alternates = buildAlternates(candidates, services, walletNetwork);

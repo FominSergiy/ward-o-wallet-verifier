@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { verifyAgentRouter } from "./routes/verify_agent.ts";
+import { verifyAgentStreamRouter } from "./routes/verify_agent_stream.ts";
 import { discoverRouter } from "./routes/discover.ts";
 import { invokeRouter } from "./routes/invoke.ts";
 
@@ -18,6 +19,7 @@ app.use(
 app.get("/health", (c) => c.json({ status: "ok" }));
 
 app.route("/verify-agent", verifyAgentRouter);
+app.route("/verify-agent-stream", verifyAgentStreamRouter);
 app.route("/discover", discoverRouter);
 app.route("/invoke", invokeRouter);
 
