@@ -1,4 +1,5 @@
 import type { VerdictLabel, VerifyResultPayload } from "../types";
+import { WardoMascot, type WardoVariant } from "./WardoMascot";
 
 interface Props {
   result: VerifyResultPayload;
@@ -14,6 +15,12 @@ function labelClass(v: VerdictLabel): string {
   return "insufficient_data";
 }
 
+function mascotVariant(cls: string): WardoVariant {
+  if (cls === "safe") return "safe";
+  if (cls === "risky") return "villain";
+  return "neutral";
+}
+
 function labelText(v: VerdictLabel): string {
   return v.split("_").join(" ");
 }
@@ -23,11 +30,14 @@ export function VerdictCard({ result }: Props) {
   const cls = labelClass(verdict.verdict);
   return (
     <div className="card verdict-card" data-testid="verdict-card">
-      <div className="card-header">
-        <h3>Verdict</h3>
-        <span className="muted">
-          {walletNetwork} · confidence {verdict.confidence}
-        </span>
+      <div className="card-header verdict-card-header">
+        <div className="verdict-card-title">
+          <h3>Verdict</h3>
+          <span className="muted">
+            {walletNetwork} · confidence {verdict.confidence}
+          </span>
+        </div>
+        <WardoMascot variant={mascotVariant(cls)} size={64} className="verdict-mascot" />
       </div>
 
       {synthesisError && (
