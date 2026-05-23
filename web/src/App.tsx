@@ -4,6 +4,7 @@ import { InputForm } from "./components/InputForm";
 import { PlanCard } from "./components/PlanCard";
 import { TerminalTabs, type TabId } from "./components/TerminalTabs";
 import { VerdictCard } from "./components/VerdictCard";
+import { PixelWardo } from "./components/PixelWardo";
 import { streamDiscover, streamVerify } from "./api";
 import { loadLastPlan, saveLastPlan } from "./storage";
 import type {
@@ -181,14 +182,17 @@ export function App() {
       {plan && <PlanCard plan={plan} onSave={handleSavePlan} />}
 
       {showTerminal && (
-        <TerminalTabs
-          active={activeTab}
-          onChange={setActiveTab}
-          planEvents={planEvents}
-          verifyEvents={verifyEvents}
-          planStreaming={planStreaming}
-          verifyStreaming={verifyStreaming}
-        />
+        <>
+          <PixelWardo active={planStreaming || verifyStreaming} />
+          <TerminalTabs
+            active={activeTab}
+            onChange={setActiveTab}
+            planEvents={planEvents}
+            verifyEvents={verifyEvents}
+            planStreaming={planStreaming}
+            verifyStreaming={verifyStreaming}
+          />
+        </>
       )}
 
       {verifyResult && <VerdictCard result={verifyResult} />}

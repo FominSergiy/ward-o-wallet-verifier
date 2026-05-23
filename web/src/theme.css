@@ -32,6 +32,23 @@ body {
   padding: 48px 24px 96px;
 }
 
+.logo-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 36px;
+}
+
+.logo-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.logo-mascot {
+  flex-shrink: 0;
+}
+
 .logo {
   font-size: 56px;
   font-weight: 800;
@@ -42,7 +59,36 @@ body {
 .tagline {
   color: var(--muted);
   font-style: italic;
-  margin-bottom: 36px;
+}
+
+.verdict-card-header {
+  align-items: center;
+}
+
+.verdict-card-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.verdict-card-title h3 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.verdict-mascot {
+  flex-shrink: 0;
+}
+
+@media (max-width: 520px) {
+  .logo {
+    font-size: 44px;
+  }
+  .logo-mascot {
+    width: 64px;
+    height: 64px;
+  }
 }
 
 .input-form {

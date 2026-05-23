@@ -1,0 +1,48 @@
+.pixel-wardo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.5px;
+}
+
+.pixel-wardo-sprite {
+  width: 32px;
+  height: 32px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  background-repeat: no-repeat;
+  flex-shrink: 0;
+}
+
+.pixel-wardo-sprite.idle {
+  background-image: url("/wardo/wardo-pixel-idle.svg");
+  background-size: 32px 32px;
+  background-position: 0 0;
+  animation: pixel-wardo-breathe 2.4s ease-in-out infinite;
+}
+
+.pixel-wardo-sprite.walking {
+  background-image: url("/wardo/wardo-pixel-walk.svg");
+  /* sprite strip is 64x16 in viewBox units; scale 2x → 128x32 displayed */
+  background-size: 128px 32px;
+  background-position: 0 0;
+  animation: pixel-wardo-walk 0.5s steps(4) infinite;
+}
+
+@keyframes pixel-wardo-walk {
+  from { background-position: 0 0; }
+  to   { background-position: -128px 0; }
+}
+
+@keyframes pixel-wardo-breathe {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-1px); }
+}
+
+.pixel-wardo-caption {
+  text-transform: lowercase;
+}

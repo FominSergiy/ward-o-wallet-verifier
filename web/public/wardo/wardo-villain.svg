@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- body & head in muted villain red -->
+  <g fill="#B0413E">
+    <path d="M170 255
+             Q145 260 135 285
+             L125 315
+             Q120 332 132 340
+             Q143 347 155 336
+             L165 325
+             Q170 370 185 395
+             Q200 420 225 420
+             L250 420
+             Q270 420 278 400
+             Q286 420 306 420
+             L330 420
+             Q355 420 370 395
+             Q385 370 390 325
+             L400 336
+             Q412 347 423 340
+             Q435 332 430 315
+             L420 285
+             Q410 260 385 255
+             Q355 230 256 230
+             Q197 230 170 255 Z"/>
+    <rect x="135" y="90" width="242" height="180" rx="28"/>
+  </g>
+  <!-- angry eyebrows (dark, sloping inward = scowl) -->
+  <path d="M158 118 L224 146 L224 159 L158 131 Z" fill="#1A1A1A"/>
+  <path d="M354 118 L288 146 L288 159 L354 131 Z" fill="#1A1A1A"/>
+  <!-- eyes -->
+  <circle cx="195" cy="180" r="14" fill="white"/>
+  <circle cx="317" cy="180" r="14" fill="white"/>
+  <!-- frown -->
+  <path d="M222 240 Q256 215 290 240" stroke="white" stroke-width="7" fill="none" stroke-linecap="round"/>
+</svg>
