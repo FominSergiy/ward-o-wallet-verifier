@@ -672,32 +672,36 @@
       </div>
     </section>
 
-    <!-- SLIDE 6: WHY NOW -->
+    <!-- SLIDE 6: THE STAIRCASE (adoption vision) -->
     <section class="slide s6" data-slide="6">
-      <div class="num">06 / WHY NOW</div>
-      <div class="eyebrow">The agent-payment wave</div>
-      <h2>Agents started spending<br/>this year.</h2>
+      <div class="num">06 / THE STAIRCASE</div>
+      <div class="eyebrow">Where this goes</div>
+      <h2>Devs today.<br/>Everyone tomorrow.</h2>
       <div class="timeline">
-        <div class="pin">
-          <div class="yr">2024</div>
-          <div class="what">x402 protocol ships</div>
-          <div class="who">Coinbase opens the door to machine-paced payments</div>
+        <div class="pin" style="margin-top: 60px;">
+          <div class="yr">TODAY</div>
+          <div class="what">Developers</div>
+          <div class="who">Builders like Maya wiring safety into agents that move USDC</div>
         </div>
-        <div class="pin">
-          <div class="yr">2025</div>
-          <div class="what">Smart Wallets &amp; Skyfire scale</div>
-          <div class="who">Every major wallet ships an "agent mode"</div>
+        <div class="pin" style="margin-top: 40px;">
+          <div class="yr">NEXT 12 MO</div>
+          <div class="what">Companies</div>
+          <div class="who">Agent fleets running procurement, ops, payments at scale</div>
         </div>
-        <div class="pin">
-          <div class="yr">2026</div>
-          <div class="what">Agentic commerce goes live</div>
-          <div class="who">Crew, LangGraph, MCP agents move real USD</div>
+        <div class="pin" style="margin-top: 20px;">
+          <div class="yr">2&ndash;3 YEARS</div>
+          <div class="what">Consumer apps</div>
+          <div class="who">Agent checkout becomes the new payments layer</div>
         </div>
-        <div class="pin">
-          <div class="yr">NOW</div>
-          <div class="what">No safety layer exists</div>
-          <div class="who">Chainalysis is built for humans. We're built for agents.</div>
+        <div class="pin" style="margin-top: 0;">
+          <div class="yr">FAR FUTURE</div>
+          <div class="what">Everyone</div>
+          <div class="who">Regular people doing crypto through ChatGPT-class assistants</div>
         </div>
+      </div>
+      <div style="margin-top: 36px; font-size: 22px; color: var(--muted); line-height: 1.4; max-width: 1200px;">
+        We start where the pain is felt today.<br/>
+        <span style="color: var(--fg); font-weight: 700;">We become the safety layer for the agent economy tomorrow.</span>
       </div>
     </section>
 
@@ -757,6 +761,9 @@
         </div>
         <div class="gtm">
           <h3>Path to traction</h3>
+          <p style="font-size: 17px; color: var(--muted); font-style: italic; margin-bottom: 14px; line-height: 1.4;">
+            The Stripe / Twilio playbook &mdash; free for devs, distributed via SDK registries, up-market once we own the integration layer.
+          </p>
           <ol>
             <li><b>0&ndash;60 days</b><span>Free tier + 5 design partners from x402/Agnic ecosystem</span></li>
             <li><b>60&ndash;180 days</b><span>Public MCP server + SDK in Crew.ai &amp; LangChain registries</span></li>
@@ -796,7 +803,7 @@
     <aside class="speaker-notes">
       <h4>Slide 1 &middot; Cold open (~15s)</h4>
       <p><b>Open cold, no intro.</b> Read the line. Pause. Let it land. This is the only emotional beat you get before the audience decides whether to listen.</p>
-      <p>If pressed: yes, this is a real category of incident. Sanctioned-address payments are now a known compliance failure mode for agent-driven flows.</p>
+      <p><b>If asked "did this actually happen":</b> the specific $5,000 scene is illustrative of the failure mode. But agents <em>are</em> moving money unsupervised in the wild today &mdash; see the <a href="https://airdropalert.com/blogs/ai-wallet-exploit-grok-bankr/">Grok/Bankr March 2025 incident</a>, where a bot deployed a token from a tweet and quietly accumulated $500K in fees before anyone noticed. Sanctioned-address payments from autonomous flows are a known compliance failure mode.</p>
     </aside>
   </div>
   <div class="notes-block" data-for="2">
@@ -804,6 +811,7 @@
       <h4>Slide 2 &middot; The new problem (~25s)</h4>
       <p><b>Frame:</b> agents are toddlers with credit cards. They can transact, they cannot judge.</p>
       <p><b>If asked about the $2.3B figure:</b> directional &mdash; aggregated from Chainalysis 2025 crime report (sanctioned + scam flows). The point is order of magnitude, not the decimal.</p>
+      <p><b>If asked "is anyone else naming this category":</b> yes &mdash; <a href="https://www.coindesk.com/tech/2026/04/13/ai-agents-are-set-to-power-crypto-payments-but-a-hidden-flaw-could-expose-wallets">CoinDesk (Apr 2026)</a> framed it as a "hidden flaw" in agent-driven payments; <a href="https://www.trmlabs.com/resources/blog/autonomous-ai-agents-and-financial-crime-risk-responsibility-and-accountability">TRM Labs</a> published on autonomous-agent financial-crime risk. The industry is starting to talk about it. We're shipping the answer.</p>
       <p><b>If asked "why hasn't this been solved":</b> all existing tools (Chainalysis, TRM, Etherscan) were built for human analysts on a desk. None of them speak agent-native (structured verdict, pay-per-call, sub-second).</p>
     </aside>
   </div>
@@ -820,6 +828,7 @@
       <h4>Slide 4 &middot; Ward-o, in one breath (~25s)</h4>
       <p><b>The line to memorize:</b> "Ward-o is the seatbelt for agents that spend money." Don't say "API". Don't say "endpoint". Don't say "x402". The seatbelt metaphor does the work &mdash; it's automatic, it's invisible until you need it, and you'd never build a car without it.</p>
       <p><b>What it actually is:</b> one input (wallet address), one structured verdict (safe / risk_flag / insufficient_data), in seconds, for cents. The 12-year-old test: "you ask the agent a question, it tells you if the wallet is safe to pay."</p>
+      <p><b>Backup framing if "seatbelt" doesn't land:</b> "Ward-o is a guardrail &mdash; it constrains the agent <em>before</em> the costly action, so the mistake never happens." Use this when the room is technical and wants to hear about prevention, not just recovery.</p>
     </aside>
   </div>
   <div class="notes-block" data-for="5">
@@ -832,8 +841,10 @@
   </div>
   <div class="notes-block" data-for="6">
     <aside class="speaker-notes">
-      <h4>Slide 6 &middot; Why now (~20s)</h4>
-      <p><b>The thesis:</b> agent payments became real in the last 12 months. x402, Coinbase Smart Wallet agent mode, Skyfire, the MCP economy. Before now, "wallet risk for agents" was a paper. Today it's a production blocker.</p>
+      <h4>Slide 6 &middot; The staircase (~20s)</h4>
+      <p><b>The thesis:</b> devs are the <em>wedge</em>, not the destination. Today the pain is felt by Maya. In 12 months it's felt by companies running agent fleets. In 2&ndash;3 years it's felt by every consumer app with agent checkout. In the far future it's grandma doing crypto through her ChatGPT-class assistant &mdash; and none of it works without a trust layer.</p>
+      <p><b>The one-line takeaway:</b> "We start where the pain is felt today. We become the safety layer for the agent economy tomorrow."</p>
+      <p><b>If asked "when does each rung land":</b> 12-month rung = once 2&ndash;3 major agent platforms ship payment SDKs (already happening with Crew/LangGraph). 2&ndash;3 year rung = once consumer agent checkout hits ~$1B GMV (Stripe-style adoption curve). Far future = depends on regulatory and UX maturity, but the building block is the same.</p>
       <p><b>If asked about competitor response:</b> Chainalysis can't pivot down-market &mdash; their pricing, sales cycle, and analyst-first UX are structural. By the time they ship an agent-native tier, the integration ecosystem will be wired around us.</p>
     </aside>
   </div>
@@ -851,6 +862,7 @@
       <h4>Slide 8 &middot; Market &amp; GTM (~20s)</h4>
       <p><b>TAM/SAM/SOM are directional</b> &mdash; say so out loud if the room is investor-heavy. TAM ($11B) is the broader crypto compliance market. SAM ($400M) is the agentic-payment risk slice. SOM is what we believe we can capture in 3 years.</p>
       <p><b>GTM mechanism:</b> distribute as MCP server &amp; SDK in the registries the ICP already uses. No outbound sales for the first 6 months.</p>
+      <p><b>Why name the Stripe / Twilio playbook:</b> investors instantly grok the pattern &mdash; free dev tier &rarr; viral SDK adoption &rarr; up-market once devs lock in the integration. Stripe hit $1B ARR at year ~9 with this. Twilio hit $1B at year ~10. Both started with developer-first wedges into commodity infrastructure plays. Wallet-safety-for-agents fits the same shape.</p>
       <p><b>Validation signals to watch:</b> weekly active agents, calls per agent, design-partner false-positive feedback.</p>
     </aside>
   </div>

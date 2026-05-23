@@ -20,3 +20,30 @@
   - Market-size figures (TAM $11B, SAM $400M) are directional. Caveat lives in the slide and speaker notes. Tighten with cited sources before any investor meeting.
   - The "Maya" persona is composite, not a real design partner. Replace with a real named partner once one is signed.
   - Adjacent ICPs (crypto exchanges, RegTech) are referenced in speaker notes only — if the pitch audience shifts toward enterprise, build a second variant anchored on exchange/wallet integration.
+
+---
+
+## Workshop #2 update (2026-05-23, branch `feat/pitch-deck-workshop2`)
+
+Second pitch clinic surfaced four ideas. After a critical pass, only two earned slide-space; the rest landed in speaker notes.
+
+**Changed slides:**
+
+- **Slide 6** — replaced the Why-Now tech timeline (x402 → Smart Wallets → agentic commerce → no safety layer) with a 4-rung **adoption staircase**: Today (devs / Maya) → Next 12 mo (companies) → 2–3 years (consumer apps with agent checkout) → Far future (regular people doing crypto via ChatGPT-class assistants). Pins use staggered top-margins to render as a literal staircase. Closes with: *"We start where the pain is felt today. We become the safety layer for the agent economy tomorrow."* This was the workshop's biggest critique (vision too small) and it's the only change that meaningfully shifts what the deck *is about*.
+- **Slide 8** — added a one-line Stripe/Twilio playbook intro above the GTM list. Names the pattern investors recognize without adding visual weight.
+
+**Speaker notes deepened (slides 1, 2, 4, 6, 8):**
+
+- Slide 1: Grok/Bankr March 2025 incident as Q&A defense — the deck still uses the hypothetical scene because the real incident (agent accumulating $500K from a tweet-deployed token) is about agent *surprise behavior*, not about paying a sanctioned counterparty. The hypothetical is hypothetical but truthful about the shape of the problem.
+- Slide 2: CoinDesk (Apr 2026) + TRM Labs links for "is anyone else naming this category" Q&A.
+- Slide 4: guardrail framing as backup metaphor when seatbelt doesn't land technically.
+- Slide 6: rung-by-rung timeline rationale; explicit "devs are the wedge, not the destination."
+- Slide 8: Stripe (~$1B ARR at year 9) and Twilio (~$1B at year 10) comparables.
+
+**Ideas considered and rejected:**
+
+- Replacing the cold-open scene with the Grok/Bankr incident — wrong shape (agent surprise behavior, not bad-counterparty payment). Would muddy the value prop on the most important slide.
+- Adding a guardrail line alongside seatbelt on Slide 4 — competes with the hero metaphor; audiences remember one line.
+- Adding industry-recognition badges to visible Slide 2 — adds content without changing what the slide *means*.
+
+**Word-count / timing impact:** none. Staircase content roughly matches the timeline it replaces; Slide 8 addition is one sentence. Deck stays at 9 slides.
