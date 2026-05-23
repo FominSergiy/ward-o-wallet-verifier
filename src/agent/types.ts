@@ -4,8 +4,10 @@ export const ChainSchema = z.enum(["eth", "base", "polygon", "arbitrum", "optimi
 export type Chain = z.infer<typeof ChainSchema>;
 
 export const VerifyRequestSchema = z.object({
-  address: z.string().regex(/^0x[0-9a-fA-F]{40}$/, "Must be a valid EVM address"),
-  chain: ChainSchema,
+  address: z.string().regex(
+    /^0x[0-9a-fA-F]{40}$/,
+    "Must be a valid EVM address (0x followed by 40 hex characters). Non-EVM chains are not supported.",
+  ),
 });
 export type VerifyRequest = z.infer<typeof VerifyRequestSchema>;
 

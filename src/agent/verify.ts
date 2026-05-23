@@ -1,6 +1,6 @@
 import type { VerifyRequest } from "./types.ts";
 import type { LlmClient } from "./llm.ts";
-import type { Category } from "./types.ts";
+import type { Category, Chain } from "./types.ts";
 import { discover } from "../discovery/discover.ts";
 import { invokeAll } from "./invoke_all.ts";
 import { synthesizeVerdict } from "./synthesize_verdict.ts";
@@ -11,11 +11,20 @@ import { type EventEmitter, now, safeEmit } from "./events.ts";
 import { isContract } from "./onchain_viem.ts";
 import {
   checkSanctionsOracle,
-  isOracleSupportedChain,
+  ORACLE_SUPPORTED_CHAINS,
   type OracleResult,
 } from "./sanctions_oracle.ts";
 import { ensSupportedFor, resolveEns } from "./ens_resolver.ts";
 import { fetchLabelsRegistry } from "./labels_registry.ts";
+
+// The user submits a bare EVM address; we no longer ask them to pick a chain.
+// Chain-sensitive downstream paths (x402 invocation, ENS, viem fallback,
+// isContract) use this default — eth has the deepest label / coverage and
+// produces the most useful signal when no chain context is supplied. The
+// Chainalysis sanctions oracle is a separate story: it fans out across every
+// supported EVM chain (see ORACLE_SUPPORTED_CHAINS) so a sanctioned address
+// can't slip through just because one chain's oracle hasn't picked it up.
+const DEFAULT_CHAIN: Chain = "eth";
 
 // Categories that only produce signal for contract addresses. Dropped early
 // for EOAs so we don't burn $0.005 on a smart-contract auditor that returns
@@ -75,7 +84,7 @@ function stubVerdict(
 ): WalletVerdict {
   return {
     address: req.address,
-    chain: req.chain,
+    chain: DEFAULT_CHAIN,
     safe: false,
     verdict: "insufficient_data",
     confidence: "low",
@@ -97,9 +106,10 @@ function stubVerdict(
 }
 
 // CHAIN-PRIMITIVE FALLBACK: deterministic verdict produced when the on-chain
-// Chainalysis sanctions oracle returns isSanctioned=true. We bypass discovery,
-// x402 invocation and Opus synthesis entirely — the oracle is a definitive
-// negative-truth signal and further spend would be wasted.
+// Chainalysis sanctions oracle returns isSanctioned=true on ANY supported
+// chain. We bypass discovery, x402 invocation and Opus synthesis entirely —
+// the oracle is a definitive negative-truth signal and further spend would
+// be wasted.
 function oracleSanctionedVerdict(
   req: VerifyRequest,
   categories: Category[],
@@ -108,7 +118,7 @@ function oracleSanctionedVerdict(
 ): WalletVerdict {
   return {
     address: req.address,
-    chain: req.chain,
+    chain: oracle.chain,
     safe: false,
     verdict: "do_not_transact",
     confidence: "high",
@@ -124,7 +134,7 @@ function oracleSanctionedVerdict(
       category: "sanctions",
       severity: "critical",
       finding:
-        `Chainalysis sanctions oracle returned isSanctioned=true at ${oracle.oracleAddress}.`,
+        `Chainalysis sanctions oracle returned isSanctioned=true at ${oracle.oracleAddress} on ${oracle.chain}.`,
     }],
     coverage: {
       requested: categories,
@@ -135,6 +145,137 @@ function oracleSanctionedVerdict(
     totalSpentUsdc: 0,
     generatedAt: new Date().toISOString(),
   };
+}
+
+interface ChainOracleAttempt {
+  chain: Chain;
+  result?: OracleResult;
+  error?: string;
+}
+
+// Fan the Chainalysis oracle across every supported EVM chain in parallel.
+// Chainalysis maintains a separate oracle deployment per chain — an OFAC-
+// listed address flagged on eth's oracle is not necessarily flagged on base's
+// oracle. The strictest signal (any isSanctioned=true) wins. Emits one
+// service event per chain so the UI can render the fan-out.
+async function checkOracleAcrossChains(
+  address: string,
+  oracleCheckFn: typeof checkSanctionsOracle,
+  emit: EventEmitter | undefined,
+): Promise<ChainOracleAttempt[]> {
+  const attempts = await Promise.all(
+    ORACLE_SUPPORTED_CHAINS.map(async (chain): Promise<ChainOracleAttempt> => {
+      const resource = `chainalysis_oracle://${chain}`;
+      safeEmit(emit, {
+        type: "service",
+        status: "start",
+        category: "sanctions",
+        resource,
+        kind: "direct",
+        priceUsdc: 0,
+        at: now(),
+      });
+      try {
+        const result = await oracleCheckFn(address, chain);
+        safeEmit(emit, {
+          type: "service",
+          status: "ok",
+          category: "sanctions",
+          resource,
+          kind: "direct",
+          priceUsdc: 0,
+          amountUsdc: 0,
+          at: now(),
+        });
+        safeEmit(emit, {
+          type: "log",
+          level: "info",
+          message:
+            `chainalysis_oracle: isSanctioned=${result.isSanctioned} (chain=${chain})`,
+          at: now(),
+        });
+        return { chain, result };
+      } catch (e) {
+        const msg = (e as Error).message;
+        safeEmit(emit, {
+          type: "service",
+          status: "error",
+          category: "sanctions",
+          resource,
+          kind: "direct",
+          priceUsdc: 0,
+          error: msg,
+          at: now(),
+        });
+        safeEmit(emit, {
+          type: "log",
+          level: "warn",
+          message: `chainalysis_oracle_failed: ${chain} ${msg}`,
+          at: now(),
+        });
+        return { chain, error: msg };
+      }
+    }),
+  );
+  return attempts;
+}
+
+// Resolve ENS with structured service events so the UI flow diagram can
+// render this chain-primitive path alongside the x402 categories.
+async function resolveEnsWithEvents(
+  address: string,
+  ensResolveFn: typeof resolveEns,
+  emit: EventEmitter | undefined,
+): Promise<Awaited<ReturnType<typeof resolveEns>> | null> {
+  const resource = `ens://${DEFAULT_CHAIN}`;
+  safeEmit(emit, {
+    type: "service",
+    status: "start",
+    category: "ens",
+    resource,
+    kind: "direct",
+    priceUsdc: 0,
+    at: now(),
+  });
+  try {
+    const result = await ensResolveFn(address, DEFAULT_CHAIN);
+    safeEmit(emit, {
+      type: "service",
+      status: "ok",
+      category: "ens",
+      resource,
+      kind: "direct",
+      priceUsdc: 0,
+      amountUsdc: 0,
+      at: now(),
+    });
+    safeEmit(emit, {
+      type: "log",
+      level: "info",
+      message: `ens_resolve: ${result.ensName ?? "(no primary name)"}`,
+      at: now(),
+    });
+    return result;
+  } catch (e) {
+    const msg = (e as Error).message;
+    safeEmit(emit, {
+      type: "service",
+      status: "error",
+      category: "ens",
+      resource,
+      kind: "direct",
+      priceUsdc: 0,
+      error: msg,
+      at: now(),
+    });
+    safeEmit(emit, {
+      type: "log",
+      level: "warn",
+      message: `ens_resolve_failed: ${msg}`,
+      at: now(),
+    });
+    return null;
+  }
 }
 
 export async function verifyAgent(
@@ -162,14 +303,14 @@ export async function verifyAgent(
     CONTRACT_ONLY_CATEGORIES.has(c)
   );
   if (requestedContractOnly.length > 0) {
-    const addressIsContract = await isContractFn(req.address, req.chain);
+    const addressIsContract = await isContractFn(req.address, DEFAULT_CHAIN);
     if (!addressIsContract) {
       notApplicable.push(...requestedContractOnly);
       categories = requestedCategories.filter(
         (c) => !CONTRACT_ONLY_CATEGORIES.has(c),
       );
       console.warn(
-        `[verify-agent] address ${req.address} on ${req.chain} is an EOA — skipping categories: ${notApplicable.join(", ")}`,
+        `[verify-agent] address ${req.address} on ${DEFAULT_CHAIN} is an EOA — skipping categories: ${notApplicable.join(", ")}`,
       );
       safeEmit(emit, {
         type: "log",
@@ -180,74 +321,66 @@ export async function verifyAgent(
     }
   }
 
-  // ENS reverse resolution only exists natively on Ethereum mainnet. Drop the
-  // category for other chains so it doesn't penalize confidence as
-  // "unresolved" — it's genuinely not applicable.
-  if (categories.includes("ens") && !ensSupportedFor(req.chain)) {
+  // ENS reverse resolution only exists natively on Ethereum mainnet. Since
+  // DEFAULT_CHAIN is eth this branch is currently a no-op, but kept so the
+  // skip-logic still works if we ever change defaults.
+  if (categories.includes("ens") && !ensSupportedFor(DEFAULT_CHAIN)) {
     notApplicable.push("ens");
     categories = categories.filter((c) => c !== "ens");
     safeEmit(emit, {
       type: "log",
       level: "info",
-      message: `category_skipped: ens reason=chain_not_supported (${req.chain})`,
+      message: `category_skipped: ens reason=chain_not_supported (${DEFAULT_CHAIN})`,
       at: now(),
     });
   }
 
-  // CHAIN-PRIMITIVE FALLBACK: hit the Chainalysis sanctions oracle before
-  // running discovery + x402 invocation. If sanctioned, short-circuit to a
-  // deterministic verdict with zero spend. On RPC errors or unsupported
-  // chains, fall through silently — the regular sanctions x402 service still
-  // runs and synthesis will handle the result. See sanctions_oracle.ts.
-  let oracleResult: OracleResult | null = null;
-  if (isOracleSupportedChain(req.chain)) {
-    try {
-      oracleResult = await oracleCheckFn(req.address, req.chain);
-      safeEmit(emit, {
-        type: "log",
-        level: "info",
-        message:
-          `chainalysis_oracle: isSanctioned=${oracleResult.isSanctioned} (chain=${req.chain})`,
-        at: now(),
-      });
-      if (oracleResult.isSanctioned) {
-        console.warn(
-          `[verify-agent] Chainalysis oracle flagged ${req.address} as sanctioned — short-circuiting (no x402 spend)`,
-        );
-        const walletNetwork: WalletNetwork = "base";
-        return {
-          verdict: oracleSanctionedVerdict(
-            req,
-            categories,
-            notApplicable,
-            oracleResult,
-          ),
-          plan: {
-            address: req.address,
-            walletNetwork,
-            services: [],
-            alternates: {},
-            totalEstimatedCostUsdc: 0,
-            unresolvedCategories: [],
-            generatedAt: new Date().toISOString(),
-          },
-          outcomes: [],
-          walletNetwork,
-          totalSpentUsdc: 0,
-        };
-      }
-    } catch (e) {
-      console.warn(
-        `[verify-agent] Chainalysis oracle check failed (proceeding with x402 flow): ${(e as Error).message}`,
-      );
-      safeEmit(emit, {
-        type: "log",
-        level: "warn",
-        message: `chainalysis_oracle_failed: ${(e as Error).message}`,
-        at: now(),
-      });
-    }
+  // CHAIN-PRIMITIVE FALLBACK: hit the Chainalysis sanctions oracle on every
+  // supported EVM chain in parallel before running discovery + x402
+  // invocation. If ANY chain returns isSanctioned=true, short-circuit to a
+  // deterministic verdict with zero spend. On RPC errors for an individual
+  // chain we keep going — the strictest signal across the surviving chains
+  // still gates the verdict, and the regular sanctions x402 service runs
+  // afterwards if no chain flagged the address.
+  const oracleAttempts = await checkOracleAcrossChains(
+    req.address,
+    oracleCheckFn,
+    emit,
+  );
+  const flaggedAttempt = oracleAttempts.find((a) =>
+    a.result?.isSanctioned === true
+  );
+  if (flaggedAttempt && flaggedAttempt.result) {
+    console.warn(
+      `[verify-agent] Chainalysis oracle flagged ${req.address} as sanctioned on ${flaggedAttempt.chain} — short-circuiting (no x402 spend)`,
+    );
+    const walletNetwork: WalletNetwork = "base";
+    return {
+      verdict: oracleSanctionedVerdict(
+        req,
+        categories,
+        notApplicable,
+        flaggedAttempt.result,
+      ),
+      plan: {
+        address: req.address,
+        walletNetwork,
+        services: [],
+        alternates: {},
+        totalEstimatedCostUsdc: 0,
+        unresolvedCategories: [],
+        generatedAt: new Date().toISOString(),
+      },
+      outcomes: [],
+      walletNetwork,
+      totalSpentUsdc: 0,
+    };
   }
+  // Prefer the eth result for merging into findings (deepest coverage). Fall
+  // back to any successful clean result if eth failed.
+  const oracleResult: OracleResult | null = oracleAttempts.find((a) =>
+    a.chain === "eth" && a.result
+  )?.result ?? oracleAttempts.find((a) => a.result)?.result ?? null;
 
   safeEmit(emit, { type: "phase", phase: "discover", status: "start", at: now() });
   const plan = await discoverFn(req.address, categories, { llm, onEvent: emit });
@@ -275,12 +408,7 @@ export async function verifyAgent(
   const [invocation, ensSettled, registrySettled] = await Promise.all([
     invokeAllFn(plan, req.chain, { llm, onEvent: emit }),
     wantEns
-      ? ensResolveFn(req.address, req.chain).catch((e: Error) => {
-        console.warn(
-          `[verify-agent] ENS reverse resolution failed (proceeding): ${e.message}`,
-        );
-        return null;
-      })
+      ? resolveEnsWithEvents(req.address, ensResolveFn, emit)
       : Promise.resolve(null),
     wantLabels
       ? labelsRegistryFn(req.address, req.chain).catch((e: Error) => {
@@ -341,7 +469,7 @@ export async function verifyAgent(
   try {
     verdict = await synthesizeFn({
       address: req.address,
-      chain: req.chain,
+      chain: DEFAULT_CHAIN,
       findings: invocation.findings,
       coverage: {
         requested: categories,

@@ -30,9 +30,41 @@ Deno.test("POST /verify-agent rejects malformed address with 400", async () => {
   const res = await app.request("/verify-agent", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ address: "not-an-address", chain: "base" }),
+    body: JSON.stringify({ address: "not-an-address" }),
   });
   assertEquals(res.status, 400);
+});
+
+Deno.test("POST /verify-agent rejects non-EVM Solana-shaped address with 400", async () => {
+  const app = buildApp();
+  const res = await app.request("/verify-agent", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      address: "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+    }),
+  });
+  assertEquals(res.status, 400);
+});
+
+Deno.test("POST /verify-agent accepts a body with only `address` (no chain field)", async () => {
+  // Body shape regression: chain used to be required. Now it's gone — the
+  // route should parse cleanly. The request will likely fail downstream (no
+  // AGNIC_API_KEY in test env) but it must NOT 400 on schema validation.
+  const app = buildAppWithBudgetStub(null);
+  Deno.env.set("AGNIC_BUDGET_MIN_USD", "10000");
+  try {
+    const res = await app.request("/verify-agent", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        address: "0x9dd5e3a608Ba321C5205688d66E11e81B67e08c2",
+      }),
+    });
+    assertEquals(res.status !== 400, true);
+  } finally {
+    Deno.env.delete("AGNIC_BUDGET_MIN_USD");
+  }
 });
 
 Deno.test("POST /verify-agent returns 503 when totalBalance is below the threshold", async () => {
@@ -48,7 +80,6 @@ Deno.test("POST /verify-agent returns 503 when totalBalance is below the thresho
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         address: "0x9dd5e3a608Ba321C5205688d66E11e81B67e08c2",
-        chain: "base",
       }),
     });
     assertEquals(res.status, 503);
@@ -74,7 +105,6 @@ Deno.test("POST /verify-agent skips the budget guard when the fetcher returns nu
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         address: "0x9dd5e3a608Ba321C5205688d66E11e81B67e08c2",
-        chain: "base",
       }),
     });
     // Anything BUT a budget_exhausted 503 is acceptable here.
@@ -97,7 +127,6 @@ Deno.test("POST /verify-agent does not block on budget-fetch failure", async () 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         address: "0x9dd5e3a608Ba321C5205688d66E11e81B67e08c2",
-        chain: "base",
       }),
     });
     if (res.status === 503) {
@@ -107,19 +136,6 @@ Deno.test("POST /verify-agent does not block on budget-fetch failure", async () 
   } finally {
     Deno.env.delete("AGNIC_BUDGET_MIN_USD");
   }
-});
-
-Deno.test("POST /verify-agent rejects unknown chain with 400", async () => {
-  const app = buildApp();
-  const res = await app.request("/verify-agent", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      address: "0x9dd5e3a608Ba321C5205688d66E11e81B67e08c2",
-      chain: "bitcoin",
-    }),
-  });
-  assertEquals(res.status, 400);
 });
 
 // === END-TO-END test (hits real CDP + agnic + real x402 payments + real Opus). ===
@@ -135,7 +151,6 @@ Deno.test({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         address: "0x9dd5e3a608Ba321C5205688d66E11e81B67e08c2",
-        chain: "base",
       }),
     });
     const body = await res.json();

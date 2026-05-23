@@ -8,7 +8,6 @@ import { PixelWardo } from "./components/PixelWardo";
 import { streamDiscover, streamVerify } from "./api";
 import { loadLastPlan, saveLastPlan } from "./storage";
 import type {
-  Chain,
   PlanView,
   VerifyEvent,
   VerifyResultPayload,
@@ -22,7 +21,6 @@ interface UnfundedState {
 
 export function App() {
   const [address, setAddress] = useState("");
-  const [chain, setChain] = useState<Chain>("base");
 
   const [plan, setPlan] = useState<PlanView | null>(null);
   const [unfunded, setUnfunded] = useState<UnfundedState | null>(null);
@@ -58,7 +56,6 @@ export function App() {
     const saved = loadLastPlan();
     if (saved) {
       setAddress(saved.address);
-      setChain(saved.chain);
       setPlan(saved.plan);
     }
   }, []);
@@ -135,7 +132,7 @@ export function App() {
     setVerifyStreaming(true);
 
     try {
-      await streamVerify(trimmed, chain, (e) => {
+      await streamVerify(trimmed, (e) => {
         appendVerify(e);
         if (e.type === "result") setVerifyResult(e.payload);
       }, ctl.signal);
@@ -159,7 +156,6 @@ export function App() {
     if (!plan) return;
     saveLastPlan({
       address: address.trim(),
-      chain,
       plan,
       savedAt: new Date().toISOString(),
     });
@@ -177,11 +173,9 @@ export function App() {
 
       <InputForm
         address={address}
-        chain={chain}
         busy={planStreaming || verifyStreaming}
         running={planStreaming || verifyStreaming}
         onAddressChange={setAddress}
-        onChainChange={setChain}
         onPlan={handlePlan}
         onExecute={handleExecute}
       />

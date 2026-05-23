@@ -19,11 +19,18 @@ export interface LogEvent {
   at: string;
 }
 
+// "kind" distinguishes paid x402 service calls (default) from free chain
+// primitives like the Chainalysis sanctions oracle, ENS reverse resolution,
+// and the viem onchain_history fallback. The UI uses this to render direct
+// paths with distinct styling (no payment diamond, dashed border).
+export type ServiceKind = "x402" | "direct";
+
 export interface ServiceEvent {
   type: "service";
   status: "start" | "ok" | "error" | "fallback";
   category: Category;
   resource: string;
+  kind?: ServiceKind;
   priceUsdc?: number;
   amountUsdc?: number;
   durationMs?: number;

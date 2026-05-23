@@ -1,6 +1,7 @@
 import { assertEquals } from "@std/assert";
 import { verifyAgent } from "./verify.ts";
 import type { VerifyEvent } from "./events.ts";
+import type { Chain } from "./types.ts";
 import type { OracleResult } from "./sanctions_oracle.ts";
 import type { EnsResolution } from "./ens_resolver.ts";
 import type { RegistryResult } from "./labels_registry.ts";
@@ -29,89 +30,36 @@ function ensHit(name: string): () => Promise<EnsResolution> {
     });
 }
 
-function cleanOracle(): () => Promise<OracleResult> {
-  return () =>
+// Returns a clean oracle result for whichever chain is queried. Used to stub
+// the multi-chain oracle fan-out — each of the 5 chains queried gets a clean
+// response.
+function cleanOracleFn(): (address: string, chain: Chain) => Promise<OracleResult> {
+  return (_address, chain) =>
     Promise.resolve({
       source: "chainalysis_oracle",
       oracleAddress: "0x40C57923924B5c5c5455c48D93317139ADDaC8fb",
-      chain: "base",
+      chain,
       isSanctioned: false,
       checkedAt: new Date().toISOString(),
       rpcUrl: "https://test.rpc",
     });
 }
 
-function sanctionedOracle(): () => Promise<OracleResult> {
-  return () =>
+// Returns isSanctioned=true ONLY for the specified chain — other chains
+// return clean. Lets us assert the strictest-wins behavior of the fan-out.
+function oracleSanctionedOn(
+  flagged: Chain,
+): (address: string, chain: Chain) => Promise<OracleResult> {
+  return (_address, chain) =>
     Promise.resolve({
       source: "chainalysis_oracle",
       oracleAddress: "0x40C57923924B5c5c5455c48D93317139ADDaC8fb",
-      chain: "base",
-      isSanctioned: true,
+      chain,
+      isSanctioned: chain === flagged,
       checkedAt: new Date().toISOString(),
       rpcUrl: "https://test.rpc",
     });
 }
-
-Deno.test("verifyAgent returns stub verdict + receipts when synthesis throws", async () => {
-  const fakePlan = {
-    address: "0xABC0000000000000000000000000000000000123",
-    walletNetwork: "base" as const,
-    services: [{
-      category: "sanctions" as const,
-      resource: "https://sanc.example",
-      description: "x",
-      priceUsdc: 0.001,
-      network: "eip155:8453",
-      payTo: "0xp",
-      scheme: "exact" as const,
-      qualityScore: null,
-      rationale: "r",
-    }],
-    alternates: {},
-    totalEstimatedCostUsdc: 0.001,
-    unresolvedCategories: [],
-    generatedAt: new Date().toISOString(),
-  };
-  const fakeOutcome = {
-    category: "sanctions" as const,
-    resource: "https://sanc.example",
-    data: { sanctions_match: false },
-    status: "ok" as const,
-    amountUsdc: 0.001,
-    durationMs: 5,
-    paid: true,
-    network: "base" as const,
-    adapterPath: "pattern" as const,
-  };
-  const r = await verifyAgent(
-    { address: "0xABC0000000000000000000000000000000000123", chain: "base" },
-    {
-      _testHooks: {
-        checkSanctionsOracle: cleanOracle(),
-        discover: () => Promise.resolve(fakePlan),
-        invokeAll: () =>
-          Promise.resolve({
-            findings: { sanctions: { sanctions_match: false } },
-            outcomes: [fakeOutcome],
-            unresolved: ["labels", "onchain_history", "web_sentiment", "contract_analysis"],
-            totalSpentUsdc: 0.001,
-            walletNetwork: "base" as const,
-          }),
-        synthesizeVerdict: () => Promise.reject(new Error("Opus 500: internal_error")),
-      },
-    },
-  );
-  assertEquals(r.synthesisError?.includes("Opus 500"), true);
-  assertEquals(r.verdict.verdict, "insufficient_data");
-  assertEquals(r.verdict.safe, false);
-  assertEquals(r.verdict.confidence, "low");
-  assertEquals(r.verdict.headline.includes("Synthesis failed"), true);
-  // Receipts must survive the synthesis failure.
-  assertEquals(r.outcomes.length, 1);
-  assertEquals(r.outcomes[0].status, "ok");
-  assertEquals(r.totalSpentUsdc, 0.001);
-});
 
 function fakePlan() {
   return {
@@ -163,7 +111,7 @@ function fakeInvocation() {
 function fakeVerdict() {
   return {
     address: "0xABC0000000000000000000000000000000000123",
-    chain: "base" as const,
+    chain: "eth" as const,
     safe: true,
     verdict: "safe_to_transact" as const,
     confidence: "high" as const,
@@ -176,14 +124,37 @@ function fakeVerdict() {
   };
 }
 
+Deno.test("verifyAgent returns stub verdict + receipts when synthesis throws", async () => {
+  const r = await verifyAgent(
+    { address: "0xABC0000000000000000000000000000000000123" },
+    {
+      _testHooks: {
+        checkSanctionsOracle: cleanOracleFn(),
+        discover: () => Promise.resolve(fakePlan()),
+        // deno-lint-ignore no-explicit-any
+        invokeAll: () => Promise.resolve(fakeInvocation() as any),
+        synthesizeVerdict: () => Promise.reject(new Error("Opus 500: internal_error")),
+      },
+    },
+  );
+  assertEquals(r.synthesisError?.includes("Opus 500"), true);
+  assertEquals(r.verdict.verdict, "insufficient_data");
+  assertEquals(r.verdict.safe, false);
+  assertEquals(r.verdict.confidence, "low");
+  assertEquals(r.verdict.headline.includes("Synthesis failed"), true);
+  assertEquals(r.outcomes.length, 1);
+  assertEquals(r.outcomes[0].status, "ok");
+  assertEquals(r.totalSpentUsdc, 0.001);
+});
+
 Deno.test("verifyAgent onEvent emits phase boundaries and plan event for happy path", async () => {
   const events: VerifyEvent[] = [];
   await verifyAgent(
-    { address: "0xABC0000000000000000000000000000000000123", chain: "base" },
+    { address: "0xABC0000000000000000000000000000000000123" },
     {
       onEvent: (e) => events.push(e),
       _testHooks: {
-        checkSanctionsOracle: cleanOracle(),
+        checkSanctionsOracle: cleanOracleFn(),
         // Force the contract path so the EOA skip log doesn't appear in the
         // event stream — this test is asserting phase ordering, not EOA logic.
         isContract: () => Promise.resolve(true),
@@ -194,22 +165,20 @@ Deno.test("verifyAgent onEvent emits phase boundaries and plan event for happy p
       },
     },
   );
-  // Filter out log events (the oracle check emits one before discover) so we
+  // Filter out log + service events (oracle/ENS fan-out emits both) so we
   // only assert on the structural phase + plan sequence.
   const summary = events
-    .filter((e) => e.type !== "log")
+    .filter((e) => e.type !== "log" && e.type !== "service")
     .map((e) => {
       if (e.type === "phase") return `phase:${e.phase}:${e.status}`;
       return e.type;
     });
-  // Expect: discover start → plan → discover end → invoke start → invoke end → synthesize start → synthesize end
   assertEquals(summary[0], "phase:discover:start");
   assertEquals(summary[1], "plan");
   assertEquals(summary[2], "phase:discover:end");
   assertEquals(summary[3], "phase:invoke:start");
   assertEquals(summary.at(-2), "phase:synthesize:start");
   assertEquals(summary.at(-1), "phase:synthesize:end");
-  // Plan event payload sanity.
   const planEvent = events.find((e) => e.type === "plan");
   assertEquals(planEvent?.type, "plan");
   if (planEvent?.type === "plan") {
@@ -219,14 +188,47 @@ Deno.test("verifyAgent onEvent emits phase boundaries and plan event for happy p
   }
 });
 
-Deno.test("verifyAgent onEvent emits log:error then phase:synthesize:end on synthesis failure", async () => {
+Deno.test("verifyAgent fans out oracle: emits one service event per supported chain", async () => {
   const events: VerifyEvent[] = [];
   await verifyAgent(
-    { address: "0xABC0000000000000000000000000000000000123", chain: "base" },
+    { address: "0xABC0000000000000000000000000000000000123" },
     {
       onEvent: (e) => events.push(e),
       _testHooks: {
-        checkSanctionsOracle: cleanOracle(),
+        checkSanctionsOracle: cleanOracleFn(),
+        isContract: () => Promise.resolve(true),
+        resolveEns: ensNull(),
+        discover: () => Promise.resolve(fakePlan()),
+        // deno-lint-ignore no-explicit-any
+        invokeAll: () => Promise.resolve(fakeInvocation() as any),
+        synthesizeVerdict: () => Promise.resolve(fakeVerdict()),
+      },
+    },
+  );
+  const oracleStartEvents = events.filter(
+    (e) =>
+      e.type === "service" &&
+      e.status === "start" &&
+      e.resource.startsWith("chainalysis_oracle://"),
+  );
+  // One start event per supported chain (eth, base, polygon, arbitrum, optimism).
+  assertEquals(oracleStartEvents.length, 5);
+  for (const ev of oracleStartEvents) {
+    if (ev.type === "service") {
+      assertEquals(ev.kind, "direct");
+      assertEquals(ev.category, "sanctions");
+    }
+  }
+});
+
+Deno.test("verifyAgent onEvent emits log:error then phase:synthesize:end on synthesis failure", async () => {
+  const events: VerifyEvent[] = [];
+  await verifyAgent(
+    { address: "0xABC0000000000000000000000000000000000123" },
+    {
+      onEvent: (e) => events.push(e),
+      _testHooks: {
+        checkSanctionsOracle: cleanOracleFn(),
         discover: () => Promise.resolve(fakePlan()),
         // deno-lint-ignore no-explicit-any
         invokeAll: () => Promise.resolve(fakeInvocation() as any),
@@ -234,7 +236,6 @@ Deno.test("verifyAgent onEvent emits log:error then phase:synthesize:end on synt
       },
     },
   );
-  // Find the synthesize:start, log:error, synthesize:end sequence.
   const idxStart = events.findIndex(
     (e) => e.type === "phase" && e.phase === "synthesize" && e.status === "start",
   );
@@ -253,10 +254,10 @@ Deno.test("verifyAgent drops contract_analysis for EOA addresses (isContract=fal
   let categoriesPassedToDiscover: string[] = [];
   let coveragePassedToSynthesize: unknown = null;
   await verifyAgent(
-    { address: "0xABC0000000000000000000000000000000000123", chain: "base" },
+    { address: "0xABC0000000000000000000000000000000000123" },
     {
       _testHooks: {
-        checkSanctionsOracle: cleanOracle(),
+        checkSanctionsOracle: cleanOracleFn(),
         isContract: () => Promise.resolve(false),
         discover: (_addr, categories) => {
           categoriesPassedToDiscover = [...categories];
@@ -271,23 +272,22 @@ Deno.test("verifyAgent drops contract_analysis for EOA addresses (isContract=fal
       },
     },
   );
-  // contract_analysis must be removed from the categories passed downstream.
   assertEquals(categoriesPassedToDiscover.includes("contract_analysis"), false);
-  // not_applicable bucket carries the dropped category. On base, "ens" is
-  // also not applicable (no native ENS reverse), so both should be present.
+  // Default chain is eth → ENS is natively supported, so only
+  // contract_analysis ends up in not_applicable for an EOA.
   const cov = coveragePassedToSynthesize as { not_applicable?: string[] };
   assertEquals(cov.not_applicable?.includes("contract_analysis"), true);
-  assertEquals(cov.not_applicable?.includes("ens"), true);
+  assertEquals(cov.not_applicable?.includes("ens"), false);
 });
 
 Deno.test("verifyAgent keeps contract_analysis for contract addresses (isContract=true)", async () => {
   let categoriesPassedToDiscover: string[] = [];
   let coveragePassedToSynthesize: unknown = null;
   await verifyAgent(
-    { address: "0xABC0000000000000000000000000000000000123", chain: "base" },
+    { address: "0xABC0000000000000000000000000000000000123" },
     {
       _testHooks: {
-        checkSanctionsOracle: cleanOracle(),
+        checkSanctionsOracle: cleanOracleFn(),
         isContract: () => Promise.resolve(true),
         discover: (_addr, categories) => {
           categoriesPassedToDiscover = [...categories];
@@ -304,19 +304,23 @@ Deno.test("verifyAgent keeps contract_analysis for contract addresses (isContrac
   );
   assertEquals(categoriesPassedToDiscover.includes("contract_analysis"), true);
   const cov = coveragePassedToSynthesize as { not_applicable?: string[] };
-  // On base, ENS is not natively supported → ens is the only not_applicable.
-  assertEquals(cov.not_applicable, ["ens"]);
+  // Default chain is eth — nothing should land in not_applicable when both
+  // ENS and contract_analysis are supported and the address is a contract.
+  assertEquals(cov.not_applicable, undefined);
 });
 
-Deno.test("verifyAgent short-circuits on sanctioned oracle hit (no x402, no synthesis)", async () => {
+Deno.test("verifyAgent short-circuits when oracle flags address on any chain (eth-only hit)", async () => {
   let discoverCalled = false;
   let invokeCalled = false;
   let synthesizeCalled = false;
   const r = await verifyAgent(
-    { address: "0x098B716B8Aaf21512996dC57EB0615e2383E2f96", chain: "eth" },
+    { address: "0x7F367cC41522cE07553e823bf3be79A889DEbe1B" },
     {
       _testHooks: {
-        checkSanctionsOracle: sanctionedOracle(),
+        // The reported-bug scenario: this address is flagged ONLY on eth's
+        // oracle deployment. Old single-chain code (chain="base") would have
+        // missed it. The new fan-out must still catch it.
+        checkSanctionsOracle: oracleSanctionedOn("eth"),
         isContract: () => Promise.resolve(false),
         discover: () => {
           discoverCalled = true;
@@ -334,29 +338,28 @@ Deno.test("verifyAgent short-circuits on sanctioned oracle hit (no x402, no synt
       },
     },
   );
-  // None of the downstream phases should have run.
   assertEquals(discoverCalled, false);
   assertEquals(invokeCalled, false);
   assertEquals(synthesizeCalled, false);
-  // Deterministic verdict.
   assertEquals(r.verdict.verdict, "do_not_transact");
   assertEquals(r.verdict.confidence, "high");
   assertEquals(r.verdict.safe, false);
   assertEquals(r.totalSpentUsdc, 0);
   assertEquals(r.outcomes.length, 0);
-  // Sanctions finding is present.
   assertEquals(r.verdict.findings.length, 1);
   assertEquals(r.verdict.findings[0].category, "sanctions");
   assertEquals(r.verdict.findings[0].severity, "critical");
+  // Verdict's chain field reports which chain's oracle did the flagging.
+  assertEquals(r.verdict.chain, "eth");
 });
 
 Deno.test("verifyAgent merges oracle-clean result into findings.sanctions for synthesis", async () => {
   let synthesisInput: unknown = null;
   await verifyAgent(
-    { address: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", chain: "eth" },
+    { address: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045" },
     {
       _testHooks: {
-        checkSanctionsOracle: cleanOracle(),
+        checkSanctionsOracle: cleanOracleFn(),
         resolveEns: ensNull(),
         isContract: () => Promise.resolve(false),
         discover: () => Promise.resolve(fakePlan()),
@@ -374,10 +377,10 @@ Deno.test("verifyAgent merges oracle-clean result into findings.sanctions for sy
   assertEquals(sanctions.chainalysis_oracle?.isSanctioned, false);
 });
 
-Deno.test("verifyAgent proceeds normally when oracle check throws", async () => {
+Deno.test("verifyAgent proceeds normally when every oracle chain throws", async () => {
   let discoverCalled = false;
   const r = await verifyAgent(
-    { address: "0xABC0000000000000000000000000000000000123", chain: "eth" },
+    { address: "0xABC0000000000000000000000000000000000123" },
     {
       _testHooks: {
         checkSanctionsOracle: () =>
@@ -394,18 +397,19 @@ Deno.test("verifyAgent proceeds normally when oracle check throws", async () => 
       },
     },
   );
-  // Normal flow runs.
   assertEquals(discoverCalled, true);
   assertEquals(r.verdict.verdict, "safe_to_transact");
 });
 
-Deno.test("verifyAgent calls ENS resolver and merges result into findings for eth chain", async () => {
+Deno.test("verifyAgent calls ENS resolver and merges result into findings", async () => {
   let synthesisInput: unknown = null;
+  const events: VerifyEvent[] = [];
   await verifyAgent(
-    { address: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", chain: "eth" },
+    { address: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045" },
     {
+      onEvent: (e) => events.push(e),
       _testHooks: {
-        checkSanctionsOracle: cleanOracle(),
+        checkSanctionsOracle: cleanOracleFn(),
         resolveEns: ensHit("vitalik.eth"),
         isContract: () => Promise.resolve(false),
         discover: () => Promise.resolve(fakePlan()),
@@ -423,51 +427,28 @@ Deno.test("verifyAgent calls ENS resolver and merges result into findings for et
   assertEquals(ens.ensName, "vitalik.eth");
   const cov = (synthesisInput as { coverage: { resolved: string[] } }).coverage;
   assertEquals(cov.resolved.includes("ens"), true);
-});
-
-Deno.test("verifyAgent skips ENS resolver on non-eth chain and adds ens to not_applicable", async () => {
-  let ensCalled = false;
-  let synthesisInput: unknown = null;
-  await verifyAgent(
-    { address: "0xABC0000000000000000000000000000000000123", chain: "base" },
-    {
-      _testHooks: {
-        checkSanctionsOracle: cleanOracle(),
-        resolveEns: () => {
-          ensCalled = true;
-          return Promise.resolve({
-            source: "viem_ens",
-            chain: "base",
-            address: "0x",
-            ensName: null,
-            rpcUrl: "x",
-            checkedAt: new Date().toISOString(),
-          });
-        },
-        isContract: () => Promise.resolve(false),
-        discover: () => Promise.resolve(fakePlan()),
-        // deno-lint-ignore no-explicit-any
-        invokeAll: () => Promise.resolve(fakeInvocation() as any),
-        synthesizeVerdict: (input) => {
-          synthesisInput = input;
-          return Promise.resolve(fakeVerdict());
-        },
-      },
-    },
+  // The ENS resolver now emits service events so the flow diagram can render
+  // it as a direct chain-primitive path.
+  const ensServiceStart = events.find(
+    (e) =>
+      e.type === "service" &&
+      e.status === "start" &&
+      e.resource.startsWith("ens://"),
   );
-  assertEquals(ensCalled, false);
-  const cov = (synthesisInput as { coverage: { not_applicable?: string[] } })
-    .coverage;
-  assertEquals(cov.not_applicable?.includes("ens"), true);
+  assertEquals(ensServiceStart !== undefined, true);
+  if (ensServiceStart?.type === "service") {
+    assertEquals(ensServiceStart.kind, "direct");
+    assertEquals(ensServiceStart.category, "ens");
+  }
 });
 
 Deno.test("verifyAgent treats ENS resolver failure as silent (no verdict impact)", async () => {
   let synthesisInput: unknown = null;
   await verifyAgent(
-    { address: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045", chain: "eth" },
+    { address: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045" },
     {
       _testHooks: {
-        checkSanctionsOracle: cleanOracle(),
+        checkSanctionsOracle: cleanOracleFn(),
         resolveEns: () => Promise.reject(new Error("ENS RPC blew up")),
         isContract: () => Promise.resolve(false),
         discover: () => Promise.resolve(fakePlan()),
@@ -481,7 +462,6 @@ Deno.test("verifyAgent treats ENS resolver failure as silent (no verdict impact)
     },
   );
   const findings = (synthesisInput as { findings: { ens?: unknown } }).findings;
-  // ENS finding is absent when the resolver throws — not corrupted, not stubbed.
   assertEquals(findings.ens, undefined);
 });
 
@@ -658,14 +638,14 @@ Deno.test("registry_skipped_when_labels_category_not_requested", async () => {
 Deno.test("verifyAgent onEvent thrown by consumer does not crash verifyAgent", async () => {
   let calls = 0;
   const r = await verifyAgent(
-    { address: "0xABC0000000000000000000000000000000000123", chain: "base" },
+    { address: "0xABC0000000000000000000000000000000000123" },
     {
       onEvent: () => {
         calls++;
         throw new Error("consumer blew up");
       },
       _testHooks: {
-        checkSanctionsOracle: cleanOracle(),
+        checkSanctionsOracle: cleanOracleFn(),
         discover: () => Promise.resolve(fakePlan()),
         // deno-lint-ignore no-explicit-any
         invokeAll: () => Promise.resolve(fakeInvocation() as any),
@@ -673,7 +653,6 @@ Deno.test("verifyAgent onEvent thrown by consumer does not crash verifyAgent", a
       },
     },
   );
-  // Pipeline finished despite every emit throwing.
   assertEquals(r.verdict.verdict, "safe_to_transact");
   assertEquals(calls > 0, true);
 });

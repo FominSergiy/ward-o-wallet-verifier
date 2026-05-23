@@ -1,7 +1,19 @@
 import { useMemo } from "react";
-import type { Category, VerifyEvent, VerdictLabel } from "../types";
+import type { Category, ServiceKind, VerifyEvent, VerdictLabel } from "../types";
 
 export type NodeStatus = "idle" | "active" | "ok" | "error" | "fallback";
+
+export interface DirectNode {
+  // The unique resource URI (e.g. "chainalysis_oracle://eth", "viem://base",
+  // "ens://eth"). Used as a stable key for re-renders.
+  resource: string;
+  // Short user-facing label — chain name for oracle, "viem/<chain>" for the
+  // onchain_history fallback, "ens" for ens.
+  label: string;
+  status: NodeStatus;
+  durationMs?: number;
+  error?: string;
+}
 
 export interface CategoryNode {
   status: NodeStatus;
@@ -20,6 +32,10 @@ export interface CategoryNode {
     amountUsdc?: number;
     error?: string;
   };
+  // Free chain-primitive paths (Chainalysis oracle per chain, viem fallback,
+  // ENS reverse) that ran for this category. Rendered as a row of small
+  // circles under the x402 diamond in the flow diagram.
+  direct: DirectNode[];
 }
 
 export interface FlowState {
@@ -49,10 +65,43 @@ function ensureCategory(state: FlowState, cat: Category): CategoryNode {
     state.categories[cat] = {
       status: "idle",
       primary: { resource: "", status: "idle" },
+      direct: [],
     };
     if (!state.categoryOrder.includes(cat)) state.categoryOrder.push(cat);
   }
   return state.categories[cat];
+}
+
+// Direct paths are tagged by the backend with kind="direct"; the resource-
+// prefix check is a fallback for older event streams (or future direct
+// providers) that didn't set the flag.
+function isDirectKind(kind: ServiceKind | undefined, resource: string): boolean {
+  if (kind === "direct") return true;
+  return (
+    resource.startsWith("chainalysis_oracle://") ||
+    resource.startsWith("viem://") ||
+    resource.startsWith("ens://")
+  );
+}
+
+function directLabel(resource: string): string {
+  const sepIdx = resource.indexOf("://");
+  if (sepIdx === -1) return resource;
+  const scheme = resource.slice(0, sepIdx);
+  const rest = resource.slice(sepIdx + 3);
+  if (scheme === "chainalysis_oracle") return rest;
+  if (scheme === "ens") return "ens";
+  if (scheme === "viem") return `viem/${rest}`;
+  return resource;
+}
+
+function ensureDirect(node: CategoryNode, resource: string): DirectNode {
+  let d = node.direct.find((x) => x.resource === resource);
+  if (!d) {
+    d = { resource, label: directLabel(resource), status: "idle" };
+    node.direct.push(d);
+  }
+  return d;
 }
 
 export function deriveFlowState(events: VerifyEvent[]): FlowState {
@@ -79,6 +128,9 @@ export function deriveFlowState(events: VerifyEvent[]): FlowState {
               if (node.status === "idle") node.status = "ok";
               if (node.primary.status === "active") node.primary.status = "error";
               if (node.fallback?.status === "active") node.fallback.status = "error";
+              for (const d of node.direct) {
+                if (d.status === "active") d.status = "error";
+              }
               if (node.status === "active") node.status = "error";
             }
           }
@@ -97,6 +149,36 @@ export function deriveFlowState(events: VerifyEvent[]): FlowState {
 
       case "service": {
         const node = ensureCategory(s, ev.category);
+
+        // Direct (chain-primitive) paths render as auxiliary nodes — they
+        // don't displace the x402 primary/fallback. Track them on their own
+        // status track so the oracle fan-out (5 nodes) and ENS / viem all
+        // coexist with paid x402 calls in the same category row.
+        if (isDirectKind(ev.kind, ev.resource)) {
+          const d = ensureDirect(node, ev.resource);
+          if (ev.status === "start") {
+            d.status = "active";
+            if (node.status === "idle") node.status = "active";
+          } else if (ev.status === "ok") {
+            d.status = "ok";
+            if (ev.durationMs != null) d.durationMs = ev.durationMs;
+            if (node.status === "idle") node.status = "ok";
+          } else if (ev.status === "error") {
+            d.status = "error";
+            d.error = ev.error;
+            // Direct paths failing shouldn't poison the category — the x402
+            // path is independent. Only flip to error if nothing else ran.
+            if (
+              node.status === "idle" &&
+              node.primary.status === "idle" &&
+              !node.fallback
+            ) {
+              node.status = "error";
+            }
+          }
+          break;
+        }
+
         const isFallbackAttempt =
           node.primary.resource !== "" && node.primary.resource !== ev.resource;
 

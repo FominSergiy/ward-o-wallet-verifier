@@ -59,11 +59,17 @@ export interface LogEvent {
   at: string;
 }
 
+// Mirrors src/agent/events.ts ServiceKind. "direct" = free chain primitive
+// (Chainalysis oracle, ENS resolver, viem onchain_history fallback). When
+// absent the path is treated as an x402 paid call.
+export type ServiceKind = "x402" | "direct";
+
 export interface ServiceEvent {
   type: "service";
   status: "start" | "ok" | "error" | "fallback";
   category: Category;
   resource: string;
+  kind?: ServiceKind;
   priceUsdc?: number;
   amountUsdc?: number;
   durationMs?: number;
@@ -155,7 +161,6 @@ export type VerifyEvent =
 
 export interface SavedPlan {
   address: string;
-  chain: Chain;
   plan: PlanView;
   savedAt: string;
 }

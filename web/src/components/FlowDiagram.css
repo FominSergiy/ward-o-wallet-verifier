@@ -47,6 +47,46 @@
   stroke-dasharray: 4 3;
 }
 
+/* Direct (chain-primitive) auxiliary nodes — Chainalysis oracle, ENS, viem
+   fallback. Dashed border distinguishes them from paid x402 nodes. */
+.flow-diagram .direct-node {
+  stroke-dasharray: 2 2;
+  fill: transparent;
+  stroke-width: 1.2;
+}
+
+.flow-diagram .direct-node.idle { stroke: #4A4A4A; }
+.flow-diagram .direct-node.active {
+  stroke: #9AB8DC;
+  animation: flow-pulse 1.3s ease-in-out infinite;
+}
+.flow-diagram .direct-node.ok {
+  stroke: #3E8B57;
+  fill: rgba(62, 139, 87, 0.18);
+}
+.flow-diagram .direct-node.error {
+  stroke: #B0413E;
+  fill: rgba(176, 65, 62, 0.22);
+}
+
+.flow-diagram .direct-label {
+  font-family: var(--mono);
+  font-size: 7.5px;
+  fill: #9AB8DC;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
+}
+
+.flow-diagram .direct-row-tag {
+  font-family: var(--mono);
+  font-size: 8px;
+  fill: #8A8888;
+  text-anchor: end;
+  dominant-baseline: middle;
+  pointer-events: none;
+}
+
 .flow-diagram .node-label {
   font-family: var(--mono);
   font-size: 11px;

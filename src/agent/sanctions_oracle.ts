@@ -72,6 +72,14 @@ const VIEM_CHAINS = {
 
 export type OracleSupportedChain = keyof typeof VIEM_CHAINS;
 
+export const ORACLE_SUPPORTED_CHAINS: readonly OracleSupportedChain[] = [
+  "eth",
+  "base",
+  "polygon",
+  "arbitrum",
+  "optimism",
+] as const;
+
 export class OracleUnsupportedChainError extends Error {
   constructor(public readonly chain: string) {
     super(`Chainalysis sanctions oracle not supported on chain "${chain}"`);

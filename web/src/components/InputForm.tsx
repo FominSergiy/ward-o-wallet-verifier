@@ -1,20 +1,16 @@
-import type { Chain } from "../types";
-
 const ADDR_RE = /^0x[0-9a-fA-F]{40}$/;
 
 interface Props {
   address: string;
-  chain: Chain;
   busy: boolean;
   running: boolean;
   onAddressChange: (v: string) => void;
-  onChainChange: (v: Chain) => void;
   onPlan: () => void;
   onExecute: () => void;
 }
 
 export function InputForm(props: Props) {
-  const { address, chain, busy, running, onAddressChange, onChainChange, onPlan, onExecute } = props;
+  const { address, busy, running, onAddressChange, onPlan, onExecute } = props;
   const valid = ADDR_RE.test(address.trim());
   const disabled = busy || !valid;
 
@@ -29,17 +25,6 @@ export function InputForm(props: Props) {
         autoComplete="off"
         data-testid="address-input"
       />
-      <select
-        value={chain}
-        onChange={(e) => onChainChange(e.target.value as Chain)}
-        data-testid="chain-select"
-      >
-        <option value="base">base</option>
-        <option value="eth">eth</option>
-        <option value="polygon">polygon</option>
-        <option value="arbitrum">arbitrum</option>
-        <option value="optimism">optimism</option>
-      </select>
       <button
         type="button"
         className="secondary"
@@ -59,7 +44,7 @@ export function InputForm(props: Props) {
       </button>
       {running && <span className="pill running" data-testid="running-pill">running…</span>}
       {!valid && address.length > 0 && (
-        <div className="hint">Address must match 0x + 40 hex characters.</div>
+        <div className="hint">Address must match 0x + 40 hex characters. Non-EVM chains (Solana, Bitcoin, etc.) are not supported.</div>
       )}
     </div>
   );

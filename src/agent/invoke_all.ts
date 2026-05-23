@@ -251,6 +251,7 @@ export async function invokeAll(
         status: "start",
         category: "onchain_history",
         resource: viemResource,
+        kind: "direct",
         priceUsdc: 0,
         at: now(),
       });
@@ -280,6 +281,7 @@ export async function invokeAll(
           status: "ok",
           category: "onchain_history",
           resource: viemResource,
+          kind: "direct",
           priceUsdc: 0,
           amountUsdc: 0,
           durationMs,
@@ -295,6 +297,7 @@ export async function invokeAll(
           status: "error",
           category: "onchain_history",
           resource: viemResource,
+          kind: "direct",
           priceUsdc: 0,
           error: msg,
           at: now(),

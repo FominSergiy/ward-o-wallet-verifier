@@ -34,7 +34,7 @@ async function readSSEFrames(res: Response): Promise<ParsedFrame[]> {
 function buildApp(opts: {
   budget?: AgnicBudget | null | (() => Promise<AgnicBudget | null>);
   verifyAgentFn?: (
-    req: { address: string; chain: string },
+    req: { address: string },
     options: { onEvent?: EventEmitter; budgetCeiling?: number },
   ) => Promise<VerifyAgentResult>;
 }): Hono {
@@ -154,7 +154,6 @@ Deno.test("POST /verify-agent-stream streams phase, plan, service, result events
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       address: "0xABC0000000000000000000000000000000000123",
-      chain: "base",
     }),
   });
   assertEquals(res.status, 200);
@@ -228,7 +227,6 @@ Deno.test("POST /verify-agent-stream WalletUnfundedError emits error event with 
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       address: "0xABC0000000000000000000000000000000000123",
-      chain: "base",
     }),
   });
   assertEquals(res.status, 200);
@@ -244,7 +242,7 @@ Deno.test("POST /verify-agent-stream rejects malformed body with 400 before stre
   const res = await app.request("/verify-agent-stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ address: "not-an-address", chain: "base" }),
+    body: JSON.stringify({ address: "not-an-address" }),
   });
   assertEquals(res.status, 400);
 });

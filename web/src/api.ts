@@ -78,9 +78,8 @@ export function streamDiscover(
 
 export function streamVerify(
   address: string,
-  chain: string,
   onEvent: (e: VerifyEvent) => void,
   signal: AbortSignal,
 ): Promise<void> {
-  return consumeSSE("/verify-agent-stream", { address, chain }, onEvent, signal);
+  return consumeSSE("/verify-agent-stream", { address }, onEvent, signal);
 }

@@ -1,4 +1,4 @@
-import { useFlowState, type NodeStatus, type CategoryNode } from "../hooks/useFlowState";
+import { useFlowState, type NodeStatus, type CategoryNode, type DirectNode } from "../hooks/useFlowState";
 import type { Category, VerdictLabel, VerifyEvent } from "../types";
 import "./FlowDiagram.css";
 
@@ -7,7 +7,7 @@ interface Props {
 }
 
 const VIEW_W = 760;
-const VIEW_H = 480;
+const VIEW_H = 520;
 
 const ORIGIN = { x: 70, y: VIEW_H / 2 };
 const CATEGORY_X = 220;
@@ -15,6 +15,12 @@ const PAYMENT_X = 380;
 const FALLBACK_X = 490;
 const SYNTH_X = 600;
 const VERDICT_X = 710;
+
+// Direct nodes hang under the payment diamond. Vertical offset from the row's
+// baseline Y to the center of the first direct circle.
+const DIRECT_DY = 22;
+const DIRECT_R = 7;
+const DIRECT_SPACING = 26;
 
 const CATEGORY_LABELS: Record<Category, string> = {
   sanctions: "sanctions",
@@ -34,7 +40,7 @@ const VERDICT_DISPLAY: Record<VerdictLabel, { text: string; cls: string }> = {
 function categoryY(i: number, n: number): number {
   if (n <= 1) return VIEW_H / 2;
   const top = 60;
-  const bot = VIEW_H - 60;
+  const bot = VIEW_H - 80;
   return top + ((bot - top) * i) / (n - 1);
 }
 
@@ -55,6 +61,40 @@ function fmtUsd(v?: number): string {
   return `$${v.toFixed(3)}`;
 }
 
+function DirectNodes({ direct, y }: { direct: DirectNode[]; y: number }) {
+  if (direct.length === 0) return null;
+  const total = direct.length;
+  const span = (total - 1) * DIRECT_SPACING;
+  const startX = PAYMENT_X - span / 2;
+  const cy = y + DIRECT_DY;
+
+  return (
+    <g>
+      <text className="direct-row-tag" x={startX - 14} y={cy}>
+        direct
+      </text>
+      {direct.map((d, i) => {
+        const cx = startX + i * DIRECT_SPACING;
+        const title = d.error ? `${d.label}: ${d.error}` : d.label;
+        return (
+          <g key={d.resource}>
+            <title>{title}</title>
+            <circle
+              className={`direct-node ${statusClass(d.status)}`}
+              cx={cx}
+              cy={cy}
+              r={DIRECT_R}
+            />
+            <text className="direct-label" x={cx} y={cy + DIRECT_R + 8}>
+              {d.label}
+            </text>
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
 function CategoryRow({
   cat,
   node,
@@ -69,17 +109,15 @@ function CategoryRow({
   synthStatus: NodeStatus;
 }) {
   const label = CATEGORY_LABELS[cat] ?? cat;
+  const hasX402 = node.primary.resource !== "";
   const primaryStatus = node.primary.status;
   const fallbackStatus = node.fallback?.status ?? "idle";
 
   const edgeOriginToCat = edgeClassFor(originStatus, node.status);
-  const edgeCatToPay = edgeClassFor(node.status, primaryStatus);
-  // Primary→synth edge: red if primary errored (and there is no fallback)
-  // ok-green if primary ok; lit otherwise.
-  let edgePayToSynth = edgeClassFor(primaryStatus, synthStatus);
-  if (primaryStatus === "error" && !node.fallback) edgePayToSynth = "error";
+  const edgeCatToPay = hasX402 ? edgeClassFor(node.status, primaryStatus) : "";
+  let edgePayToSynth = hasX402 ? edgeClassFor(primaryStatus, synthStatus) : "";
+  if (hasX402 && primaryStatus === "error" && !node.fallback) edgePayToSynth = "error";
 
-  // Fallback edges: primary→fallback (amber) and fallback→synth.
   const edgePayToFallback = node.fallback ? "fallback" : "";
   const edgeFallbackToSynth = node.fallback
     ? fallbackStatus === "ok"
@@ -88,6 +126,11 @@ function CategoryRow({
       ? "error"
       : "lit"
     : "";
+
+  const edgeCatToSynthDirect =
+    !hasX402 && node.direct.length > 0
+      ? edgeClassFor(node.status, synthStatus)
+      : "";
 
   const synthIn = { x: SYNTH_X - 22, y: VIEW_H / 2 };
 
@@ -103,11 +146,6 @@ function CategoryRow({
           (ORIGIN.x + CATEGORY_X) / 2
         } ${y}, ${CATEGORY_X - 50} ${y}`}
       />
-      {/* category → payment */}
-      <path
-        className={`edge ${edgeCatToPay}`}
-        d={`M ${CATEGORY_X + 50} ${y} L ${PAYMENT_X - 24} ${y}`}
-      />
       {/* category node (rect) */}
       <rect
         className={`node-shape ${statusClass(node.status)}`}
@@ -119,58 +157,80 @@ function CategoryRow({
       />
       <text className="node-label" x={CATEGORY_X} y={y}>{label}</text>
 
-      {/* payment diamond */}
-      <g transform={`translate(${PAYMENT_X}, ${y})`}>
-        <polygon
-          className={`node-shape ${statusClass(primaryStatus)}`}
-          points="-26,0 0,-18 26,0 0,18"
-        />
-        <text className="node-label" y={-2} style={{ fontSize: 9 }}>x402</text>
-        <text
-          className={`node-sublabel ${primaryStatus === "ok" ? "ok" : primaryStatus === "error" ? "error" : ""}`}
-          y={9}
-        >
-          {fmtUsd(payPrice)}
-        </text>
-      </g>
-
-      {node.fallback && (
+      {hasX402 && (
         <>
-          {/* primary → fallback diamond (amber detour) */}
+          {/* category → payment */}
           <path
-            className={`edge ${edgePayToFallback}`}
-            d={`M ${PAYMENT_X + 24} ${y} Q ${(PAYMENT_X + FALLBACK_X) / 2} ${y - 28}, ${FALLBACK_X - 22} ${y - 14}`}
+            className={`edge ${edgeCatToPay}`}
+            d={`M ${CATEGORY_X + 50} ${y} L ${PAYMENT_X - 24} ${y}`}
           />
-          <g transform={`translate(${FALLBACK_X}, ${y - 18})`}>
+          {/* payment diamond */}
+          <g transform={`translate(${PAYMENT_X}, ${y})`}>
             <polygon
-              className={`node-shape ${statusClass(fallbackStatus === "idle" ? "fallback" : fallbackStatus)}`}
-              points="-22,0 0,-15 22,0 0,15"
+              className={`node-shape ${statusClass(primaryStatus)}`}
+              points="-26,0 0,-18 26,0 0,18"
             />
-            <text className="node-label" y={-2} style={{ fontSize: 8 }}>fallback</text>
+            <text className="node-label" y={-2} style={{ fontSize: 9 }}>x402</text>
             <text
-              className={`node-sublabel ${fallbackStatus === "ok" ? "ok" : fallbackStatus === "error" ? "error" : ""}`}
-              y={8}
+              className={`node-sublabel ${primaryStatus === "ok" ? "ok" : primaryStatus === "error" ? "error" : ""}`}
+              y={9}
             >
-              {fmtUsd(fallbackPrice)}
+              {fmtUsd(payPrice)}
             </text>
           </g>
-          {/* fallback → synth */}
+
+          {node.fallback && (
+            <>
+              <path
+                className={`edge ${edgePayToFallback}`}
+                d={`M ${PAYMENT_X + 24} ${y} Q ${(PAYMENT_X + FALLBACK_X) / 2} ${y - 28}, ${FALLBACK_X - 22} ${y - 14}`}
+              />
+              <g transform={`translate(${FALLBACK_X}, ${y - 18})`}>
+                <polygon
+                  className={`node-shape ${statusClass(fallbackStatus === "idle" ? "fallback" : fallbackStatus)}`}
+                  points="-22,0 0,-15 22,0 0,15"
+                />
+                <text className="node-label" y={-2} style={{ fontSize: 8 }}>fallback</text>
+                <text
+                  className={`node-sublabel ${fallbackStatus === "ok" ? "ok" : fallbackStatus === "error" ? "error" : ""}`}
+                  y={8}
+                >
+                  {fmtUsd(fallbackPrice)}
+                </text>
+              </g>
+              <path
+                className={`edge ${edgeFallbackToSynth}`}
+                d={`M ${FALLBACK_X + 20} ${y - 18} C ${(FALLBACK_X + SYNTH_X) / 2} ${y - 18}, ${
+                  (FALLBACK_X + SYNTH_X) / 2
+                } ${synthIn.y}, ${synthIn.x} ${synthIn.y}`}
+              />
+            </>
+          )}
+
+          {/* payment → synth (curved into synth center) */}
           <path
-            className={`edge ${edgeFallbackToSynth}`}
-            d={`M ${FALLBACK_X + 20} ${y - 18} C ${(FALLBACK_X + SYNTH_X) / 2} ${y - 18}, ${
-              (FALLBACK_X + SYNTH_X) / 2
+            className={`edge ${edgePayToSynth}`}
+            d={`M ${PAYMENT_X + 26} ${y} C ${(PAYMENT_X + SYNTH_X) / 2} ${y}, ${
+              (PAYMENT_X + SYNTH_X) / 2
             } ${synthIn.y}, ${synthIn.x} ${synthIn.y}`}
           />
         </>
       )}
 
-      {/* payment → synth (curved into synth center) */}
-      <path
-        className={`edge ${edgePayToSynth}`}
-        d={`M ${PAYMENT_X + 26} ${y} C ${(PAYMENT_X + SYNTH_X) / 2} ${y}, ${
-          (PAYMENT_X + SYNTH_X) / 2
-        } ${synthIn.y}, ${synthIn.x} ${synthIn.y}`}
-      />
+      {/* Direct chain-primitive nodes (oracle per chain, viem, ens). */}
+      <DirectNodes direct={node.direct} y={y} />
+
+      {/* If there's no x402 path, draw a single edge from the category node
+          straight to the synth circle so the direct paths still visually
+          contribute to the synth ingestion. */}
+      {!hasX402 && node.direct.length > 0 && (
+        <path
+          className={`edge ${edgeCatToSynthDirect}`}
+          d={`M ${CATEGORY_X + 50} ${y} C ${(CATEGORY_X + SYNTH_X) / 2} ${y}, ${
+            (CATEGORY_X + SYNTH_X) / 2
+          } ${synthIn.y}, ${synthIn.x} ${synthIn.y}`}
+        />
+      )}
     </g>
   );
 }
