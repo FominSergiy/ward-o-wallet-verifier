@@ -22,14 +22,18 @@
     font-family: var(--body);
     color: var(--fg);
     overflow: hidden;
-    display: grid;
-    place-items: center;
-  }
-  /* Stage = 16:9, scaled to viewport */
-  .stage {
     position: relative;
+  }
+  /* Stage = 16:9, absolutely centered and scaled to viewport.
+     translate(-50%,-50%) keeps the geometric center pinned to the
+     viewport center regardless of overflow / iframe sizing quirks. */
+  .stage {
+    position: absolute;
+    top: 50%;
+    left: 50%;
     width: 1600px;
     height: 900px;
+    transform: translate(-50%, -50%) scale(1);
     transform-origin: center center;
     background: var(--bg);
     overflow: hidden;
@@ -513,6 +517,9 @@
     padding: 40px 0;
   }
   body.show-notes .stage {
+    position: static;
+    top: auto;
+    left: auto;
     width: 1200px;
     height: auto;
     margin: 0 auto 40px;
@@ -913,7 +920,7 @@
     const sx = window.innerWidth  / 1600;
     const sy = window.innerHeight / 900;
     const s  = Math.min(sx, sy);
-    stage.style.transform = `scale(${s})`;
+    stage.style.transform = `translate(-50%, -50%) scale(${s})`;
   }
   window.addEventListener('resize', fit);
   fit();
