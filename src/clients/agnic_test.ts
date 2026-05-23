@@ -114,6 +114,27 @@ Deno.test("agnicFetch: payment_exceeds_max throws AgnicFetchError", async () => 
   }
 });
 
+Deno.test("agnicFetch: 'Not found' upstream error is normalized to not_found code", async () => {
+  Deno.env.set("AGNIC_API_KEY", "test-key");
+  const orig = globalThis.fetch;
+  globalThis.fetch = mockFetch(404, {
+    error: "Not found",
+    error_description: "Not Found",
+  });
+  try {
+    const err = await assertRejects(
+      () => agnicFetch("https://example.com/missing"),
+      AgnicFetchError,
+    );
+    assertEquals(err.code, "not_found");
+    // Message preserves the raw upstream code for human-readable logs.
+    assertEquals(err.message.includes("[Not found]"), true);
+  } finally {
+    globalThis.fetch = orig;
+    Deno.env.delete("AGNIC_API_KEY");
+  }
+});
+
 Deno.test("agnicFetch: missing AGNIC_API_KEY throws before making any fetch call", async () => {
   Deno.env.delete("AGNIC_API_KEY");
   let fetchCalled = false;

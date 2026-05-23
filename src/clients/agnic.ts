@@ -54,10 +54,14 @@ export async function agnicFetch<T = unknown>(
   const json = await resp.json();
 
   if (!resp.ok) {
-    const code = (json as { error?: string }).error ?? "unknown_error";
+    const rawCode = (json as { error?: string }).error ?? "unknown_error";
+    // Upstream agnic emits codes in mixed forms ("Not found", "Payment exceeds
+    // maximum allowed value"). Normalize to snake_case so health-store /
+    // durable-block matching is reliable.
+    const code = rawCode.toLowerCase().replace(/[\s-]+/g, "_");
     const description =
       (json as { error_description?: string }).error_description ?? resp.statusText;
-    throw new AgnicFetchError(code, `agnicFetch [${code}]: ${description}`);
+    throw new AgnicFetchError(code, `agnicFetch [${rawCode}]: ${description}`);
   }
 
   const paid = resp.headers.get("X-Agnic-Paid") === "true";

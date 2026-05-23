@@ -41,6 +41,7 @@ export interface SynthesisInput {
     requested: Category[];
     resolved: Category[];
     unresolved: Category[];
+    not_applicable?: Category[];
   };
   totalSpentUsdc: number;
 }
@@ -74,6 +75,7 @@ You MUST follow these per-signal weighting rules in order:
 **5. contract_analysis — CONDITIONAL**
    • Only meaningful if the address is a contract. Vulnerabilities reported → unsafe. Clean audit → positive.
    • Empty or N/A for EOA → ignore.
+   • If a category appears in \`coverage.not_applicable\`, treat it as N/A (not a coverage gap) — do NOT mention it as "unresolved" or let it lower confidence.
 
 **6. ens — CONFIRMATORY**
    • Confirmed ENS reverse lookup → minor positive (suggests a real, doxxed entity).

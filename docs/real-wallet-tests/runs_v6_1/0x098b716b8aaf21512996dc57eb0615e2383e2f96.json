@@ -1,0 +1,155 @@
+{
+  "test": {
+    "address": "0x098B716B8Aaf21512996dC57EB0615e2383E2f96",
+    "chain": "eth",
+    "label": "Lazarus Group (Ronin bridge hack)",
+    "category": "OFAC-sanctioned (North Korea, EOA)",
+    "expected": "do_not_transact",
+    "sourceUrl": "https://www.trmlabs.com/resources/blog/north-koreas-lazarus-group-moves-funds-through-tornado-cash"
+  },
+  "metrics": {
+    "address": "0x098B716B8Aaf21512996dC57EB0615e2383E2f96",
+    "label": "Lazarus Group (Ronin bridge hack)",
+    "expected": "do_not_transact",
+    "actualVerdict": "do_not_transact",
+    "actualConfidence": "high",
+    "verdictMatch": "match",
+    "match": true,
+    "primaryHits": 4,
+    "alternateRescues": 0,
+    "llmAdapterCount": 0,
+    "hardErrors": 0,
+    "errorMessages": [],
+    "totalSpentUsdc": 0.0109,
+    "latencyMs": 44287.20875000005,
+    "resolved": [
+      "sanctions",
+      "labels",
+      "onchain_history",
+      "web_sentiment"
+    ],
+    "unresolved": [],
+    "httpStatus": 200
+  },
+  "raw": {
+    "verdict": {
+      "address": "0x098B716B8Aaf21512996dC57EB0615e2383E2f96",
+      "chain": "eth",
+      "safe": false,
+      "verdict": "do_not_transact",
+      "confidence": "high",
+      "headline": "Do not transact — this wallet is on OFAC SDN and linked to the DPRK Lazarus Group.",
+      "reasoning": "The sanctions check returned a definitive match against three programs: OFAC SDN, Lazarus Group, and DPRK, which is a hard veto regardless of any other signal. On-chain history shows a substantial ETH balance (~101.8 ETH), but balance alone cannot offset a confirmed sanctions hit. Labels and web sentiment endpoints returned only API metadata (no actual label or sentiment data), so they provide no compensating positive evidence. Per policy, a sanctions match forces safe=false, verdict=do_not_transact, with high confidence.",
+      "findings": [
+        {
+          "category": "sanctions",
+          "severity": "critical",
+          "finding": "Confirmed sanctions match on OFAC SDN, Lazarus Group, and DPRK programs — transacting may violate sanctions law."
+        },
+        {
+          "category": "labels",
+          "severity": "info",
+          "finding": "Label provider returned only API metadata; no usable labels retrieved for this address."
+        },
+        {
+          "category": "onchain_history",
+          "severity": "info",
+          "finding": "Active wallet holding ~101.80 ETH; non-trivial balance but does not mitigate sanctions risk."
+        },
+        {
+          "category": "web_sentiment",
+          "severity": "info",
+          "finding": "Web sentiment endpoint returned only API metadata; no specific news or scam reports retrieved."
+        }
+      ],
+      "coverage": {
+        "requested": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment"
+        ],
+        "resolved": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment"
+        ],
+        "unresolved": [],
+        "not_applicable": [
+          "contract_analysis"
+        ]
+      },
+      "totalSpentUsdc": 0.0109,
+      "generatedAt": "2026-05-23T12:30:59.587Z"
+    },
+    "plan": {
+      "services": [
+        {
+          "category": "sanctions",
+          "resource": "https://api.anchor-x402.com/v1/screen",
+          "priceUsdc": 0.001,
+          "rationale": "Only candidate with a confirmed 0% failure rate AND inputInfoCompleteness of 2/3, at the lowest available price ($0.001), making it the clear winner over untested peers and the 100%-failing index 5."
+        },
+        {
+          "category": "labels",
+          "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
+          "priceUsdc": 0.005,
+          "rationale": "The only labels candidate with a confirmed 0% failure rate; despite all candidates sharing the same 1/3 completeness, proven real-world performance is the decisive signal, and its $0.005 price is competitive."
+        },
+        {
+          "category": "onchain_history",
+          "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+          "priceUsdc": 0.0039,
+          "rationale": "Only onchain_history candidate with a confirmed 0% failure rate and the highest inputInfoCompleteness (2/3) in the category, at the lowest available price ($0.0039)."
+        },
+        {
+          "category": "web_sentiment",
+          "resource": "https://orbisapi.com/proxy/wallet-address-risk-api-c6680c",
+          "priceUsdc": 0.001,
+          "rationale": "Confirmed 0% failure rate is the decisive signal over all untested alternatives and the 100%-failing index 1; lowest price ($0.001) further reinforces the pick despite 1/3 completeness shared across candidates."
+        }
+      ]
+    },
+    "receipts": [
+      {
+        "category": "sanctions",
+        "resource": "https://api.anchor-x402.com/v1/screen",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.001,
+        "durationMs": 3207,
+        "paid": true
+      },
+      {
+        "category": "labels",
+        "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.005,
+        "durationMs": 8704,
+        "paid": true
+      },
+      {
+        "category": "onchain_history",
+        "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.0039,
+        "durationMs": 14949,
+        "paid": true
+      },
+      {
+        "category": "web_sentiment",
+        "resource": "https://orbisapi.com/proxy/wallet-address-risk-api-c6680c",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.001,
+        "durationMs": 9113,
+        "paid": true
+      }
+    ],
+    "walletNetwork": "base",
+    "totalSpentUsdc": 0.0109
+  }
+}

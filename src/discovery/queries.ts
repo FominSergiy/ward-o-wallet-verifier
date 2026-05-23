@@ -2,10 +2,10 @@ import type { Category } from "../agent/types.ts";
 
 export const CATEGORY_QUERIES: Record<Exclude<Category, "ens">, string> = {
   sanctions: "wallet address sanctions OFAC AML screening",
-  labels: "wallet address entity label identification attribution",
+  labels: "wallet address attribution exchange cex mixer entity tag known cluster",
   onchain_history: "ethereum wallet transaction history tx count balance",
-  web_sentiment: "web search news social mentions scam exploit",
-  contract_analysis: "smart contract address source code audit security analysis",
+  web_sentiment: "wallet address reputation news article social media coverage exchange hack exploit incident",
+  contract_analysis: "smart contract source code audit security vulnerability erc20 token analysis",
 };
 
 const KNOWN_CATEGORIES = new Set<string>([

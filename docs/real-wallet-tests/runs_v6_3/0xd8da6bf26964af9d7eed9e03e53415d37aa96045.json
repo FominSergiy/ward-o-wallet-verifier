@@ -1,0 +1,160 @@
+{
+  "test": {
+    "address": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    "chain": "eth",
+    "label": "Vitalik's main wallet (vitalik.eth)",
+    "category": "Safe / ENS-doxxed (EOA)",
+    "expected": "safe_to_transact",
+    "sourceUrl": "https://etherscan.io/address/0xd8da6bf26964af9d7eed9e03e53415d37aa96045"
+  },
+  "metrics": {
+    "address": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    "label": "Vitalik's main wallet (vitalik.eth)",
+    "expected": "safe_to_transact",
+    "actualVerdict": "safe_to_transact",
+    "actualConfidence": "medium",
+    "verdictMatch": "match",
+    "match": true,
+    "primaryHits": 4,
+    "alternateRescues": 0,
+    "llmAdapterCount": 0,
+    "hardErrors": 0,
+    "errorMessages": [],
+    "totalSpentUsdc": 0.0174,
+    "latencyMs": 32394.912459000003,
+    "resolved": [
+      "sanctions",
+      "labels",
+      "onchain_history",
+      "web_sentiment"
+    ],
+    "unresolved": [],
+    "httpStatus": 200
+  },
+  "raw": {
+    "verdict": {
+      "address": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+      "chain": "eth",
+      "safe": true,
+      "verdict": "safe_to_transact",
+      "confidence": "medium",
+      "headline": "Safe to transact — sanctions screen is clean and the wallet shows an active, funded Ethereum account (vitalik.eth).",
+      "reasoning": "The sanctions check returned no matches against the active corpus, which is the most important positive signal. On-chain history shows a funded wallet holding ~5.68 ETH, consistent with a real, active user (this is the well-known vitalik.eth address). The labels and web_sentiment endpoints returned only API metadata rather than substantive label or reputation data, so those signals are inconclusive — neither positive nor negative. Contract analysis is not applicable (EOA). With a clean sanctions result and a healthy on-chain footprint but limited label/sentiment substance, the wallet rates safe with medium confidence.",
+      "findings": [
+        {
+          "category": "sanctions",
+          "severity": "info",
+          "finding": "No matches against active sanctions lists; risk_level reported as low."
+        },
+        {
+          "category": "onchain_history",
+          "severity": "info",
+          "finding": "Active EOA holding ~5.677 ETH at time of check — consistent with a real, in-use wallet."
+        },
+        {
+          "category": "labels",
+          "severity": "low",
+          "finding": "Label provider returned only API metadata; no substantive labels (positive or negative) were retrieved."
+        },
+        {
+          "category": "web_sentiment",
+          "severity": "low",
+          "finding": "Reputation provider returned only API metadata; no scam, exploit, or adverse-media hits surfaced."
+        },
+        {
+          "category": "contract_analysis",
+          "severity": "info",
+          "finding": "Not applicable — address is an externally owned account (EOA)."
+        }
+      ],
+      "coverage": {
+        "requested": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment"
+        ],
+        "resolved": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment"
+        ],
+        "unresolved": [],
+        "not_applicable": [
+          "contract_analysis"
+        ]
+      },
+      "totalSpentUsdc": 0.0174,
+      "generatedAt": "2026-05-23T12:41:11.228Z"
+    },
+    "plan": {
+      "services": [
+        {
+          "category": "sanctions",
+          "resource": "https://api.anchor-x402.com/v1/screen",
+          "priceUsdc": 0.001,
+          "rationale": "Resource 0 is the only sanctions candidate with a confirmed 0% failure rate AND inputInfoCompleteness of 2/3, while also offering the lowest price ($0.001), making it the clear pick over untested alternatives."
+        },
+        {
+          "category": "labels",
+          "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
+          "priceUsdc": 0.005,
+          "rationale": "Resource 1 is the only labels candidate with a confirmed 0% failure rate, which is the strongest signal, and its $0.005 price is competitive among the field."
+        },
+        {
+          "category": "onchain_history",
+          "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+          "priceUsdc": 0.0039,
+          "rationale": "Resource 1 is the only onchain_history candidate with both a confirmed 0% failure rate and the highest inputInfoCompleteness (2/3), decisively outranking all untested alternatives."
+        },
+        {
+          "category": "web_sentiment",
+          "resource": "https://orbisapi.com/proxy/address-reputation-score-api-9d7eb2",
+          "priceUsdc": 0.0075,
+          "rationale": "Resource 2 has a confirmed 0% failure rate (ruling out resource 1 at 100%); while resource 0 also has 0% failure, resource 2's explicit 0–100 risk/reputation score better matches web-sentiment intent, justifying the slight price premium."
+        }
+      ]
+    },
+    "receipts": [
+      {
+        "category": "sanctions",
+        "resource": "https://api.anchor-x402.com/v1/screen",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.001,
+        "durationMs": 2768,
+        "paid": true
+      },
+      {
+        "category": "labels",
+        "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.005,
+        "durationMs": 4095,
+        "paid": true
+      },
+      {
+        "category": "onchain_history",
+        "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.0039,
+        "durationMs": 5739,
+        "paid": true
+      },
+      {
+        "category": "web_sentiment",
+        "resource": "https://orbisapi.com/proxy/address-reputation-score-api-9d7eb2",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.0075,
+        "durationMs": 3066,
+        "paid": true
+      }
+    ],
+    "walletNetwork": "base",
+    "totalSpentUsdc": 0.0174
+  }
+}

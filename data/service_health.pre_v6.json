@@ -1,0 +1,271 @@
+{
+  "https://api.anchor-x402.com/v1/screen": {
+    "ok": 20,
+    "err": 0,
+    "lastSeen": "2026-05-23T11:42:29.770Z"
+  },
+  "https://x402-deployer.x402-deployer.workers.dev/hacker-news-search": {
+    "ok": 0,
+    "err": 2,
+    "lastSeen": "2026-05-22T16:39:33.821Z",
+    "lastError": "agnicFetch [Target API is not X402 enabled]: Bad Request"
+  },
+  "https://orbisapi.com/proxy/wallet-cluster-score-api-32f2cb/analyze": {
+    "ok": 0,
+    "err": 4,
+    "lastSeen": "2026-05-22T20:06:27.419Z",
+    "lastError": "agnicFetch [Payment exceeds maximum allowed value]: Payment Required",
+    "lastErrorCode": "Payment exceeds maximum allowed value"
+  },
+  "https://blockrun.ai/api/v1/surf/search/social/posts": {
+    "ok": 1,
+    "err": 1,
+    "lastSeen": "2026-05-22T16:39:43.449Z"
+  },
+  "https://orbisapi.com/proxy/smart-contract-risk-api-e05d1a/parse": {
+    "ok": 0,
+    "err": 1,
+    "lastSeen": "2026-05-22T12:46:47.216Z",
+    "lastError": "adapter failed for https://orbisapi.com/proxy/smart-contract-risk-api-e05d1a/parse: LLM fallback failed: agnic gateway HTTP 402: {\"error\":{\"code\":\"spending_limit_exceeded\",\"message\":\"Daily limit excee"
+  },
+  "https://orbisapi.com/proxy/wallet-cluster-score-api-32f2cb/bulk": {
+    "ok": 0,
+    "err": 4,
+    "lastSeen": "2026-05-22T20:06:49.456Z",
+    "lastError": "agnicFetch [Payment exceeds maximum allowed value]: Payment Required",
+    "lastErrorCode": "Payment exceeds maximum allowed value"
+  },
+  "https://orbisapi.com/proxy/wallet-balance-api-5575de/v1/transactions/:address": {
+    "ok": 0,
+    "err": 1,
+    "lastSeen": "2026-05-22T12:46:51.415Z",
+    "lastError": "adapter failed for https://orbisapi.com/proxy/wallet-balance-api-5575de/v1/transactions/:address: LLM fallback failed: agnic gateway HTTP 402: {\"error\":{\"code\":\"spending_limit_exceeded\",\"message\":\"Dai"
+  },
+  "https://orbisapi.com/proxy/smart-contract-auditor-api-0061a9/openapi": {
+    "ok": 0,
+    "err": 1,
+    "lastSeen": "2026-05-22T12:46:53.271Z",
+    "lastError": "adapter failed for https://orbisapi.com/proxy/smart-contract-auditor-api-0061a9/openapi: LLM fallback failed: agnic gateway HTTP 402: {\"error\":{\"code\":\"spending_limit_exceeded\",\"message\":\"Daily limit "
+  },
+  "https://orbisapi.com/proxy/wallet-balance-api-5575de/v1/tokens/:address": {
+    "ok": 0,
+    "err": 1,
+    "lastSeen": "2026-05-22T12:46:53.977Z",
+    "lastError": "adapter failed for https://orbisapi.com/proxy/wallet-balance-api-5575de/v1/tokens/:address: LLM fallback failed: agnic gateway HTTP 402: {\"error\":{\"code\":\"spending_limit_exceeded\",\"message\":\"Daily lim"
+  },
+  "https://orbisapi.com/proxy/social-news-pulse-api-25258d": {
+    "ok": 0,
+    "err": 1,
+    "lastSeen": "2026-05-22T12:46:55.251Z",
+    "lastError": "adapter failed for https://orbisapi.com/proxy/social-news-pulse-api-25258d: LLM fallback failed: agnic gateway HTTP 402: {\"error\":{\"code\":\"spending_limit_exceeded\",\"message\":\"Daily limit exceeded. Spe"
+  },
+  "https://orbisapi.com/proxy/wallet-balance-api-5575de": {
+    "ok": 0,
+    "err": 1,
+    "lastSeen": "2026-05-22T12:46:56.094Z",
+    "lastError": "adapter failed for https://orbisapi.com/proxy/wallet-balance-api-5575de: LLM fallback failed: agnic gateway HTTP 402: {\"error\":{\"code\":\"spending_limit_exceeded\",\"message\":\"Daily limit exceeded. Spent:"
+  },
+  "https://orbisapi.com/proxy/smart-contract-auditor-api-0061a9": {
+    "ok": 12,
+    "err": 0,
+    "lastSeen": "2026-05-22T20:00:46.660Z"
+  },
+  "https://mru-oracle.com/compliance/wallet-entity": {
+    "ok": 0,
+    "err": 1,
+    "lastSeen": "2026-05-22T12:47:05.314Z",
+    "lastError": "adapter failed for https://mru-oracle.com/compliance/wallet-entity: LLM fallback failed: agnic gateway HTTP 402: {\"error\":{\"code\":\"spending_limit_exceeded\",\"message\":\"Daily limit exceeded. Spent: $4.5"
+  },
+  "https://public.zapper.xyz/x402/transaction-history": {
+    "ok": 4,
+    "err": 0,
+    "lastSeen": "2026-05-22T17:26:37.363Z"
+  },
+  "https://x402-deployer.x402-deployer.workers.dev/wallet-label": {
+    "ok": 0,
+    "err": 1,
+    "lastSeen": "2026-05-22T16:39:18.019Z",
+    "lastError": "agnicFetch [Target API is not X402 enabled]: Bad Request"
+  },
+  "https://orbisapi.com/proxy/web-news-monitor-api-9b3074": {
+    "ok": 0,
+    "err": 8,
+    "lastSeen": "2026-05-23T11:42:41.776Z",
+    "lastError": "agnicFetch [Not found]: Not Found",
+    "lastErrorCode": "Not found"
+  },
+  "https://blockrun.ai/api/v1/pm/polymarket/wallet/identity/:address": {
+    "ok": 3,
+    "err": 0,
+    "lastSeen": "2026-05-22T17:26:37.961Z"
+  },
+  "https://blockrun.ai/api/v1/surf/search/news": {
+    "ok": 3,
+    "err": 0,
+    "lastSeen": "2026-05-22T17:26:44.123Z"
+  },
+  "https://a": {
+    "ok": 11,
+    "err": 0,
+    "lastSeen": "2026-05-23T12:23:38.110Z"
+  },
+  "https://b": {
+    "ok": 11,
+    "err": 0,
+    "lastSeen": "2026-05-23T12:23:38.110Z"
+  },
+  "https://c": {
+    "ok": 11,
+    "err": 0,
+    "lastSeen": "2026-05-23T12:23:38.110Z"
+  },
+  "https://d": {
+    "ok": 11,
+    "err": 0,
+    "lastSeen": "2026-05-23T12:23:38.111Z"
+  },
+  "https://e": {
+    "ok": 11,
+    "err": 0,
+    "lastSeen": "2026-05-23T12:23:38.111Z"
+  },
+  "https://s": {
+    "ok": 38,
+    "err": 11,
+    "lastSeen": "2026-05-23T12:23:38.119Z"
+  },
+  "https://l": {
+    "ok": 38,
+    "err": 11,
+    "lastSeen": "2026-05-23T12:23:38.119Z"
+  },
+  "https://o": {
+    "ok": 22,
+    "err": 0,
+    "lastSeen": "2026-05-23T12:23:38.114Z"
+  },
+  "https://sanc.example": {
+    "ok": 27,
+    "err": 0,
+    "lastSeen": "2026-05-23T12:23:38.119Z"
+  },
+  "https://orbisapi.com/proxy/v1/main": {
+    "ok": 0,
+    "err": 22,
+    "lastSeen": "2026-05-23T12:23:38.115Z",
+    "lastError": "agnicFetch [Target API is not X402 enabled]: Bad Request"
+  },
+  "https://other-provider.example/onchain": {
+    "ok": 11,
+    "err": 0,
+    "lastSeen": "2026-05-23T12:23:38.115Z"
+  },
+  "https://orbisapi.com/proxy/wallet-balance-api-5575de/balance/:address": {
+    "ok": 0,
+    "err": 1,
+    "lastSeen": "2026-05-22T19:21:52.063Z",
+    "lastError": "agnicFetch [Target API is not X402 enabled]: Bad Request",
+    "lastErrorCode": "Target API is not X402 enabled"
+  },
+  "https://orbisapi.com/proxy/wallet-label-tag-api-de7bff": {
+    "ok": 0,
+    "err": 1,
+    "lastSeen": "2026-05-22T19:22:04.554Z",
+    "lastError": "agnicFetch [Auth required]: Unauthorized",
+    "lastErrorCode": "Auth required"
+  },
+  "https://orbisapi.com/proxy/web-scrape-news-api-a9d7c8": {
+    "ok": 0,
+    "err": 1,
+    "lastSeen": "2026-05-22T19:22:06.189Z",
+    "lastError": "agnicFetch [Not found]: Not Found",
+    "lastErrorCode": "Not found"
+  },
+  "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address": {
+    "ok": 14,
+    "err": 0,
+    "lastSeen": "2026-05-23T11:42:34.828Z"
+  },
+  "https://orbisapi.com/proxy/wallet-label-classifier-api-56ce3c": {
+    "ok": 0,
+    "err": 1,
+    "lastSeen": "2026-05-22T19:24:38.565Z",
+    "lastError": "agnicFetch [Not found]: Not Found",
+    "lastErrorCode": "Not found"
+  },
+  "https://orbisapi.com/proxy/web-scrape-social-api-eeb761": {
+    "ok": 0,
+    "err": 3,
+    "lastSeen": "2026-05-23T03:38:17.896Z",
+    "lastError": "agnicFetch [Not found]: Not Found",
+    "lastErrorCode": "Not found"
+  },
+  "https://orbisapi.com/proxy/wallet-cluster-score-api-32f2cb": {
+    "ok": 12,
+    "err": 0,
+    "lastSeen": "2026-05-23T11:42:29.280Z"
+  },
+  "https://orbisapi.com/proxy/web-social-links-api-b81092": {
+    "ok": 0,
+    "err": 1,
+    "lastSeen": "2026-05-22T19:40:51.742Z",
+    "lastError": "agnicFetch [Not found]: Not Found",
+    "lastErrorCode": "Not found"
+  },
+  "https://orbisapi.com/proxy/wallet-address-risk-api-c6680c/:endpoint": {
+    "ok": 0,
+    "err": 1,
+    "lastSeen": "2026-05-22T20:05:56.310Z",
+    "lastError": "agnicFetch [fetch failed]: Payment Required",
+    "lastErrorCode": "fetch failed"
+  },
+  "https://orbisapi.com/proxy/smart-contract-risk-api-82fd41/v1/smart-contract-risk/compare": {
+    "ok": 0,
+    "err": 1,
+    "lastSeen": "2026-05-22T20:06:12.287Z",
+    "lastError": "agnicFetch [fetch failed]: Payment Required",
+    "lastErrorCode": "fetch failed"
+  },
+  "https://orbisapi.com/proxy/blockchain-security-api-59a1ff/formal": {
+    "ok": 0,
+    "err": 2,
+    "lastSeen": "2026-05-23T01:09:29.488Z",
+    "lastError": "agnicFetch [Payment exceeds maximum allowed value]: Payment Required",
+    "lastErrorCode": "Payment exceeds maximum allowed value"
+  },
+  "https://orbisapi.com/proxy/defi-smart-contract-audit-scanner-api-fb5f3d/lookup": {
+    "ok": 0,
+    "err": 1,
+    "lastSeen": "2026-05-22T20:06:53.141Z",
+    "lastError": "agnicFetch [Payment exceeds maximum allowed value]: Payment Required",
+    "lastErrorCode": "Payment exceeds maximum allowed value"
+  },
+  "https://primary-host.example/labels": {
+    "ok": 0,
+    "err": 5,
+    "lastSeen": "2026-05-23T12:23:38.119Z",
+    "lastError": "Bad Request"
+  },
+  "https://other-host.example/labels": {
+    "ok": 5,
+    "err": 0,
+    "lastSeen": "2026-05-23T12:23:38.119Z"
+  },
+  "https://orbisapi.com/proxy/smart-contract-risk-api-82fd41/:endpoint": {
+    "ok": 0,
+    "err": 1,
+    "lastSeen": "2026-05-23T01:09:14.847Z",
+    "lastError": "Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
+  },
+  "https://orbisapi.com/proxy/smart-contract-audit-api-5026fa": {
+    "ok": 0,
+    "err": 1,
+    "lastSeen": "2026-05-23T01:09:46.897Z",
+    "lastError": "Unexpected token 'T', \"The page c\"... is not valid JSON"
+  },
+  "https://orbisapi.com/proxy/smart-contract-risk-api-82fd41": {
+    "ok": 6,
+    "err": 0,
+    "lastSeen": "2026-05-23T11:42:34.680Z"
+  }
+}

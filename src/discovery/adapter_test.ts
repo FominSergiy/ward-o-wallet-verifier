@@ -244,6 +244,54 @@ Deno.test("buildCallFromInfoViaLlm throws AdapterFailedError when LLM throws", a
   );
 });
 
+Deno.test("buildCallFromInfoViaLlm rewrites URL when LLM invents path segments", async () => {
+  const mangled = {
+    url: "https://svc.example/v1/screen/classify",
+    method: "POST",
+    body: { wallet: ADDR },
+  };
+  const llm: LlmClient = {
+    generateStructured: <T>(schema: z.ZodType<T>) =>
+      Promise.resolve(schema.parse(mangled)),
+  };
+  const built = await buildCallFromInfoViaLlm(
+    svc({ resource: "https://svc.example/v1/screen" }),
+    ADDR,
+    "base",
+    llm,
+  );
+  // URL is reset to the catalog path; LLM's body shape is preserved.
+  assertEquals(built.url, "https://svc.example/v1/screen");
+  assertEquals(built.method, "POST");
+  assertEquals(built.body, { wallet: ADDR });
+});
+
+Deno.test("buildCallFromInfoViaLlm accepts URL with substituted path params", async () => {
+  const fixture = {
+    url: `https://svc.example/v1/screen/${encodeURIComponent(ADDR)}`,
+    method: "GET",
+  };
+  const llm: LlmClient = {
+    generateStructured: <T>(schema: z.ZodType<T>) =>
+      Promise.resolve(schema.parse(fixture)),
+  };
+  const built = await buildCallFromInfoViaLlm(
+    svc({
+      resource: "https://svc.example/v1/screen/:address",
+      inputInfo: {
+        method: "GET",
+        pathParams: { address: "0xexample" },
+      },
+    }),
+    ADDR,
+    "base",
+    llm,
+  );
+  // Path-param substitution is the LLM's job and is accepted as-is.
+  assertEquals(built.url, fixture.url);
+  assertEquals(built.method, "GET");
+});
+
 Deno.test("buildCallFromInfoViaLlm throws when LLM returns malformed call", async () => {
   const llm: LlmClient = {
     generateStructured: () => Promise.reject(new Error("schema parse")),

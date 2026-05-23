@@ -1,0 +1,155 @@
+{
+  "test": {
+    "address": "0xf977814e90da44bfa03b6295a0616a897441acec",
+    "chain": "eth",
+    "label": "Binance Hot Wallet 20",
+    "category": "Verified exchange (EOA)",
+    "expected": "safe_to_transact",
+    "sourceUrl": "https://etherscan.io/address/0xf977814e90da44bfa03b6295a0616a897441acec"
+  },
+  "metrics": {
+    "address": "0xf977814e90da44bfa03b6295a0616a897441acec",
+    "label": "Binance Hot Wallet 20",
+    "expected": "safe_to_transact",
+    "actualVerdict": "safe_to_transact",
+    "actualConfidence": "medium",
+    "verdictMatch": "match",
+    "match": true,
+    "primaryHits": 4,
+    "alternateRescues": 0,
+    "llmAdapterCount": 0,
+    "hardErrors": 0,
+    "errorMessages": [],
+    "totalSpentUsdc": 0.0174,
+    "latencyMs": 32709.824250000005,
+    "resolved": [
+      "sanctions",
+      "labels",
+      "onchain_history",
+      "web_sentiment"
+    ],
+    "unresolved": [],
+    "httpStatus": 200
+  },
+  "raw": {
+    "verdict": {
+      "address": "0xf977814e90da44bfa03b6295a0616a897441acec",
+      "chain": "eth",
+      "safe": true,
+      "verdict": "safe_to_transact",
+      "confidence": "medium",
+      "headline": "Safe to transact — sanctions screen is clean and the wallet shows a large, long-standing on-chain balance consistent with a major institutional address.",
+      "reasoning": "The sanctions check returned no matches against the active corpus, which is the most important positive signal. On-chain history shows an extremely large balance (~656,224 ETH), which is characteristic of a major exchange/custodial hot wallet (this address is widely known as a Binance hot wallet) and indicates a long-lived, high-activity entity rather than a fresh or suspicious wallet. The labels and web_sentiment endpoints did not return substantive content for this address (only API metadata), so neither positive nor negative reputation signals were available, which caps confidence at medium. Contract analysis is not applicable (EOA).",
+      "findings": [
+        {
+          "category": "sanctions",
+          "severity": "info",
+          "finding": "No matches against the active sanctions corpus; risk_level reported as low."
+        },
+        {
+          "category": "onchain_history",
+          "severity": "info",
+          "finding": "Wallet holds ~656,224 ETH, indicating a long-established, high-value address consistent with a major custodial/exchange wallet."
+        },
+        {
+          "category": "labels",
+          "severity": "low",
+          "finding": "Label provider returned only API metadata; no specific positive or negative labels were resolved for this address."
+        },
+        {
+          "category": "web_sentiment",
+          "severity": "low",
+          "finding": "Web sentiment endpoint returned only API descriptor data; no scam, hack, or exploit reports were surfaced."
+        }
+      ],
+      "coverage": {
+        "requested": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment"
+        ],
+        "resolved": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment"
+        ],
+        "unresolved": [],
+        "not_applicable": [
+          "contract_analysis"
+        ]
+      },
+      "totalSpentUsdc": 0.0174,
+      "generatedAt": "2026-05-23T12:36:16.926Z"
+    },
+    "plan": {
+      "services": [
+        {
+          "category": "sanctions",
+          "resource": "https://api.anchor-x402.com/v1/screen",
+          "priceUsdc": 0.001,
+          "rationale": "0% recent failure rate and inputInfoCompleteness 2/3 make it the most reliable tested candidate, while also offering the lowest price at $0.001 USDC."
+        },
+        {
+          "category": "labels",
+          "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
+          "priceUsdc": 0.005,
+          "rationale": "Only candidate with a confirmed 0% recent failure rate, which is the strongest signal; description clearly matches address labeling intent."
+        },
+        {
+          "category": "onchain_history",
+          "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+          "priceUsdc": 0.0039,
+          "rationale": "Only candidate with a confirmed 0% recent failure rate combined with inputInfoCompleteness 2/3, giving the best reliability signal for on-chain history retrieval."
+        },
+        {
+          "category": "web_sentiment",
+          "resource": "https://orbisapi.com/proxy/address-reputation-score-api-9d7eb2",
+          "priceUsdc": 0.0075,
+          "rationale": "0% recent failure rate is the decisive signal over the 100%-failing index-1; index-2 also offers a clear wallet reputation/risk-score description relevant to web sentiment at a reasonable price."
+        }
+      ]
+    },
+    "receipts": [
+      {
+        "category": "sanctions",
+        "resource": "https://api.anchor-x402.com/v1/screen",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.001,
+        "durationMs": 3324,
+        "paid": true
+      },
+      {
+        "category": "labels",
+        "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.005,
+        "durationMs": 5907,
+        "paid": true
+      },
+      {
+        "category": "onchain_history",
+        "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.0039,
+        "durationMs": 3654,
+        "paid": true
+      },
+      {
+        "category": "web_sentiment",
+        "resource": "https://orbisapi.com/proxy/address-reputation-score-api-9d7eb2",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.0075,
+        "durationMs": 3324,
+        "paid": true
+      }
+    ],
+    "walletNetwork": "base",
+    "totalSpentUsdc": 0.0174
+  }
+}

@@ -82,6 +82,32 @@ function buildClient(chain: SupportedChain, transport?: Transport): {
   return { client, rpcUrl };
 }
 
+/**
+ * True iff the address has deployed bytecode on the given chain — i.e. it's a
+ * contract, not an EOA. Used to skip categories that only make sense for
+ * contracts (e.g. contract_analysis) when the wallet is a plain EOA.
+ *
+ * Errors (unsupported chain, RPC failure) return false — callers should treat
+ * "unknown" as "not a contract" so we don't accidentally skip the category on
+ * a transient RPC blip.
+ */
+export async function isContract(
+  address: string,
+  chain: Chain,
+  opts: FetchOnchainHistoryOpts = {},
+): Promise<boolean> {
+  if (!isSupported(chain)) return false;
+  try {
+    const built = opts.client
+      ? { client: opts.client, rpcUrl: DEFAULT_RPCS[chain] }
+      : buildClient(chain, opts.transport);
+    const code = await built.client.getCode({ address: address as Address });
+    return code !== undefined && code !== "0x";
+  } catch {
+    return false;
+  }
+}
+
 export async function fetchOnchainHistory(
   address: string,
   chain: Chain,

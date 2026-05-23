@@ -192,6 +192,31 @@ const BuiltCallSchema = z.object({
 const FALLBACK_ADAPTER_MODEL = Deno.env.get("ADAPTER_LLM_MODEL") ??
   "anthropic/claude-haiku-4.5";
 
+// Strip the query string from a URL so we can compare just the path portion.
+function urlWithoutQuery(u: string): string {
+  const q = u.indexOf("?");
+  return q >= 0 ? u.slice(0, q) : u;
+}
+
+// Apply pathParams substitution to the catalog URL so we can compare it against
+// what the LLM returned (the LLM is allowed to substitute path params; it's
+// NOT allowed to add/remove/rename path segments).
+function substitutedCatalogPath(
+  service: RankedService,
+  address: string,
+): string {
+  const base = urlWithoutQuery(service.resource);
+  const pathParams = service.inputInfo?.pathParams;
+  if (!pathParams || Object.keys(pathParams).length === 0) return base;
+  return substitutePathParams(base, pathParams, address);
+}
+
+// True iff `candidate` matches `expected` modulo trailing slash differences.
+function pathsEquivalent(candidate: string, expected: string): boolean {
+  const norm = (s: string) => s.replace(/\/+$/, "");
+  return norm(candidate) === norm(expected);
+}
+
 export async function buildCallFromInfoViaLlm(
   service: RankedService,
   address: string,
@@ -217,10 +242,17 @@ Construct the request:
 - If GET, build the full URL with the address substituted into any address-like query or path parameter, preserving non-address parameters from the example.
 - If POST, build a body that includes the address (and chain if needed) using keys that match the declared schema. If no schema is declared, use { address, chain }.
 - Always return a valid http(s) URL.
+
+CRITICAL — URL rules (the catalog URL is authoritative):
+- The path portion of \`url\` MUST be exactly "${urlWithoutQuery(service.resource)}" with any \`:param\` placeholders substituted (use the wallet address for address-like params). DO NOT add, remove, rename, or guess any path segments — no \`/classify\`, \`/predict\`, \`/labels\`, \`/social\`, etc.
+- For GET, you MAY append a query string (\`?address=...&chain=...\`).
+- For POST, the URL must have no query string and the address goes in the body.
+- If the catalog URL already declares the full path, leave it as-is.
 `.trim();
 
+  let out: BuiltCall;
   try {
-    const out = await llm.generateStructured(BuiltCallSchema, prompt, {
+    out = await llm.generateStructured(BuiltCallSchema, prompt, {
       model: FALLBACK_ADAPTER_MODEL,
       toolName: "build_http_call",
       toolDescription:
@@ -231,11 +263,34 @@ Construct the request:
         method: "GET",
       },
     });
-    return out;
   } catch (e) {
     throw new AdapterFailedError(
       `LLM fallback failed: ${(e as Error).message}`,
       service.resource,
     );
   }
+
+  // Post-LLM URL validator: enforce path equivalence with the catalog URL.
+  // If the LLM invented or rewrote path segments, log it and rewrite to the
+  // catalog URL with the LLM's chosen method/body (still valuable signal).
+  const llmPath = urlWithoutQuery(out.url);
+  const expectedPath = substitutedCatalogPath(service, address);
+  if (!pathsEquivalent(llmPath, expectedPath)) {
+    console.warn(
+      `[adapter-llm] url-changed: rewriting LLM url "${out.url}" → catalog "${service.resource}" (method=${out.method})`,
+    );
+    if (out.method === "GET") {
+      return {
+        url: `${expectedPath}?address=${encodeURIComponent(address)}&chain=${encodeURIComponent(chain)}`,
+        method: "GET",
+      };
+    }
+    return {
+      url: expectedPath,
+      method: "POST",
+      body: out.body ?? { address, chain },
+    };
+  }
+
+  return out;
 }

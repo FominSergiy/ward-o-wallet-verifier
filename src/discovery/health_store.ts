@@ -22,6 +22,7 @@ export interface ServiceHealth {
 // explicitly reset.
 const DURABLE_BLOCK_CODES = new Set([
   "payment_exceeds_max",
+  "not_found",
 ]);
 
 export type HealthRecord = Record<string, ServiceHealth>;

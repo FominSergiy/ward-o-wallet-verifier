@@ -8,6 +8,14 @@ import type { WalletVerdict } from "./verdict.ts";
 import type { DiscoveryPlan, WalletNetwork } from "../discovery/types.ts";
 import type { ServiceInvocationOutcome } from "./invoke_service.ts";
 import { type EventEmitter, now, safeEmit } from "./events.ts";
+import { isContract } from "./onchain_viem.ts";
+
+// Categories that only produce signal for contract addresses. Dropped early
+// for EOAs so we don't burn $0.005 on a smart-contract auditor that returns
+// "no source code" and contributes nothing to the verdict.
+const CONTRACT_ONLY_CATEGORIES: ReadonlySet<Category> = new Set([
+  "contract_analysis",
+]);
 
 const DEFAULT_CATEGORIES: Category[] = [
   "sanctions",
@@ -41,6 +49,7 @@ export interface VerifyAgentOpts {
     discover?: typeof discover;
     invokeAll?: typeof invokeAll;
     synthesizeVerdict?: typeof synthesizeVerdict;
+    isContract?: typeof isContract;
   };
 }
 
@@ -49,6 +58,7 @@ function stubVerdict(
   categories: Category[],
   resolved: Category[],
   unresolved: Category[],
+  notApplicable: Category[],
   totalSpentUsdc: number,
   errorMessage: string,
 ): WalletVerdict {
@@ -64,7 +74,12 @@ function stubVerdict(
       "Raw service findings are available in the receipts for manual review. " +
       "Treat this verdict as a placeholder, NOT as a determination of safety.",
     findings: [],
-    coverage: { requested: categories, resolved, unresolved },
+    coverage: {
+      requested: categories,
+      resolved,
+      unresolved,
+      ...(notApplicable.length > 0 ? { not_applicable: notApplicable } : {}),
+    },
     totalSpentUsdc,
     generatedAt: new Date().toISOString(),
   };
@@ -74,13 +89,41 @@ export async function verifyAgent(
   req: VerifyRequest,
   opts: VerifyAgentOpts = {},
 ): Promise<VerifyAgentResult> {
-  const categories = opts.categories ?? DEFAULT_CATEGORIES;
+  const requestedCategories = opts.categories ?? DEFAULT_CATEGORIES;
   const llm = opts.llm;
   const emit = opts.onEvent;
   const hooks = opts._testHooks ?? {};
   const discoverFn = hooks.discover ?? discover;
   const invokeAllFn = hooks.invokeAll ?? invokeAll;
   const synthesizeFn = hooks.synthesizeVerdict ?? synthesizeVerdict;
+  const isContractFn = hooks.isContract ?? isContract;
+
+  // EOA short-circuit: drop contract-only categories when the address has no
+  // deployed bytecode. Tracked separately as `not_applicable` so the verdict's
+  // confidence isn't penalized for missing this category.
+  const notApplicable: Category[] = [];
+  let categories = requestedCategories;
+  const requestedContractOnly = requestedCategories.filter((c) =>
+    CONTRACT_ONLY_CATEGORIES.has(c)
+  );
+  if (requestedContractOnly.length > 0) {
+    const addressIsContract = await isContractFn(req.address, req.chain);
+    if (!addressIsContract) {
+      notApplicable.push(...requestedContractOnly);
+      categories = requestedCategories.filter(
+        (c) => !CONTRACT_ONLY_CATEGORIES.has(c),
+      );
+      console.warn(
+        `[verify-agent] address ${req.address} on ${req.chain} is an EOA — skipping categories: ${notApplicable.join(", ")}`,
+      );
+      safeEmit(emit, {
+        type: "log",
+        level: "info",
+        message: `category_skipped: ${notApplicable.join(",")} reason=address_is_eoa`,
+        at: now(),
+      });
+    }
+  }
 
   safeEmit(emit, { type: "phase", phase: "discover", status: "start", at: now() });
   const plan = await discoverFn(req.address, categories, { llm, onEvent: emit });
@@ -115,6 +158,7 @@ export async function verifyAgent(
         requested: categories,
         resolved,
         unresolved: invocation.unresolved,
+        ...(notApplicable.length > 0 ? { not_applicable: notApplicable } : {}),
       },
       totalSpentUsdc: invocation.totalSpentUsdc,
     }, { llm });
@@ -134,6 +178,7 @@ export async function verifyAgent(
       categories,
       resolved,
       invocation.unresolved,
+      notApplicable,
       invocation.totalSpentUsdc,
       synthesisError,
     );

@@ -1,0 +1,155 @@
+{
+  "test": {
+    "address": "0x098B716B8Aaf21512996dC57EB0615e2383E2f96",
+    "chain": "eth",
+    "label": "Lazarus Group (Ronin bridge hack)",
+    "category": "OFAC-sanctioned (North Korea, EOA)",
+    "expected": "do_not_transact",
+    "sourceUrl": "https://www.trmlabs.com/resources/blog/north-koreas-lazarus-group-moves-funds-through-tornado-cash"
+  },
+  "metrics": {
+    "address": "0x098B716B8Aaf21512996dC57EB0615e2383E2f96",
+    "label": "Lazarus Group (Ronin bridge hack)",
+    "expected": "do_not_transact",
+    "actualVerdict": "do_not_transact",
+    "actualConfidence": "high",
+    "verdictMatch": "match",
+    "match": true,
+    "primaryHits": 4,
+    "alternateRescues": 0,
+    "llmAdapterCount": 0,
+    "hardErrors": 0,
+    "errorMessages": [],
+    "totalSpentUsdc": 0.0174,
+    "latencyMs": 34936.36087500001,
+    "resolved": [
+      "sanctions",
+      "labels",
+      "onchain_history",
+      "web_sentiment"
+    ],
+    "unresolved": [],
+    "httpStatus": 200
+  },
+  "raw": {
+    "verdict": {
+      "address": "0x098B716B8Aaf21512996dC57EB0615e2383E2f96",
+      "chain": "eth",
+      "safe": false,
+      "verdict": "do_not_transact",
+      "confidence": "high",
+      "headline": "Do NOT transact — wallet is on OFAC SDN and linked to the DPRK Lazarus Group.",
+      "reasoning": "The sanctions screen returned a confirmed match against three programs (OFAC SDN, Lazarus Group, DPRK) with a high risk level, which is a hard veto under our policy and overrides any other signal. On-chain history shows a funded wallet (~101.8 ETH) but this does not mitigate sanctions exposure — sending funds would likely violate U.S. sanctions law. Labels and web_sentiment endpoints were enumerated but returned no exonerating evidence. Confidence is high based solely on the sanctions hit.",
+      "findings": [
+        {
+          "category": "sanctions",
+          "severity": "critical",
+          "finding": "Confirmed sanctions match on OFAC SDN, Lazarus Group, and DPRK programs (risk_level: high). Hard veto."
+        },
+        {
+          "category": "labels",
+          "severity": "info",
+          "finding": "Label provider responded but returned no specific labels for this address; no exonerating evidence."
+        },
+        {
+          "category": "onchain_history",
+          "severity": "info",
+          "finding": "Wallet holds ~101.80 ETH; balance and activity do not offset sanctions exposure."
+        },
+        {
+          "category": "web_sentiment",
+          "severity": "info",
+          "finding": "Reputation API metadata returned but no concrete sentiment payload; not exonerating."
+        }
+      ],
+      "coverage": {
+        "requested": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment"
+        ],
+        "resolved": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment"
+        ],
+        "unresolved": [],
+        "not_applicable": [
+          "contract_analysis"
+        ]
+      },
+      "totalSpentUsdc": 0.0174,
+      "generatedAt": "2026-05-23T12:38:23.632Z"
+    },
+    "plan": {
+      "services": [
+        {
+          "category": "sanctions",
+          "resource": "https://api.anchor-x402.com/v1/screen",
+          "priceUsdc": 0.001,
+          "rationale": "Resource 0 is the only sanctions candidate with a confirmed 0% recent failure rate AND inputInfoCompleteness of 2/3, making it the most reliable pick; its $0.001 price is also the lowest available."
+        },
+        {
+          "category": "labels",
+          "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
+          "priceUsdc": 0.005,
+          "rationale": "Resource 1 is the only labels candidate with a confirmed 0% recent failure rate, making it the standout choice despite all candidates sharing the same 1/3 inputInfoCompleteness; its $0.005 price is also competitive."
+        },
+        {
+          "category": "onchain_history",
+          "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+          "priceUsdc": 0.0039,
+          "rationale": "Resource 1 is the only onchain_history candidate with both a confirmed 0% recent failure rate and a higher inputInfoCompleteness of 2/3, clearly dominating the field."
+        },
+        {
+          "category": "web_sentiment",
+          "resource": "https://orbisapi.com/proxy/address-reputation-score-api-9d7eb2",
+          "priceUsdc": 0.0075,
+          "rationale": "Resource 2 has a confirmed 0% recent failure rate (ruling out resource 1 at 100% failure); among the two 0%-failure candidates, resource 2's description of a 0–100 risk/reputation score more directly matches web-sentiment intent, breaking the tie over resource 0."
+        }
+      ]
+    },
+    "receipts": [
+      {
+        "category": "sanctions",
+        "resource": "https://api.anchor-x402.com/v1/screen",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.001,
+        "durationMs": 3223,
+        "paid": true
+      },
+      {
+        "category": "labels",
+        "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.005,
+        "durationMs": 7318,
+        "paid": true
+      },
+      {
+        "category": "onchain_history",
+        "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.0039,
+        "durationMs": 8381,
+        "paid": true
+      },
+      {
+        "category": "web_sentiment",
+        "resource": "https://orbisapi.com/proxy/address-reputation-score-api-9d7eb2",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.0075,
+        "durationMs": 8341,
+        "paid": true
+      }
+    ],
+    "walletNetwork": "base",
+    "totalSpentUsdc": 0.0174
+  }
+}

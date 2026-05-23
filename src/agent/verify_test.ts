@@ -131,6 +131,9 @@ Deno.test("verifyAgent onEvent emits phase boundaries and plan event for happy p
     {
       onEvent: (e) => events.push(e),
       _testHooks: {
+        // Force the contract path so the EOA skip log doesn't appear in the
+        // event stream — this test is asserting phase ordering, not EOA logic.
+        isContract: () => Promise.resolve(true),
         discover: () => Promise.resolve(fakePlan()),
         // deno-lint-ignore no-explicit-any
         invokeAll: () => Promise.resolve(fakeInvocation() as any),
@@ -186,6 +189,60 @@ Deno.test("verifyAgent onEvent emits log:error then phase:synthesize:end on synt
   assertEquals(idxStart >= 0, true);
   assertEquals(idxLog > idxStart, true);
   assertEquals(idxEnd > idxLog, true);
+});
+
+Deno.test("verifyAgent drops contract_analysis for EOA addresses (isContract=false)", async () => {
+  let categoriesPassedToDiscover: string[] = [];
+  let coveragePassedToSynthesize: unknown = null;
+  await verifyAgent(
+    { address: "0xABC0000000000000000000000000000000000123", chain: "base" },
+    {
+      _testHooks: {
+        isContract: () => Promise.resolve(false),
+        discover: (_addr, categories) => {
+          categoriesPassedToDiscover = [...categories];
+          return Promise.resolve(fakePlan());
+        },
+        // deno-lint-ignore no-explicit-any
+        invokeAll: () => Promise.resolve(fakeInvocation() as any),
+        synthesizeVerdict: (input) => {
+          coveragePassedToSynthesize = input.coverage;
+          return Promise.resolve(fakeVerdict());
+        },
+      },
+    },
+  );
+  // contract_analysis must be removed from the categories passed downstream.
+  assertEquals(categoriesPassedToDiscover.includes("contract_analysis"), false);
+  // not_applicable bucket carries the dropped category.
+  const cov = coveragePassedToSynthesize as { not_applicable?: string[] };
+  assertEquals(cov.not_applicable, ["contract_analysis"]);
+});
+
+Deno.test("verifyAgent keeps contract_analysis for contract addresses (isContract=true)", async () => {
+  let categoriesPassedToDiscover: string[] = [];
+  let coveragePassedToSynthesize: unknown = null;
+  await verifyAgent(
+    { address: "0xABC0000000000000000000000000000000000123", chain: "base" },
+    {
+      _testHooks: {
+        isContract: () => Promise.resolve(true),
+        discover: (_addr, categories) => {
+          categoriesPassedToDiscover = [...categories];
+          return Promise.resolve(fakePlan());
+        },
+        // deno-lint-ignore no-explicit-any
+        invokeAll: () => Promise.resolve(fakeInvocation() as any),
+        synthesizeVerdict: (input) => {
+          coveragePassedToSynthesize = input.coverage;
+          return Promise.resolve(fakeVerdict());
+        },
+      },
+    },
+  );
+  assertEquals(categoriesPassedToDiscover.includes("contract_analysis"), true);
+  const cov = coveragePassedToSynthesize as { not_applicable?: string[] };
+  assertEquals(cov.not_applicable, undefined);
 });
 
 Deno.test("verifyAgent onEvent thrown by consumer does not crash verifyAgent", async () => {

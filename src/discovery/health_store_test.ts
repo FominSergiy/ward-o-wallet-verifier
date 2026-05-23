@@ -97,6 +97,13 @@ Deno.test("isDurablyBlocked returns true after payment_exceeds_max", () => {
   });
 });
 
+Deno.test("isDurablyBlocked returns true after not_found", () => {
+  withTempStore(() => {
+    recordError("https://svc.404", "Not Found", "not_found");
+    assertEquals(isDurablyBlocked("https://svc.404"), true);
+  });
+});
+
 Deno.test("isDurablyBlocked returns false for transient/generic errors", () => {
   withTempStore(() => {
     recordError("https://svc.transient", "boom", "upstream_500");

@@ -1,0 +1,155 @@
+{
+  "test": {
+    "address": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    "chain": "eth",
+    "label": "Vitalik's main wallet (vitalik.eth)",
+    "category": "Safe / ENS-doxxed (EOA)",
+    "expected": "safe_to_transact",
+    "sourceUrl": "https://etherscan.io/address/0xd8da6bf26964af9d7eed9e03e53415d37aa96045"
+  },
+  "metrics": {
+    "address": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+    "label": "Vitalik's main wallet (vitalik.eth)",
+    "expected": "safe_to_transact",
+    "actualVerdict": "safe_to_transact",
+    "actualConfidence": "medium",
+    "verdictMatch": "match",
+    "match": true,
+    "primaryHits": 3,
+    "alternateRescues": 1,
+    "llmAdapterCount": 0,
+    "hardErrors": 0,
+    "errorMessages": [],
+    "totalSpentUsdc": 0.0109,
+    "latencyMs": 67311.059417,
+    "resolved": [
+      "sanctions",
+      "labels",
+      "onchain_history",
+      "web_sentiment"
+    ],
+    "unresolved": [],
+    "httpStatus": 200
+  },
+  "raw": {
+    "verdict": {
+      "address": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+      "chain": "eth",
+      "safe": true,
+      "verdict": "safe_to_transact",
+      "confidence": "medium",
+      "headline": "Safe to transact — sanctions screen is clean and the wallet shows a healthy, active on-chain footprint (vitalik.eth).",
+      "reasoning": "The sanctions check returned no matches against the active corpus, which is the most important positive signal. On-chain history shows a non-zero balance (~5.68 ETH) on a well-known Ethereum address (commonly recognized as vitalik.eth). The labels and web_sentiment endpoints did not return substantive content (only API metadata), so they are treated as neutral rather than negative. With one strong positive (sanctions clean) and one supporting positive (active wallet with meaningful balance), and no negative indicators anywhere, the wallet is safe to transact with at medium confidence.",
+      "findings": [
+        {
+          "category": "sanctions",
+          "severity": "info",
+          "finding": "No matches against active sanctions lists; risk_level reported as low."
+        },
+        {
+          "category": "labels",
+          "severity": "info",
+          "finding": "Label provider returned only API metadata (no concrete labels); treated as neutral."
+        },
+        {
+          "category": "onchain_history",
+          "severity": "info",
+          "finding": "Wallet holds ~5.677 ETH; this address is widely known as vitalik.eth, an active long-history EOA."
+        },
+        {
+          "category": "web_sentiment",
+          "severity": "info",
+          "finding": "Web sentiment endpoint returned only health/metadata; no adverse press detected in the response."
+        }
+      ],
+      "coverage": {
+        "requested": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment"
+        ],
+        "resolved": [
+          "sanctions",
+          "labels",
+          "onchain_history",
+          "web_sentiment"
+        ],
+        "unresolved": [],
+        "not_applicable": [
+          "contract_analysis"
+        ]
+      },
+      "totalSpentUsdc": 0.0109,
+      "generatedAt": "2026-05-23T12:26:31.714Z"
+    },
+    "plan": {
+      "services": [
+        {
+          "category": "sanctions",
+          "resource": "https://api.anchor-x402.com/v1/screen",
+          "priceUsdc": 0.001,
+          "rationale": "All candidates are untested with unknown failure rates, so the tie-breaker falls to inputInfoCompleteness (2/3, matching several others) and then lowest price — resource 0 at $0.001 with a clear wallet-screening description wins over resource 2 (same price/spec but a raw AWS URL, less trustworthy) and all higher-priced options."
+        },
+        {
+          "category": "labels",
+          "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
+          "priceUsdc": 0.005,
+          "rationale": "All label candidates are untested with 1/3 completeness, so lowest price breaks the tie — resource 1 at $0.005 with a description that directly matches entity/label identification (exchange, mixer, contract) beats the $0.03 option and is more semantically on-target than clustering or entity-extraction alternatives."
+        },
+        {
+          "category": "onchain_history",
+          "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+          "priceUsdc": 0.0039,
+          "rationale": "Resource 1 is the only candidate with inputInfoCompleteness 2/3 that covers both balance and transaction history for Ethereum wallets, at the same competitive $0.0039 price as resource 0, making it the strongest pick on documentation completeness."
+        },
+        {
+          "category": "web_sentiment",
+          "resource": "https://orbisapi.com/proxy/wallet-address-risk-api-c6680c/:endpoint",
+          "priceUsdc": 0.007,
+          "rationale": "No candidate in this category is a true web/social sentiment service, but resource 1 best approximates reputational signal with its parameterised endpoint structure (inputInfoCompleteness 2/3 vs. 1/3 for all others), which is the strongest differentiator when failure rates and quality scores are all unknown."
+        }
+      ]
+    },
+    "receipts": [
+      {
+        "category": "sanctions",
+        "resource": "https://api.anchor-x402.com/v1/screen",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.001,
+        "durationMs": 3210,
+        "paid": true
+      },
+      {
+        "category": "labels",
+        "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.005,
+        "durationMs": 14061,
+        "paid": true
+      },
+      {
+        "category": "onchain_history",
+        "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.0039,
+        "durationMs": 13282,
+        "paid": true
+      },
+      {
+        "category": "web_sentiment",
+        "resource": "https://orbisapi.com/proxy/wallet-address-risk-api-c6680c",
+        "status": "ok",
+        "adapterPath": "pattern",
+        "amountUsdc": 0.001,
+        "durationMs": 8804,
+        "paid": true
+      }
+    ],
+    "walletNetwork": "base",
+    "totalSpentUsdc": 0.0109
+  }
+}

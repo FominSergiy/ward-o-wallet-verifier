@@ -38,7 +38,7 @@ Deno.test("fetchCandidates collects partial results", async () => {
     if (params.query.includes("OFAC")) {
       return Promise.resolve([makeEntry("eip155:8453", "https://sanc")]);
     }
-    if (params.query.includes("label")) {
+    if (params.query.includes("attribution")) {
       return Promise.reject(new Error("upstream 500"));
     }
     // onchain → empty

@@ -105,6 +105,7 @@ export interface Coverage {
   requested: Category[];
   resolved: Category[];
   unresolved: Category[];
+  not_applicable?: Category[];
 }
 
 export interface VerifyVerdict {
