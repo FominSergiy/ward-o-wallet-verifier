@@ -5,8 +5,10 @@ import { PlanCard } from "./components/PlanCard";
 import { TerminalTabs, type TabId } from "./components/TerminalTabs";
 import { VerdictCard } from "./components/VerdictCard";
 import { PixelWardo } from "./components/PixelWardo";
+import { DocsPage } from "./components/DocsPage";
 import { streamDiscover, streamVerify } from "./api";
 import { loadLastPlan, saveLastPlan } from "./storage";
+import { useLocation } from "./router";
 import type {
   PlanView,
   VerifyEvent,
@@ -20,6 +22,7 @@ interface UnfundedState {
 }
 
 export function App() {
+  const path = useLocation();
   const [address, setAddress] = useState("");
 
   const [plan, setPlan] = useState<PlanView | null>(null);
@@ -168,9 +171,18 @@ export function App() {
     planStreaming ||
     verifyStreaming;
 
+  if (path === "/docs") {
+    return (
+      <div className="app">
+        <Logo currentPath={path} />
+        <DocsPage />
+      </div>
+    );
+  }
+
   return (
     <div className="app">
-      <Logo />
+      <Logo currentPath={path} />
 
       <InputForm
         address={address}
