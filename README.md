@@ -70,6 +70,19 @@ Env vars: `AGNIC_API_KEY` is required; `AI_MODEL`, `SYNTHESIS_MODEL`, `AGNIC_BUD
 | Format | `deno task fmt` |
 | Type-check | `deno task check` |
 
+## Deployment
+
+| Surface | Host | URL pattern |
+|---------|------|-------------|
+| Backend API | [Deno Deploy](https://deno.com/deploy) (entrypoint `src/main.ts`) | `https://<project>.deno.dev` |
+| Frontend (web) | [Cloudflare Pages](https://pages.cloudflare.com/) (root `web/`, build `npm ci && npm run build`, output `dist`) | `https://<project>.pages.dev` |
+
+Both platforms auto-deploy from `main` on every push and create preview deployments for PRs via their native GitHub integrations. The GitHub Actions workflow at [.github/workflows/ci.yml](.github/workflows/ci.yml) gates merges with `deno fmt --check`, `deno lint`, `deno task check`, `deno task test` and the frontend's `npm run typecheck` + `npm run build`.
+
+On Deno Deploy the filesystem is read-only, so the service-health store transparently falls back to an in-memory `Map` when `DENO_DEPLOYMENT_ID` is present — see [src/discovery/health_store.ts](src/discovery/health_store.ts). Cache resets on cold start; this is intentional for hackathon scale.
+
+Provisioning runbook + env-var contract: [docs/deployment.md](docs/deployment.md).
+
 ## Roadmap
 
 - **Coming soon — frontend.** A small Vite + React UI over this API so a human can drive a verification end-to-end, see the discovery plan, watch services resolve in real time, and read the final verdict. In progress.

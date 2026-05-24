@@ -1,9 +1,12 @@
+import { Hono } from "hono";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { buildMcpServer } from "./server.ts";
 
 // One transport per MCP session. The SDK manages the `Mcp-Session-Id` header
 // and the in-memory SSE streams; we just map session id -> transport so
-// follow-up requests resume against the right state.
+// follow-up requests resume against the right state. In-memory per-isolate
+// only — on multi-replica Deno Deploy a follow-up request may land on a
+// different isolate that doesn't know the session. Acceptable for the demo.
 const sessions = new Map<string, WebStandardStreamableHTTPServerTransport>();
 
 async function newSessionTransport(): Promise<
@@ -22,25 +25,22 @@ async function newSessionTransport(): Promise<
   return transport;
 }
 
-async function handle(req: Request): Promise<Response> {
-  const url = new URL(req.url);
+export const mcpRouter = new Hono();
 
-  if (req.method === "GET" && url.pathname === "/health") {
-    return Response.json({ status: "ok" });
+mcpRouter.all("/*", async (c) => {
+  const secret = Deno.env.get("MCP_SHARED_SECRET");
+  if (!secret) {
+    return c.json({ error: "mcp_disabled" }, 503);
+  }
+  const auth = c.req.header("authorization") ?? "";
+  if (auth !== `Bearer ${secret}`) {
+    return c.text("unauthorized", 401);
   }
 
-  if (url.pathname !== "/mcp") {
-    return new Response("Not found", { status: 404 });
-  }
-
-  const sessionId = req.headers.get("mcp-session-id") ?? undefined;
-  const transport = sessionId
-    ? sessions.get(sessionId) ?? (await newSessionTransport())
+  const sessionId = c.req.header("mcp-session-id") ?? undefined;
+  const transport = sessionId && sessions.has(sessionId)
+    ? sessions.get(sessionId)!
     : await newSessionTransport();
 
-  return await transport.handleRequest(req);
-}
-
-const port = parseInt(Deno.env.get("MCP_HTTP_PORT") ?? "9765");
-console.log(`MCP HTTP transport on :${port}/mcp`);
-Deno.serve({ port }, handle);
+  return await transport.handleRequest(c.req.raw);
+});

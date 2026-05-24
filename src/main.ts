@@ -5,6 +5,7 @@ import { verifyAgentStreamRouter } from "./routes/verify_agent_stream.ts";
 import { discoverRouter } from "./routes/discover.ts";
 import { discoverStreamRouter } from "./routes/discover_stream.ts";
 import { invokeRouter } from "./routes/invoke.ts";
+import { mcpRouter } from "./mcp/http.ts";
 
 const app = new Hono();
 
@@ -13,7 +14,12 @@ app.use(
   cors({
     origin: Deno.env.get("ALLOWED_ORIGIN") ?? "*",
     allowMethods: ["GET", "POST", "OPTIONS"],
-    allowHeaders: ["Content-Type", "Authorization"],
+    allowHeaders: [
+      "Content-Type",
+      "Authorization",
+      "Mcp-Session-Id",
+      "Mcp-Protocol-Version",
+    ],
   }),
 );
 
@@ -24,6 +30,7 @@ app.route("/verify-agent-stream", verifyAgentStreamRouter);
 app.route("/discover", discoverRouter);
 app.route("/discover-stream", discoverStreamRouter);
 app.route("/invoke", invokeRouter);
+app.route("/mcp", mcpRouter);
 
 app.onError((err, c) => {
   console.error(err);

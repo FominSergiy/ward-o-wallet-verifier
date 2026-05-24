@@ -1,11 +1,11 @@
 // Persisted per-service health stats. Updated by invokeAll after each call
 // and consumed by rankServices to demote unreliable catalog entries.
 //
-// Storage: a single JSON file at data/service_health.json (gitignored).
-// Reads on every access (fast for typical sizes — sub-1KB after a few runs).
-// Writes after every record* call. Acceptable race-conditions for hackathon
-// single-process throughput; a real production deployment would back this
-// with Deno KV or a sqlite store.
+// Storage: a single JSON file at data/service_health.json (gitignored) for
+// local dev. On Deno Deploy the filesystem is read-only, so we fall back to
+// an in-memory Map that resets on cold start — acceptable for hackathon
+// scale. Detect Deploy via the DENO_DEPLOYMENT_ID env var, which Deploy
+// sets automatically.
 
 export interface ServiceHealth {
   ok: number;
@@ -38,6 +38,12 @@ export type HealthRecord = Record<string, ServiceHealth>;
 const DEFAULT_PATH = "data/service_health.json";
 const ENABLED = Deno.env.get("HEALTH_TRACKING") !== "false";
 
+const memoryStore = new Map<string, ServiceHealth>();
+
+function isDeploy(): boolean {
+  return Deno.env.get("DENO_DEPLOYMENT_ID") !== undefined;
+}
+
 function pathFor(): string {
   return Deno.env.get("HEALTH_STORE_PATH") ?? DEFAULT_PATH;
 }
@@ -55,6 +61,7 @@ function ensureDir(filePath: string) {
 
 export function readHealth(): HealthRecord {
   if (!ENABLED) return {};
+  if (isDeploy()) return Object.fromEntries(memoryStore);
   try {
     const text = Deno.readTextFileSync(pathFor());
     return JSON.parse(text) as HealthRecord;
@@ -65,6 +72,11 @@ export function readHealth(): HealthRecord {
 
 function writeHealth(record: HealthRecord): void {
   if (!ENABLED) return;
+  if (isDeploy()) {
+    memoryStore.clear();
+    for (const [k, v] of Object.entries(record)) memoryStore.set(k, v);
+    return;
+  }
   const p = pathFor();
   ensureDir(p);
   try {
@@ -177,6 +189,7 @@ export function failureRate(resource: string): number | null {
 
 /** Test-only helper to reset state between cases. */
 export function _resetHealthStoreForTests(): void {
+  memoryStore.clear();
   try {
     Deno.removeSync(pathFor());
   } catch {

@@ -166,3 +166,70 @@ Deno.test("isQualityDemoted is false when emptyOnRichAt is older than 7 days", (
     assertEquals(isQualityDemoted(r), false);
   });
 });
+
+// Deno Deploy fallback: when DENO_DEPLOYMENT_ID is set the store must read/
+// write from an in-memory Map and never touch the filesystem (Deploy fs is
+// read-only). Run each case under a one-shot env scope.
+function withDeployEnv(fn: () => void) {
+  Deno.env.set("DENO_DEPLOYMENT_ID", "test-deployment-id");
+  Deno.env.delete("HEALTH_TRACKING");
+  // Point at a path that should never appear on disk; assert at end.
+  const sentinel = Deno.makeTempFileSync({ suffix: ".json" });
+  Deno.removeSync(sentinel); // we want to assert it stays absent
+  Deno.env.set("HEALTH_STORE_PATH", sentinel);
+  _resetHealthStoreForTests();
+  try {
+    fn();
+  } finally {
+    Deno.env.delete("DENO_DEPLOYMENT_ID");
+    Deno.env.delete("HEALTH_STORE_PATH");
+    try {
+      Deno.removeSync(sentinel);
+    } catch {
+      // ignore
+    }
+  }
+}
+
+Deno.test("records ok counts in memory when DENO_DEPLOYMENT_ID is set", () => {
+  withDeployEnv(() => {
+    recordOk("https://svc.mem");
+    recordOk("https://svc.mem");
+    assertEquals(readHealth()["https://svc.mem"]?.ok, 2);
+  });
+});
+
+Deno.test("records err counts in memory when DENO_DEPLOYMENT_ID is set", () => {
+  withDeployEnv(() => {
+    recordError("https://svc.mem.err", "boom", "upstream_500");
+    const stats = readHealth()["https://svc.mem.err"];
+    assertEquals(stats?.err, 1);
+    assertEquals(stats?.lastErrorCode, "upstream_500");
+  });
+});
+
+Deno.test("does not write to disk when DENO_DEPLOYMENT_ID is set", () => {
+  withDeployEnv(() => {
+    recordOk("https://svc.no-disk");
+    recordError("https://svc.no-disk", "boom");
+    const path = Deno.env.get("HEALTH_STORE_PATH")!;
+    let exists = false;
+    try {
+      Deno.statSync(path);
+      exists = true;
+    } catch {
+      exists = false;
+    }
+    assertEquals(exists, false);
+  });
+});
+
+Deno.test("still writes to disk when DENO_DEPLOYMENT_ID is unset", () => {
+  withTempStore(() => {
+    recordOk("https://svc.disk");
+    const path = Deno.env.get("HEALTH_STORE_PATH")!;
+    const text = Deno.readTextFileSync(path);
+    const parsed = JSON.parse(text);
+    assertEquals(parsed["https://svc.disk"]?.ok, 1);
+  });
+});
