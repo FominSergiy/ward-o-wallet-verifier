@@ -20,7 +20,7 @@ const VERDICT_X = 710;
 // baseline Y to the center of the first direct circle.
 const DIRECT_DY = 22;
 const DIRECT_R = 7;
-const DIRECT_SPACING = 26;
+const DIRECT_SPACING = 38;
 
 const CATEGORY_LABELS: Record<Category, string> = {
   sanctions: "sanctions",
@@ -67,9 +67,27 @@ function DirectNodes({ direct, y }: { direct: DirectNode[]; y: number }) {
   const startX = PAYMENT_X - span / 2;
   const cy = y + DIRECT_DY;
 
+  // Bounding container — visually groups the sub-fan-out as one logical
+  // unit belonging to its parent category row above.
+  const padX = DIRECT_R + 10;
+  const padTop = DIRECT_R + 4;
+  const padBot = DIRECT_R + 12; // room for label below the circle
+  const containerX = startX - padX;
+  const containerY = cy - padTop;
+  const containerW = span + padX * 2;
+  const containerH = padTop + padBot;
+
   return (
     <g>
-      <text className="direct-row-tag" x={startX - 14} y={cy}>
+      <rect
+        className="direct-container"
+        x={containerX}
+        y={containerY}
+        width={containerW}
+        height={containerH}
+        rx={4}
+      />
+      <text className="direct-row-tag" x={containerX - 4} y={cy}>
         direct
       </text>
       {direct.map((d, i) => {
@@ -114,10 +132,20 @@ function CategoryRow({
 
   const edgeOriginToCat = edgeClassFor(originStatus, node.status);
   const edgeCatToPay = hasX402 ? edgeClassFor(node.status, primaryStatus) : "";
-  let edgePayToSynth = hasX402 ? edgeClassFor(primaryStatus, synthStatus) : "";
+  // When fallback exists, the visual flow is primary → fallback → synth (a
+  // single chain). Suppress the parallel primary→synth edge so the diagram
+  // doesn't show both a red original and a green fallback line into synth.
+  let edgePayToSynth = hasX402 && !node.fallback ? edgeClassFor(primaryStatus, synthStatus) : "";
   if (hasX402 && primaryStatus === "error" && !node.fallback) edgePayToSynth = "error";
 
-  const edgePayToFallback = node.fallback ? "fallback" : "";
+  // Primary→fallback edge: red when primary failed (the actual story —
+  // primary errored, that's why we took the fallback); dashed orange while
+  // the fallback attempt is still in flight.
+  const edgePayToFallback = node.fallback
+    ? primaryStatus === "error"
+      ? "error"
+      : "fallback"
+    : "";
   const edgeFallbackToSynth = node.fallback
     ? fallbackStatus === "ok"
       ? "ok"
@@ -126,9 +154,17 @@ function CategoryRow({
       : "lit"
     : "";
 
+  // Direct sub-path edge: color by node.status only. Downstream synth state
+  // shouldn't paint an otherwise-successful direct edge red.
   const edgeCatToSynthDirect =
     !hasX402 && node.direct.length > 0
-      ? edgeClassFor(node.status, synthStatus)
+      ? node.status === "ok"
+        ? "ok"
+        : node.status === "error"
+        ? "error"
+        : node.status === "active"
+        ? "lit"
+        : ""
       : "";
 
   const synthIn = { x: SYNTH_X - 22, y: VIEW_H / 2 };
@@ -206,13 +242,17 @@ function CategoryRow({
             </>
           )}
 
-          {/* payment → synth (curved into synth center) */}
-          <path
-            className={`edge ${edgePayToSynth}`}
-            d={`M ${PAYMENT_X + 26} ${y} C ${(PAYMENT_X + SYNTH_X) / 2} ${y}, ${
-              (PAYMENT_X + SYNTH_X) / 2
-            } ${synthIn.y}, ${synthIn.x} ${synthIn.y}`}
-          />
+          {/* payment → synth (curved into synth center). Skipped entirely
+              when a fallback exists — the chained flow primary → fallback →
+              synth replaces the parallel edge. */}
+          {!node.fallback && (
+            <path
+              className={`edge ${edgePayToSynth}`}
+              d={`M ${PAYMENT_X + 26} ${y} C ${(PAYMENT_X + SYNTH_X) / 2} ${y}, ${
+                (PAYMENT_X + SYNTH_X) / 2
+              } ${synthIn.y}, ${synthIn.x} ${synthIn.y}`}
+            />
+          )}
         </>
       )}
 

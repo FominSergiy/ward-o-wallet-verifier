@@ -131,7 +131,19 @@ export function deriveFlowState(events: VerifyEvent[]): FlowState {
               for (const d of node.direct) {
                 if (d.status === "active") d.status = "error";
               }
-              if (node.status === "active") node.status = "error";
+              if (node.status === "active") {
+                // For direct-only categories (no x402 primary), a successful
+                // direct path means the category resolved OK — flip to "ok"
+                // rather than "error", and only error if every direct failed.
+                const hasX402 = node.primary.resource !== "";
+                const directOk = node.direct.some((d) => d.status === "ok");
+                const directError = node.direct.some((d) => d.status === "error");
+                if (!hasX402 && directOk && !directError) {
+                  node.status = "ok";
+                } else {
+                  node.status = "error";
+                }
+              }
             }
           }
         }
@@ -162,7 +174,19 @@ export function deriveFlowState(events: VerifyEvent[]): FlowState {
           } else if (ev.status === "ok") {
             d.status = "ok";
             if (ev.durationMs != null) d.durationMs = ev.durationMs;
-            if (node.status === "idle") node.status = "ok";
+            // Promote category status to "ok" once any direct path succeeds,
+            // provided no x402 primary is mid-flight/errored and no sibling
+            // direct path failed. Without this, the per-event "start" handler
+            // leaves node.status stuck at "active" and the invoke-end cascade
+            // flips direct-only categories (ENS) to "error" even on success.
+            if (
+              (node.status === "idle" || node.status === "active") &&
+              node.primary.status !== "active" &&
+              node.primary.status !== "error" &&
+              !node.direct.some((x) => x.status === "error")
+            ) {
+              node.status = "ok";
+            }
           } else if (ev.status === "error") {
             d.status = "error";
             d.error = ev.error;
