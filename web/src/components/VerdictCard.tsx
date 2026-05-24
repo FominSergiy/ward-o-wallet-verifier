@@ -1,5 +1,7 @@
-import type { VerdictLabel, VerifyResultPayload } from "../types";
+import type { CSSProperties } from "react";
+import type { VerdictLabel, VerifyReceipt, VerifyResultPayload } from "../types";
 import { WardoMascot, type WardoVariant } from "./WardoMascot";
+import { CATEGORY_HINTS } from "../categoryLabels";
 
 interface Props {
   result: VerifyResultPayload;
@@ -23,6 +25,28 @@ function mascotVariant(cls: string): WardoVariant {
 
 function labelText(v: VerdictLabel): string {
   return v.split("_").join(" ");
+}
+
+function adapterBadgeStyle(path: VerifyReceipt["adapterPath"]): CSSProperties {
+  // Three visual tiers: pattern = neutral (the happy default), pattern+subpath
+  // = accent (recovered via descriptor retry), llm = warning (fell back to
+  // LLM-built call — operationally interesting).
+  const base: CSSProperties = {
+    fontSize: 10,
+    padding: "1px 5px",
+    marginLeft: 6,
+    border: "1px solid var(--faint)",
+    borderRadius: 3,
+    textTransform: "lowercase",
+    whiteSpace: "nowrap",
+  };
+  if (path === "pattern+subpath") {
+    return { ...base, borderColor: "var(--accent, #5aa)", color: "var(--accent, #5aa)" };
+  }
+  if (path === "llm") {
+    return { ...base, borderColor: "var(--warn, #c80)", color: "var(--warn, #c80)" };
+  }
+  return { ...base, color: "var(--muted, #888)" };
 }
 
 export function VerdictCard({ result }: Props) {
@@ -56,7 +80,9 @@ export function VerdictCard({ result }: Props) {
         <div style={{ marginTop: 14, fontSize: 12 }}>
           {verdict.findings.map((f, i) => (
             <div key={i} className="svc-row" style={{ gridTemplateColumns: "140px 80px 1fr" }}>
-              <span className="cat">{f.category}</span>
+              <span className="cat" title={CATEGORY_HINTS[f.category]}>
+                {f.category}
+              </span>
               <span className="resource">{f.severity}</span>
               <span>{f.finding}</span>
             </div>
@@ -67,9 +93,19 @@ export function VerdictCard({ result }: Props) {
       <div style={{ marginTop: 18 }}>
         {receipts.map((r) => (
           <div className="svc-row" key={`${r.category}-${r.resource}`}>
-            <span className="cat">{r.category}</span>
+            <span className="cat" title={CATEGORY_HINTS[r.category]}>
+              {r.category}
+            </span>
             <span className="resource" title={r.error ?? ""}>
               {r.resource}
+              {r.adapterPath && (
+                <span
+                  data-testid="adapter-badge"
+                  style={adapterBadgeStyle(r.adapterPath)}
+                >
+                  {r.adapterPath}
+                </span>
+              )}
               {r.error && <span style={{ color: "var(--risk)" }}> · {r.error}</span>}
             </span>
             <span className="price">

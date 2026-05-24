@@ -1,5 +1,5 @@
 import type { Category } from "./types.ts";
-import type { WalletNetwork } from "../discovery/types.ts";
+import type { DeterministicSource, WalletNetwork } from "../discovery/types.ts";
 
 export type EventPhase = "preflight" | "discover" | "invoke" | "synthesize";
 
@@ -54,6 +54,10 @@ export interface PlanEvent {
   // viable service. verify.ts intentionally omits this — its plan emission
   // is a mid-pipeline status, not the final discover result.
   unresolvedCategories?: Category[];
+  // Free chain-primitive sources verify-agent will also touch (Chainalysis
+  // oracle, eth-labels.com, ENS). Populated by /discover-stream so the plan
+  // card can render them with $0 cost alongside paid services.
+  deterministicSources?: DeterministicSource[];
   at: string;
 }
 

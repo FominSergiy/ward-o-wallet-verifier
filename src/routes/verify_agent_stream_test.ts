@@ -84,6 +84,7 @@ function fakeResult(): VerifyAgentResult {
       alternates: {},
       totalEstimatedCostUsdc: 0.001,
       unresolvedCategories: [],
+      deterministicSources: [],
       generatedAt: new Date().toISOString(),
     },
     outcomes: [{

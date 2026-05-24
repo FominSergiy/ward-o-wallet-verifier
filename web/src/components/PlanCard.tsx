@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { PlanView } from "../types";
+import { CATEGORY_HINTS } from "../categoryLabels";
 
 interface Props {
   plan: PlanView;
@@ -50,11 +51,42 @@ export function PlanCard({ plan, onSave }: Props) {
 
       {plan.services.map((s) => (
         <div className="svc-row" key={`${s.category}-${s.resource}`}>
-          <span className="cat">{s.category}</span>
+          <span className="cat" title={CATEGORY_HINTS[s.category]}>
+            {s.category}
+          </span>
           <span className="resource" title={s.rationale}>{s.resource}</span>
           <span className="price">{fmtUsd(s.priceUsdc)}</span>
         </div>
       ))}
+
+      {plan.deterministicSources.length > 0 && (
+        <div data-testid="deterministic-sources" style={{ marginTop: 10 }}>
+          <div
+            className="muted"
+            style={{
+              fontSize: 10,
+              textTransform: "uppercase",
+              letterSpacing: 0.5,
+              marginBottom: 4,
+            }}
+          >
+            Always-on free checks
+          </div>
+          {plan.deterministicSources.map((s) => (
+            <div
+              className="svc-row"
+              key={`free-${s.category}-${s.resource}`}
+              data-testid="deterministic-row"
+            >
+              <span className="cat" title={CATEGORY_HINTS[s.category]}>
+                {s.category}
+              </span>
+              <span className="resource" title={s.rationale}>{s.resource}</span>
+              <span className="price">{fmtUsd(0)}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="total">
         <span>Total estimated</span>

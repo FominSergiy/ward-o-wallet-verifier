@@ -5,7 +5,7 @@
       "name": "wardo-api",
       "runtimeExecutable": "/Users/sfomin/.deno/bin/deno",
       "runtimeArgs": ["task", "dev"],
-      "port": 8765
+      "port": 8000
     },
     {
       "name": "wardo-web",

@@ -1,5 +1,8 @@
 import { z } from "zod";
 import { CategorySchema, type Category } from "../agent/types.ts";
+import type { DeterministicSource } from "./deterministic_sources.ts";
+
+export type { DeterministicSource };
 
 export type WalletNetwork = "base" | "base-sepolia";
 
@@ -125,5 +128,10 @@ export interface DiscoveryPlan {
   alternates: Partial<Record<Category, RankedService[]>>;
   totalEstimatedCostUsdc: number;
   unresolvedCategories: Category[];
+  // Free chain-primitive sources that verify-agent will also touch
+  // (Chainalysis oracle, eth-labels.com, ENS resolver). Populated by
+  // discover() so the plan card can faithfully preview an Execute run.
+  // Not paid; not part of totalEstimatedCostUsdc; never enters ranking.
+  deterministicSources: DeterministicSource[];
   generatedAt: string;
 }

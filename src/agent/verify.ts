@@ -369,6 +369,7 @@ export async function verifyAgent(
         alternates: {},
         totalEstimatedCostUsdc: 0,
         unresolvedCategories: [],
+        deterministicSources: [],
         generatedAt: new Date().toISOString(),
       },
       outcomes: [],

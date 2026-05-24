@@ -17,6 +17,17 @@ export interface PlanViewService {
   rationale: string;
 }
 
+// Free chain-primitive sources verify-agent runs alongside paid x402 services.
+// Mirrors src/discovery/deterministic_sources.ts DeterministicSource. Rendered
+// in PlanCard with $0 cost so users see the full set of endpoints that will
+// be touched on Execute.
+export interface DeterministicSourceView {
+  category: Category;
+  resource: string;
+  rationale: string;
+  gated: boolean;
+}
+
 // PlanView is the projection that the /discover-stream `plan` event ships and
 // that PlanCard renders. It's a strict subset of the backend DiscoveryPlan —
 // alternates, payTo/scheme/qualityScore, etc. aren't surfaced in the UI.
@@ -25,6 +36,7 @@ export interface PlanView {
   totalEstimatedCostUsdc: number;
   walletNetwork: WalletNetwork;
   unresolvedCategories: Category[];
+  deterministicSources: DeterministicSourceView[];
 }
 
 export interface UnfundedError {
@@ -83,6 +95,7 @@ export interface PlanEvent {
   totalEstimatedCostUsdc: number;
   walletNetwork: WalletNetwork;
   unresolvedCategories?: Category[];
+  deterministicSources?: DeterministicSourceView[];
   at: string;
 }
 
@@ -90,11 +103,17 @@ export interface VerifyReceipt {
   category: Category;
   resource: string;
   status: "ok" | "error" | "skipped";
-  adapterPath?: string;
+  // "pattern" = direct pattern-adapter call, "pattern+subpath" = descriptor
+  // payload was resolved by retrying against a sub-endpoint (see
+  // docs/features/adapter-descriptor-retry.md), "llm" = LLM-built fallback.
+  adapterPath?: "pattern" | "pattern+subpath" | "llm";
   amountUsdc?: number;
   durationMs?: number;
   paid?: boolean;
   error?: string;
+  // Machine code for the error (e.g. "descriptor_only_response"); kept in
+  // sync with the backend payload at src/routes/verify_agent_stream.ts.
+  errorCode?: string;
 }
 
 export type VerdictLabel = "safe_to_transact" | "do_not_transact" | "insufficient_data";

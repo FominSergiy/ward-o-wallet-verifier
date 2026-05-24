@@ -12,6 +12,7 @@ import {
   type RankedService,
   type WalletNetwork,
 } from "./types.ts";
+import { buildDeterministicSources } from "./deterministic_sources.ts";
 
 export interface DiscoverOpts {
   llm?: LlmClient;
@@ -74,6 +75,7 @@ export async function discover(
     alternates,
     totalEstimatedCostUsdc,
     unresolvedCategories,
+    deterministicSources: buildDeterministicSources(categories, walletNetwork),
     generatedAt: new Date().toISOString(),
   };
 }

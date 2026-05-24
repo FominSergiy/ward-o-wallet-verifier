@@ -96,6 +96,7 @@ export function App() {
             totalEstimatedCostUsdc: e.totalEstimatedCostUsdc,
             walletNetwork: e.walletNetwork,
             unresolvedCategories: e.unresolvedCategories ?? [],
+            deterministicSources: e.deterministicSources ?? [],
           });
         }
         if (e.type === "error" && e.code === "wallet_unfunded") {

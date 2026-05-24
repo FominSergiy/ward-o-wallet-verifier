@@ -49,6 +49,7 @@ function fakePlan(): DiscoveryPlan {
     alternates: {},
     totalEstimatedCostUsdc: 0.001,
     unresolvedCategories: ["web_sentiment" as Category],
+    deterministicSources: [],
     generatedAt: new Date().toISOString(),
   };
 }

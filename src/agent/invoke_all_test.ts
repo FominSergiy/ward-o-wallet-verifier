@@ -45,6 +45,7 @@ function plan(services: RankedService[]): DiscoveryPlan {
     alternates: {},
     totalEstimatedCostUsdc: services.reduce((s, x) => s + x.priceUsdc, 0),
     unresolvedCategories: [],
+    deterministicSources: [],
     generatedAt: new Date().toISOString(),
   };
 }

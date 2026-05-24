@@ -14,11 +14,17 @@ import {
   type VerifyEvent,
 } from "../agent/events.ts";
 
+// Mirrors src/agent/verify.ts DEFAULT_CATEGORIES so the plan card is a
+// faithful preview of an Execute run. "ens" doesn't have a paid Bazaar
+// service today and discover.ts already filters it from unresolvedCategories;
+// keeping it here lets buildDeterministicSources surface the free ENS
+// resolver in the plan.
 const DEFAULT_CATEGORIES: Category[] = [
   "sanctions",
   "labels",
   "onchain_history",
   "web_sentiment",
+  "ens",
   "contract_analysis",
 ];
 
@@ -96,6 +102,7 @@ export function createDiscoverStreamRouter(
               totalEstimatedCostUsdc: plan.totalEstimatedCostUsdc,
               walletNetwork: plan.walletNetwork,
               unresolvedCategories: plan.unresolvedCategories,
+              deterministicSources: plan.deterministicSources,
               at: now(),
             });
           } catch (e) {
