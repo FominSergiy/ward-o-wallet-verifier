@@ -531,15 +531,18 @@
     position: relative;
     display: flex !important;
     flex-direction: column;
-    height: 675px;
-    margin-bottom: 0;
+    width: 1600px;
+    height: 900px;
+    transform: scale(0.75);
+    transform-origin: top left;
+    margin: 0 0 -225px 0;
   }
   body.show-notes .speaker-notes {
     display: block;
     background: #fff;
     color: #1A1A1A;
     max-width: 1200px;
-    margin: -40px auto 60px;
+    margin: 0 auto 60px;
     padding: 28px 36px;
     font-size: 16px;
     line-height: 1.55;
@@ -559,8 +562,9 @@
   body.show-notes .progress,
   body.show-notes .hint { display: none; }
   body.show-notes .slide-wrap {
-    max-width: 1200px;
+    width: 1200px;
     margin: 0 auto 60px;
+    overflow: hidden;
   }
 </style>
 </head>
@@ -592,7 +596,7 @@
             Every transaction is a coin flip.
           </div>
           <div class="stat">
-            <div class="item"><div class="n">$2.3B+</div><div class="l">stolen / sanctioned-wallet flow in 2025</div></div>
+            <div class="item"><div class="n">$3.4B</div><div class="l">stolen in 2025 (Chainalysis)</div></div>
             <div class="item"><div class="n">0</div><div class="l">agent-native risk layers exist today</div></div>
           </div>
         </div>
@@ -618,7 +622,7 @@
           <ul>
             <li>15+ hours wiring Etherscan + sanctions lists by hand</li>
             <li>Paying $0.30 per LLM call so the agent can "research" each wallet mid-loop</li>
-            <li>Quoted $80k/yr by Chainalysis &mdash; built for analysts, not agents</li>
+            <li>Cheapest real option (Chainalysis API) sits in the $25k&ndash;$300k/yr band &mdash; built for analysts, not agents</li>
             <li>Still wakes up at 3am wondering if her agent paid a scammer</li>
           </ul>
         </div>
@@ -660,7 +664,7 @@
           <h3>Money saved.</h3>
           <p>Cents per check &mdash; pay only when an agent actually asks.</p>
           <p>No LLM token burn polluting the user's agent context.</p>
-          <div class="vs">vs. $50k&ndash;$250k/yr enterprise contracts</div>
+          <div class="vs">vs. ~$200k/yr median enterprise contracts (Vendr)</div>
         </div>
         <div class="card">
           <div class="icon">&#10003;</div>
@@ -710,6 +714,9 @@
       <div class="num">07 / LANDSCAPE</div>
       <div class="eyebrow">Why we win</div>
       <h2>Built for agents,<br/>not for analysts.</h2>
+      <div class="sub" style="font-size: 20px; margin-top: 16px; max-width: 1100px;">
+        We compare against the three options Maya actually evaluates: Chainalysis (the incumbent), TRM Labs (the closest API competitor), and DIY (Etherscan + LLM) &mdash; what builders fall back to when priced out.
+      </div>
       <div class="quad">
         <div class="y-axis"><span>FAST &middot; CHEAP</span><span>SLOW &middot; EXPENSIVE</span></div>
         <div class="grid-box">
@@ -757,7 +764,7 @@
             <div class="k">SOM</div>
             <div class="v"><div class="n">$8&ndash;15M</div><div class="d">3-yr capture: ~3% of agent-platform builders + 2 enterprise design partners</div></div>
           </div>
-          <div class="caveat">DIRECTIONAL &middot; SOURCES: GARTNER, A16Z, INTERNAL MODEL</div>
+          <div class="caveat">DIRECTIONAL &middot; TAM FROM BLOCKCHAIN-ANALYTICS 2030 FORECAST &middot; SAM/SOM INTERNAL MODEL ANCHORED TO A16Z AGENT-PAYMENT TAM</div>
         </div>
         <div class="gtm">
           <h3>Path to traction</h3>
@@ -779,8 +786,8 @@
       <div class="grid2">
         <div class="left">
           <div class="eyebrow">Who's building it</div>
-          <h3 style="margin-top: 24px;">Sergiy &mdash; engineer, agent builder.</h3>
-          <p>Ships agents day-to-day. Business background from running a club at scale. Looking for a crypto-native advisor and a commercial co-founder.</p>
+          <h3 style="margin-top: 24px;">Sergiy &mdash; engineer, end to end.</h3>
+          <p>What you are going to see - Interface, the API, the MCP server, the live demo, this deck &mdash; I built solo, end-to-end, inside a hackathon window. That's the bet on me: I ship production-grade systems fast. Looking for a crypto-native advisor and a commercial co-founder to push it further.</p>
           <div class="ask">
             <div class="label">THE ASK</div>
             <div class="ask-text">
@@ -803,14 +810,14 @@
     <aside class="speaker-notes">
       <h4>Slide 1 &middot; Cold open (~15s)</h4>
       <p><b>Open cold, no intro.</b> Read the line. Pause. Let it land. This is the only emotional beat you get before the audience decides whether to listen.</p>
-      <p><b>If asked "did this actually happen":</b> the specific $5,000 scene is illustrative of the failure mode. But agents <em>are</em> moving money unsupervised in the wild today &mdash; see the <a href="https://airdropalert.com/blogs/ai-wallet-exploit-grok-bankr/">Grok/Bankr March 2025 incident</a>, where a bot deployed a token from a tweet and quietly accumulated $500K in fees before anyone noticed. Sanctioned-address payments from autonomous flows are a known compliance failure mode.</p>
+      <p><b>If asked "did this actually happen":</b> the specific $5,000 scene is illustrative. The real-world failure mode is well documented &mdash; see the <a href="https://www.coindesk.com/tech/2026/04/13/ai-agents-are-set-to-power-crypto-payments-but-a-hidden-flaw-could-expose-wallets">CoinDesk April 2026 piece</a> where a malicious LLM router drained a user's wallet of ~$500K, and the <a href="https://oecd.ai/en/incidents/2026-05-04-4a73">May 2026 Bankr/Grok prompt-injection incident</a> where ~$155&ndash;174K was drained from a Twitter-deployed agent before partial recovery.</p>
     </aside>
   </div>
   <div class="notes-block" data-for="2">
     <aside class="speaker-notes">
       <h4>Slide 2 &middot; The new problem (~25s)</h4>
       <p><b>Frame:</b> agents are toddlers with credit cards. They can transact, they cannot judge.</p>
-      <p><b>If asked about the $2.3B figure:</b> directional &mdash; aggregated from Chainalysis 2025 crime report (sanctioned + scam flows). The point is order of magnitude, not the decimal.</p>
+      <p><b>If asked about the headline numbers:</b> sourced from the <a href="https://www.chainalysis.com/blog/2026-crypto-crime-report-introduction/">Chainalysis 2026 Crypto Crime Report</a> &mdash; $3.4B stolen in 2025, and $104B moved through sanctioned wallets (a 694% YoY surge). The point is order of magnitude, not the decimal.</p>
       <p><b>If asked "is anyone else naming this category":</b> yes &mdash; <a href="https://www.coindesk.com/tech/2026/04/13/ai-agents-are-set-to-power-crypto-payments-but-a-hidden-flaw-could-expose-wallets">CoinDesk (Apr 2026)</a> framed it as a "hidden flaw" in agent-driven payments; <a href="https://www.trmlabs.com/resources/blog/autonomous-ai-agents-and-financial-crime-risk-responsibility-and-accountability">TRM Labs</a> published on autonomous-agent financial-crime risk. The industry is starting to talk about it. We're shipping the answer.</p>
       <p><b>If asked "why hasn't this been solved":</b> all existing tools (Chainalysis, TRM, Etherscan) were built for human analysts on a desk. None of them speak agent-native (structured verdict, pay-per-call, sub-second).</p>
     </aside>
@@ -835,7 +842,7 @@
     <aside class="speaker-notes">
       <h4>Slide 5 &middot; Benefits (~20s)</h4>
       <p><b>Pitch the three words, then move.</b> Time. Money. Trust. Don't read every bullet &mdash; the slide does that.</p>
-      <p><b>If pressed on "money saved":</b> Chainalysis enterprise contracts start at ~$50k/yr and ramp to $250k+ for full API access. Ward-o pay-per-call lets a Maya-sized team get coverage for under $100/month.</p>
+      <p><b>If pressed on "money saved":</b> per <a href="https://www.vendr.com/marketplace/chainalysis">Vendr marketplace data</a>, Chainalysis enterprise contracts have a median of ~$200k/yr and a range of $25k&ndash;$300k. Ward-o pay-per-call lets a Maya-sized team get coverage for under $100/month.</p>
       <p><b>If pressed on "trust kept":</b> the real product is end-user willingness to keep the agent funded. Every sanctioned-address mistake collapses that trust permanently.</p>
     </aside>
   </div>
@@ -852,7 +859,7 @@
     <aside class="speaker-notes">
       <h4>Slide 7 &middot; Competitive landscape (~20s)</h4>
       <p><b>Position:</b> we own the bottom-right quadrant &mdash; fast/cheap and agent-native. Everyone else is built around human analysts on a desk.</p>
-      <p><b>Direct competitors:</b> Chainalysis, TRM Labs, Elliptic.</p>
+      <p><b>Why these three on the chart:</b> Chainalysis is the incumbent every prospect benchmarks against; TRM Labs is the only one with a real API tier; Etherscan + bespoke LLM is what builders fall back to when priced out. Elliptic exists but lives in the same human-analyst quadrant as Chainalysis &mdash; naming it doesn't move the chart.</p>
       <p><b>Indirect:</b> Etherscan + ad-hoc LLM crawls + bespoke MCP tools &mdash; free-ish, slow, agent has to assemble the story itself.</p>
       <p><b>One-liner positioning:</b> Chainalysis is the bank vault. Etherscan is the public library. Ward-o is the seatbelt &mdash; the only one that snaps on automatically.</p>
     </aside>
@@ -862,7 +869,7 @@
       <h4>Slide 8 &middot; Market &amp; GTM (~20s)</h4>
       <p><b>TAM/SAM/SOM are directional</b> &mdash; say so out loud if the room is investor-heavy. TAM ($11B) is the broader crypto compliance market. SAM ($400M) is the agentic-payment risk slice. SOM is what we believe we can capture in 3 years.</p>
       <p><b>GTM mechanism:</b> distribute as MCP server &amp; SDK in the registries the ICP already uses. No outbound sales for the first 6 months.</p>
-      <p><b>Why name the Stripe / Twilio playbook:</b> investors instantly grok the pattern &mdash; free dev tier &rarr; viral SDK adoption &rarr; up-market once devs lock in the integration. Stripe hit $1B ARR at year ~9 with this. Twilio hit $1B at year ~10. Both started with developer-first wedges into commodity infrastructure plays. Wallet-safety-for-agents fits the same shape.</p>
+      <p><b>Why name the Stripe / Twilio playbook:</b> investors instantly grok the pattern &mdash; free dev tier &rarr; viral SDK adoption &rarr; up-market once devs lock in the integration. Stripe crossed $1B revenue at year ~7. Twilio crossed $1B ARR at year ~11. Both started with developer-first wedges into commodity infrastructure plays. Wallet-safety-for-agents fits the same shape.</p>
       <p><b>Validation signals to watch:</b> weekly active agents, calls per agent, design-partner false-positive feedback.</p>
     </aside>
   </div>
