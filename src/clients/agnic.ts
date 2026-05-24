@@ -1,5 +1,13 @@
 const BASE_URL = "https://api.agnic.ai";
 
+// Per-call deadline for upstream x402 fetches. Picked from v8 run receipts:
+// slowest legitimate response was 59 s (orbisapi labeler on a rich-history
+// wallet); the only call that exceeded this was a broken /:endpoint variant
+// that returned HTML after 104 s. 60 s clears the legit ceiling with 1 s of
+// margin while killing the obvious bad actor. Callers can override per call
+// via opts.timeoutMs if they need shorter or longer.
+const DEFAULT_TIMEOUT_MS = 60_000;
+
 export interface AgnicFetchResult<T = unknown> {
   data: T;
   paid: boolean;
@@ -25,12 +33,21 @@ export async function agnicFetch<T = unknown>(
     body?: unknown;
     maxValueUsd?: number;
     headers?: Record<string, string>;
+    signal?: AbortSignal;
+    timeoutMs?: number;
   } = {},
 ): Promise<AgnicFetchResult<T>> {
   const apiKey = Deno.env.get("AGNIC_API_KEY");
   if (!apiKey) throw new Error("AGNIC_API_KEY not set");
 
-  const { method = "GET", body, maxValueUsd, headers: extraHeaders = {} } = opts;
+  const {
+    method = "GET",
+    body,
+    maxValueUsd,
+    headers: extraHeaders = {},
+    signal: callerSignal,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+  } = opts;
 
   const params = new URLSearchParams({ url: targetUrl, method });
   if (maxValueUsd !== undefined) {
@@ -45,11 +62,36 @@ export async function agnicFetch<T = unknown>(
     fetchHeaders["Content-Type"] = "application/json";
   }
 
-  const resp = await fetch(`${BASE_URL}/api/x402/fetch?${params}`, {
-    method: "POST",
-    headers: fetchHeaders,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  // Combine the caller signal (if any) with our per-call deadline so whichever
+  // fires first aborts the request. If only the timeout fires, we surface a
+  // synthetic "timeout" error code so the health store + LLM-fallback paths
+  // classify it consistently alongside other transport errors.
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  const signal = callerSignal
+    ? AbortSignal.any([callerSignal, timeoutSignal])
+    : timeoutSignal;
+
+  let resp: Response;
+  try {
+    resp = await fetch(`${BASE_URL}/api/x402/fetch?${params}`, {
+      method: "POST",
+      headers: fetchHeaders,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal,
+    });
+  } catch (e) {
+    // The caller's signal takes precedence — if it aborted first, propagate
+    // the original AbortError unchanged so callers can distinguish their
+    // own cancellation from our deadline.
+    if (callerSignal?.aborted) throw e;
+    if (timeoutSignal.aborted) {
+      throw new AgnicFetchError(
+        "timeout",
+        `agnicFetch [timeout]: upstream did not respond within ${timeoutMs}ms`,
+      );
+    }
+    throw e;
+  }
 
   // Read body as text first, then JSON.parse — upstream can return HTML error
   // pages or empty bodies on certain failures. If we call resp.json() directly,

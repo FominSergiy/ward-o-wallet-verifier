@@ -1,16 +1,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import {
-  type Category,
-  CategorySchema,
-  type Chain,
-  ChainSchema,
-} from "../agent/types.ts";
+import { type Category, CategorySchema } from "../agent/types.ts";
 import { verifyAgent } from "../agent/verify.ts";
 
 interface VerifyWalletArgs {
   address: string;
-  chain: Chain;
   budgetCeiling?: number;
   categories?: Category[];
 }
@@ -36,16 +30,15 @@ export function buildMcpServer(): McpServer {
         address: z
           .string()
           .regex(/^0x[0-9a-fA-F]{40}$/, "Must be a valid EVM address"),
-        chain: ChainSchema,
         budgetCeiling: z.number().positive().optional(),
         categories: z.array(CategorySchema).optional(),
       },
     },
     async (
-      { address, chain, budgetCeiling, categories }: VerifyWalletArgs,
+      { address, budgetCeiling, categories }: VerifyWalletArgs,
     ) => {
       const result = await verifyAgent(
-        { address, chain },
+        { address },
         { budgetCeiling, categories },
       );
       return {

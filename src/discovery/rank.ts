@@ -247,7 +247,10 @@ export async function rankServices(
       },
     });
   } catch (e) {
-    console.warn("[rank] LLM rerank failed, falling back to quality-sort:", (e as Error).message);
+    const cats = entries.map(([cat]) => cat).join(",");
+    console.warn(
+      `[rank] LLM rerank failed for categories [${cats}], falling back to quality-sort: ${(e as Error).message}`,
+    );
   }
 
   const out: RankedService[] = [];

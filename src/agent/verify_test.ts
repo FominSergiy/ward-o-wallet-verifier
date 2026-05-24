@@ -482,10 +482,10 @@ function registryHit(
 Deno.test("registry_merges_into_findings_labels_when_x402_succeeds", async () => {
   let synthesisInput: unknown = null;
   await verifyAgent(
-    { address: "0x71660c4005BA85c37ccec55d0C4493E66Fe775d3", chain: "eth" },
+    { address: "0x71660c4005BA85c37ccec55d0C4493E66Fe775d3" },
     {
       _testHooks: {
-        checkSanctionsOracle: cleanOracle(),
+        checkSanctionsOracle: cleanOracleFn(),
         resolveEns: ensNull(),
         isContract: () => Promise.resolve(false),
         fetchLabelsRegistry: registryHit([
@@ -525,10 +525,10 @@ Deno.test("registry_merges_into_findings_labels_when_x402_succeeds", async () =>
 Deno.test("registry_rescues_labels_when_x402_fails", async () => {
   let synthesisInput: unknown = null;
   await verifyAgent(
-    { address: "0x71660c4005BA85c37ccec55d0C4493E66Fe775d3", chain: "eth" },
+    { address: "0x71660c4005BA85c37ccec55d0C4493E66Fe775d3" },
     {
       _testHooks: {
-        checkSanctionsOracle: cleanOracle(),
+        checkSanctionsOracle: cleanOracleFn(),
         resolveEns: ensNull(),
         isContract: () => Promise.resolve(false),
         fetchLabelsRegistry: registryHit([
@@ -573,10 +573,10 @@ Deno.test("registry_rescues_labels_when_x402_fails", async () => {
 Deno.test("registry_failure_is_swallowed_and_does_not_block_verdict", async () => {
   let synthesisInput: unknown = null;
   const r = await verifyAgent(
-    { address: "0x71660c4005BA85c37ccec55d0C4493E66Fe775d3", chain: "eth" },
+    { address: "0x71660c4005BA85c37ccec55d0C4493E66Fe775d3" },
     {
       _testHooks: {
-        checkSanctionsOracle: cleanOracle(),
+        checkSanctionsOracle: cleanOracleFn(),
         resolveEns: ensNull(),
         isContract: () => Promise.resolve(false),
         fetchLabelsRegistry: () =>
@@ -608,11 +608,11 @@ Deno.test("registry_failure_is_swallowed_and_does_not_block_verdict", async () =
 Deno.test("registry_skipped_when_labels_category_not_requested", async () => {
   let registryCalled = false;
   await verifyAgent(
-    { address: "0xABC0000000000000000000000000000000000123", chain: "base" },
+    { address: "0xABC0000000000000000000000000000000000123" },
     {
       categories: ["sanctions"],
       _testHooks: {
-        checkSanctionsOracle: cleanOracle(),
+        checkSanctionsOracle: cleanOracleFn(),
         isContract: () => Promise.resolve(false),
         fetchLabelsRegistry: () => {
           registryCalled = true;
