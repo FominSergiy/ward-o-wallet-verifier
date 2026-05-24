@@ -49,6 +49,13 @@ function adapterBadgeStyle(path: VerifyReceipt["adapterPath"]): CSSProperties {
   return { ...base, color: "var(--muted, #888)" };
 }
 
+const sectionHeaderStyle: CSSProperties = {
+  fontSize: 10,
+  textTransform: "uppercase",
+  letterSpacing: 0.5,
+  marginBottom: 6,
+};
+
 export function VerdictCard({ result }: Props) {
   const { verdict, receipts, totalSpentUsdc, walletNetwork, synthesisError } = result;
   const cls = labelClass(verdict.verdict);
@@ -70,6 +77,7 @@ export function VerdictCard({ result }: Props) {
         </div>
       )}
 
+      <div className="muted" style={sectionHeaderStyle}>Summary</div>
       <div className={`label ${cls}`} data-testid="verdict-label">
         {labelText(verdict.verdict)}
       </div>
@@ -77,7 +85,8 @@ export function VerdictCard({ result }: Props) {
       <div className="reasoning">{verdict.reasoning}</div>
 
       {verdict.findings.length > 0 && (
-        <div style={{ marginTop: 14, fontSize: 12 }}>
+        <div style={{ marginTop: 18, fontSize: 12 }}>
+          <div className="muted" style={sectionHeaderStyle}>Category findings</div>
           {verdict.findings.map((f, i) => (
             <div key={i} className="svc-row" style={{ gridTemplateColumns: "140px 80px 1fr" }}>
               <span className="cat" title={CATEGORY_HINTS[f.category]}>
@@ -90,7 +99,8 @@ export function VerdictCard({ result }: Props) {
         </div>
       )}
 
-      <div style={{ marginTop: 18 }}>
+      <div style={{ marginTop: 22 }}>
+        <div className="muted" style={sectionHeaderStyle}>Paid services breakdown</div>
         {receipts.map((r) => (
           <div className="svc-row" key={`${r.category}-${r.resource}`}>
             <span className="cat" title={CATEGORY_HINTS[r.category]}>

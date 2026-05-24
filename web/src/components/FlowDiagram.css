@@ -47,6 +47,16 @@
   stroke-dasharray: 4 3;
 }
 
+/* Bounding box around a category's direct (chain-primitive) sub-fan-out —
+   visually groups oracle-per-chain, ENS, or viem nodes as one widget so they
+   don't blur into the adjacent category row below. */
+.flow-diagram .direct-container {
+  fill: rgba(154, 184, 220, 0.04);
+  stroke: #3A4A5A;
+  stroke-dasharray: 3 3;
+  stroke-width: 1;
+}
+
 /* Direct (chain-primitive) auxiliary nodes — Chainalysis oracle, ENS, viem
    fallback. Dashed border distinguishes them from paid x402 nodes. */
 .flow-diagram .direct-node {

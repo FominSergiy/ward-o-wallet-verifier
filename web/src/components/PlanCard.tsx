@@ -60,14 +60,21 @@ export function PlanCard({ plan, onSave }: Props) {
       ))}
 
       {plan.deterministicSources.length > 0 && (
-        <div data-testid="deterministic-sources" style={{ marginTop: 10 }}>
+        <div
+          data-testid="deterministic-sources"
+          style={{
+            marginTop: 22,
+            paddingTop: 14,
+            borderTop: "1px dashed var(--faint)",
+          }}
+        >
           <div
             className="muted"
             style={{
               fontSize: 10,
               textTransform: "uppercase",
               letterSpacing: 0.5,
-              marginBottom: 4,
+              marginBottom: 6,
             }}
           >
             Always-on free checks
