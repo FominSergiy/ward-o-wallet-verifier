@@ -32,8 +32,9 @@ export const CoverageSchema = z.object({
   resolved: z.array(CategorySchema),
   unresolved: z.array(CategorySchema),
   // Categories that were dropped before invocation because they don't apply to
-  // this address shape (e.g. contract_analysis on an EOA). Distinguished from
-  // `unresolved` so confidence scoring doesn't penalize the verdict.
+  // this address shape (e.g. chain-specific paths on an unsupported chain).
+  // Distinguished from `unresolved` so confidence scoring doesn't penalize the
+  // verdict.
   not_applicable: z.array(CategorySchema).optional(),
 });
 export type Coverage = z.infer<typeof CoverageSchema>;

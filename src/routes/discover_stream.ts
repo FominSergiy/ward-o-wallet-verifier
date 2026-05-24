@@ -25,7 +25,6 @@ const DEFAULT_CATEGORIES: Category[] = [
   "onchain_history",
   "web_sentiment",
   "ens",
-  "contract_analysis",
 ];
 
 const PING_INTERVAL_MS = 15_000;

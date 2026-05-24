@@ -504,6 +504,104 @@ Deno.test("rankServices pushes quality-demoted candidates to the bottom of their
   });
 });
 
+Deno.test("rankServices surfaces a host-diversity hint when the same host appears across categories", async () => {
+  await withTempHealthStore(async () => {
+    // Same host (orbisapi.com) in two categories — should be tagged.
+    const candidates: DiscoveryCandidatesByCategory = {
+      walletNetwork: "base",
+      candidates: {
+        labels: [
+          entry({
+            resource: "https://orbisapi.com/proxy/labeler",
+            amount: "1000",
+          }),
+        ],
+        web_sentiment: [
+          entry({
+            resource: "https://orbisapi.com/proxy/sentiment",
+            amount: "1000",
+          }),
+          // A non-colliding alternative.
+          entry({
+            resource: "https://other-host.example/sentiment",
+            amount: "1000",
+          }),
+        ],
+      },
+      errors: {},
+    };
+    let captured = "";
+    const llm: LlmClient = {
+      generateStructured<T>(s: z.ZodType<T>, prompt: string): Promise<T> {
+        captured = prompt;
+        return Promise.resolve(
+          s.parse({
+            selections: [
+              { category: "labels", resourceIndex: 0, rationale: "r" },
+              { category: "web_sentiment", resourceIndex: 1, rationale: "r" },
+            ],
+          }),
+        );
+      },
+    };
+    await rankServices(candidates, llm);
+    // The Orbis entry in web_sentiment should carry the cross-category hint.
+    assertEquals(
+      captured.includes(
+        "[hint: host orbisapi.com also appears in candidates for: labels]",
+      ),
+      true,
+    );
+    // The non-colliding host should NOT carry the hint.
+    assertEquals(
+      captured.includes(
+        "[hint: host other-host.example also appears in candidates for",
+      ),
+      false,
+    );
+    // Rule 7 must appear in the prompt so the LLM knows what to do.
+    assertEquals(captured.includes("Host diversity"), true);
+  });
+});
+
+Deno.test("rankServices omits host-diversity hint when a host only appears once", async () => {
+  await withTempHealthStore(async () => {
+    const candidates: DiscoveryCandidatesByCategory = {
+      walletNetwork: "base",
+      candidates: {
+        sanctions: [
+          entry({ resource: "https://only-here.example/api", amount: "1000" }),
+        ],
+        labels: [
+          entry({ resource: "https://different.example/lbl", amount: "1000" }),
+        ],
+      },
+      errors: {},
+    };
+    let captured = "";
+    const llm: LlmClient = {
+      generateStructured<T>(s: z.ZodType<T>, prompt: string): Promise<T> {
+        captured = prompt;
+        return Promise.resolve(
+          s.parse({
+            selections: [
+              { category: "sanctions", resourceIndex: 0, rationale: "r" },
+              { category: "labels", resourceIndex: 0, rationale: "r" },
+            ],
+          }),
+        );
+      },
+    };
+    await rankServices(candidates, llm);
+    // No host-collision hints attached to any candidate. Rule 7's *description*
+    // mentions "also appears in candidates for" so we look specifically for
+    // the hint-attached form (`[hint: host ...`) which only fires on
+    // cross-category hosts.
+    assertEquals(captured.includes("[hint: host only-here.example"), false);
+    assertEquals(captured.includes("[hint: host different.example"), false);
+  });
+});
+
 Deno.test("rankServices skips categories missing from LLM output", async () => {
   const candidates: DiscoveryCandidatesByCategory = {
     walletNetwork: "base",

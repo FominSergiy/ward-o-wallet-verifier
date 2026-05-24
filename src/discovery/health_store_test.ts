@@ -107,6 +107,45 @@ Deno.test("isDurablyBlocked returns true after not_found", () => {
   });
 });
 
+Deno.test("isDurablyBlocked returns true after unsubstituted_path_param", () => {
+  withTempStore(() => {
+    recordError(
+      "https://orbisapi.com/proxy/x/:endpoint",
+      "literal placeholder in URL",
+      "unsubstituted_path_param",
+    );
+    assertEquals(
+      isDurablyBlocked("https://orbisapi.com/proxy/x/:endpoint"),
+      true,
+    );
+  });
+});
+
+Deno.test("isDurablyBlocked returns true after descriptor_only_response", () => {
+  withTempStore(() => {
+    recordError(
+      "https://orbisapi.com/proxy/no-action-svc",
+      "descriptor returned, no action endpoint",
+      "descriptor_only_response",
+    );
+    assertEquals(
+      isDurablyBlocked("https://orbisapi.com/proxy/no-action-svc"),
+      true,
+    );
+  });
+});
+
+Deno.test("isDurablyBlocked returns true after non_json_response", () => {
+  withTempStore(() => {
+    recordError(
+      "https://dead.example/api",
+      "HTTP 404 returned non-JSON body (<!DOCTYPE html>...)",
+      "non_json_response",
+    );
+    assertEquals(isDurablyBlocked("https://dead.example/api"), true);
+  });
+});
+
 Deno.test("isDurablyBlocked returns false for transient/generic errors", () => {
   withTempStore(() => {
     recordError("https://svc.transient", "boom", "upstream_500");

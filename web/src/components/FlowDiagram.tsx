@@ -28,7 +28,6 @@ const CATEGORY_LABELS: Record<Category, string> = {
   onchain_history: "on_chain",
   web_sentiment: "web_sent",
   ens: "ens",
-  contract_analysis: "contract",
 };
 
 const VERDICT_DISPLAY: Record<VerdictLabel, { text: string; cls: string }> = {

@@ -77,7 +77,7 @@ Deno.test("discover surfaces WalletUnfundedError", async () => {
 Deno.test("discover lists unresolvedCategories", async () => {
   const plan = await discover(
     "0xABC",
-    ["sanctions", "labels", "onchain_history", "web_sentiment", "contract_analysis"],
+    ["sanctions", "labels", "onchain_history", "web_sentiment"],
     {
       detectNetwork: () => Promise.resolve("base"),
       fetcher: () =>
@@ -95,7 +95,7 @@ Deno.test("discover lists unresolvedCategories", async () => {
       llm: mockLlm({}),
     },
   );
-  assertEquals(plan.unresolvedCategories.sort(), ["contract_analysis", "web_sentiment"]);
+  assertEquals(plan.unresolvedCategories.sort(), ["web_sentiment"]);
 });
 
 Deno.test("discover excludes ens from unresolvedCategories", async () => {

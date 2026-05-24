@@ -84,12 +84,12 @@ function buildClient(chain: SupportedChain, transport?: Transport): {
 
 /**
  * True iff the address has deployed bytecode on the given chain — i.e. it's a
- * contract, not an EOA. Used to skip categories that only make sense for
- * contracts (e.g. contract_analysis) when the wallet is a plain EOA.
+ * contract, not an EOA. Exposed as a chain primitive for callers that need to
+ * branch on address shape.
  *
  * Errors (unsupported chain, RPC failure) return false — callers should treat
- * "unknown" as "not a contract" so we don't accidentally skip the category on
- * a transient RPC blip.
+ * "unknown" as "not a contract" so we don't accidentally skip downstream paths
+ * on a transient RPC blip.
  */
 export async function isContract(
   address: string,

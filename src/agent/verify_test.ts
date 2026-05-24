@@ -102,7 +102,6 @@ function fakeInvocation() {
       "labels",
       "onchain_history",
       "web_sentiment",
-      "contract_analysis",
     ] as const,
     totalSpentUsdc: 0.001,
     walletNetwork: "base" as const,
@@ -156,9 +155,6 @@ Deno.test("verifyAgent onEvent emits phase boundaries and plan event for happy p
       onEvent: (e) => events.push(e),
       _testHooks: {
         checkSanctionsOracle: cleanOracleFn(),
-        // Force the contract path so the EOA skip log doesn't appear in the
-        // event stream — this test is asserting phase ordering, not EOA logic.
-        isContract: () => Promise.resolve(true),
         discover: () => Promise.resolve(fakePlan()),
         // deno-lint-ignore no-explicit-any
         invokeAll: () => Promise.resolve(fakeInvocation() as any),
@@ -197,7 +193,6 @@ Deno.test("verifyAgent fans out oracle: emits one service event per supported ch
       onEvent: (e) => events.push(e),
       _testHooks: {
         checkSanctionsOracle: cleanOracleFn(),
-        isContract: () => Promise.resolve(true),
         resolveEns: ensNull(),
         discover: () => Promise.resolve(fakePlan()),
         // deno-lint-ignore no-explicit-any
@@ -251,7 +246,7 @@ Deno.test("verifyAgent onEvent emits log:error then phase:synthesize:end on synt
   assertEquals(idxEnd > idxLog, true);
 });
 
-Deno.test("verifyAgent drops contract_analysis for EOA addresses (isContract=false)", async () => {
+Deno.test("verifyAgent does not include contract_analysis in plan, discovery, or coverage", async () => {
   let categoriesPassedToDiscover: string[] = [];
   let coveragePassedToSynthesize: unknown = null;
   await verifyAgent(
@@ -259,7 +254,6 @@ Deno.test("verifyAgent drops contract_analysis for EOA addresses (isContract=fal
     {
       _testHooks: {
         checkSanctionsOracle: cleanOracleFn(),
-        isContract: () => Promise.resolve(false),
         discover: (_addr, categories) => {
           categoriesPassedToDiscover = [...categories];
           return Promise.resolve(fakePlan());
@@ -274,39 +268,11 @@ Deno.test("verifyAgent drops contract_analysis for EOA addresses (isContract=fal
     },
   );
   assertEquals(categoriesPassedToDiscover.includes("contract_analysis"), false);
-  // Default chain is eth → ENS is natively supported, so only
-  // contract_analysis ends up in not_applicable for an EOA.
-  const cov = coveragePassedToSynthesize as { not_applicable?: string[] };
-  assertEquals(cov.not_applicable?.includes("contract_analysis"), true);
-  assertEquals(cov.not_applicable?.includes("ens"), false);
-});
-
-Deno.test("verifyAgent keeps contract_analysis for contract addresses (isContract=true)", async () => {
-  let categoriesPassedToDiscover: string[] = [];
-  let coveragePassedToSynthesize: unknown = null;
-  await verifyAgent(
-    { address: "0xABC0000000000000000000000000000000000123" },
-    {
-      _testHooks: {
-        checkSanctionsOracle: cleanOracleFn(),
-        isContract: () => Promise.resolve(true),
-        discover: (_addr, categories) => {
-          categoriesPassedToDiscover = [...categories];
-          return Promise.resolve(fakePlan());
-        },
-        // deno-lint-ignore no-explicit-any
-        invokeAll: () => Promise.resolve(fakeInvocation() as any),
-        synthesizeVerdict: (input) => {
-          coveragePassedToSynthesize = input.coverage;
-          return Promise.resolve(fakeVerdict());
-        },
-      },
-    },
-  );
-  assertEquals(categoriesPassedToDiscover.includes("contract_analysis"), true);
-  const cov = coveragePassedToSynthesize as { not_applicable?: string[] };
-  // Default chain is eth — nothing should land in not_applicable when both
-  // ENS and contract_analysis are supported and the address is a contract.
+  const cov = coveragePassedToSynthesize as {
+    requested: string[];
+    not_applicable?: string[];
+  };
+  assertEquals(cov.requested.includes("contract_analysis"), false);
   assertEquals(cov.not_applicable, undefined);
 });
 
@@ -322,7 +288,6 @@ Deno.test("verifyAgent short-circuits when oracle flags address on any chain (et
         // oracle deployment. Old single-chain code (chain="base") would have
         // missed it. The new fan-out must still catch it.
         checkSanctionsOracle: oracleSanctionedOn("eth"),
-        isContract: () => Promise.resolve(false),
         discover: () => {
           discoverCalled = true;
           return Promise.resolve(fakePlan());
@@ -362,7 +327,6 @@ Deno.test("verifyAgent merges oracle-clean result into findings.sanctions for sy
       _testHooks: {
         checkSanctionsOracle: cleanOracleFn(),
         resolveEns: ensNull(),
-        isContract: () => Promise.resolve(false),
         discover: () => Promise.resolve(fakePlan()),
         // deno-lint-ignore no-explicit-any
         invokeAll: () => Promise.resolve(fakeInvocation() as any),
@@ -387,7 +351,6 @@ Deno.test("verifyAgent proceeds normally when every oracle chain throws", async 
         checkSanctionsOracle: () =>
           Promise.reject(new Error("RPC timeout — oracle unavailable")),
         resolveEns: ensNull(),
-        isContract: () => Promise.resolve(false),
         discover: () => {
           discoverCalled = true;
           return Promise.resolve(fakePlan());
@@ -412,7 +375,6 @@ Deno.test("verifyAgent calls ENS resolver and merges result into findings", asyn
       _testHooks: {
         checkSanctionsOracle: cleanOracleFn(),
         resolveEns: ensHit("vitalik.eth"),
-        isContract: () => Promise.resolve(false),
         discover: () => Promise.resolve(fakePlan()),
         // deno-lint-ignore no-explicit-any
         invokeAll: () => Promise.resolve(fakeInvocation() as any),
@@ -441,6 +403,99 @@ Deno.test("verifyAgent calls ENS resolver and merges result into findings", asyn
     assertEquals(ensServiceStart.kind, "direct");
     assertEquals(ensServiceStart.category, "ens");
   }
+  // The ok event must include durationMs so the UI can render "resolved · 250ms".
+  const ensServiceOk = events.find(
+    (e) =>
+      e.type === "service" &&
+      e.status === "ok" &&
+      e.resource.startsWith("ens://"),
+  );
+  assertEquals(ensServiceOk !== undefined, true);
+  if (ensServiceOk?.type === "service") {
+    assertEquals(ensServiceOk.kind, "direct");
+    assertEquals(typeof ensServiceOk.durationMs, "number");
+  }
+  // A log event must surface the concrete resolution outcome so the LogStream
+  // shows a human-readable line even when service rendering is minimal.
+  const ensResolveLog = events.find(
+    (e) => e.type === "log" && e.message.startsWith("ens_resolve:"),
+  );
+  assertEquals(ensResolveLog !== undefined, true);
+  if (ensResolveLog?.type === "log") {
+    assertEquals(ensResolveLog.message.includes("vitalik.eth"), true);
+  }
+});
+
+Deno.test("verifyAgent emits ens_resolve log with no_primary_name when ENS returns null", async () => {
+  const events: VerifyEvent[] = [];
+  await verifyAgent(
+    { address: "0x4838B106FCe9647Bdf1E7877BF73cE8B0BAD5f97" },
+    {
+      onEvent: (e) => events.push(e),
+      _testHooks: {
+        checkSanctionsOracle: cleanOracleFn(),
+        resolveEns: ensNull(),
+        discover: () => Promise.resolve(fakePlan()),
+        // deno-lint-ignore no-explicit-any
+        invokeAll: () => Promise.resolve(fakeInvocation() as any),
+        synthesizeVerdict: () => Promise.resolve(fakeVerdict()),
+      },
+    },
+  );
+  // Even when the wallet has no primary ENS name, the stream must carry a
+  // clear `service: ok` AND a `log` line so the UI can render the path as
+  // resolved-but-empty (not failed, not missing).
+  const ensServiceOk = events.find(
+    (e) =>
+      e.type === "service" &&
+      e.status === "ok" &&
+      e.resource.startsWith("ens://"),
+  );
+  assertEquals(ensServiceOk !== undefined, true);
+  const ensResolveLog = events.find(
+    (e) => e.type === "log" && e.message.startsWith("ens_resolve:"),
+  );
+  assertEquals(ensResolveLog !== undefined, true);
+  if (ensResolveLog?.type === "log") {
+    assertEquals(ensResolveLog.message.includes("no_primary_name"), true);
+  }
+});
+
+Deno.test("verifyAgent emits ens service error + log with underlying RPC message", async () => {
+  const events: VerifyEvent[] = [];
+  await verifyAgent(
+    { address: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045" },
+    {
+      onEvent: (e) => events.push(e),
+      _testHooks: {
+        checkSanctionsOracle: cleanOracleFn(),
+        resolveEns: () => Promise.reject(new Error("ENS RPC went sideways")),
+        discover: () => Promise.resolve(fakePlan()),
+        // deno-lint-ignore no-explicit-any
+        invokeAll: () => Promise.resolve(fakeInvocation() as any),
+        synthesizeVerdict: () => Promise.resolve(fakeVerdict()),
+      },
+    },
+  );
+  const ensError = events.find(
+    (e) =>
+      e.type === "service" &&
+      e.status === "error" &&
+      e.resource.startsWith("ens://"),
+  );
+  assertEquals(ensError !== undefined, true);
+  if (ensError?.type === "service") {
+    assertEquals(ensError.kind, "direct");
+    assertEquals(
+      ensError.error?.includes("ENS RPC went sideways"),
+      true,
+      "service:error must carry the underlying RPC message",
+    );
+  }
+  const ensFailLog = events.find(
+    (e) => e.type === "log" && e.message.startsWith("ens_resolve_failed:"),
+  );
+  assertEquals(ensFailLog !== undefined, true);
 });
 
 Deno.test("verifyAgent treats ENS resolver failure as silent (no verdict impact)", async () => {
@@ -451,7 +506,6 @@ Deno.test("verifyAgent treats ENS resolver failure as silent (no verdict impact)
       _testHooks: {
         checkSanctionsOracle: cleanOracleFn(),
         resolveEns: () => Promise.reject(new Error("ENS RPC blew up")),
-        isContract: () => Promise.resolve(false),
         discover: () => Promise.resolve(fakePlan()),
         // deno-lint-ignore no-explicit-any
         invokeAll: () => Promise.resolve(fakeInvocation() as any),
@@ -488,7 +542,6 @@ Deno.test("registry_merges_into_findings_labels_when_x402_succeeds", async () =>
       _testHooks: {
         checkSanctionsOracle: cleanOracleFn(),
         resolveEns: ensNull(),
-        isContract: () => Promise.resolve(false),
         fetchLabelsRegistry: registryHit([
           {
             address: "0x71660c4005ba85c37ccec55d0c4493e66fe775d3",
@@ -531,7 +584,6 @@ Deno.test("registry_rescues_labels_when_x402_fails", async () => {
       _testHooks: {
         checkSanctionsOracle: cleanOracleFn(),
         resolveEns: ensNull(),
-        isContract: () => Promise.resolve(false),
         fetchLabelsRegistry: registryHit([
           {
             address: "0x71660c4005ba85c37ccec55d0c4493e66fe775d3",
@@ -579,7 +631,6 @@ Deno.test("registry_failure_is_swallowed_and_does_not_block_verdict", async () =
       _testHooks: {
         checkSanctionsOracle: cleanOracleFn(),
         resolveEns: ensNull(),
-        isContract: () => Promise.resolve(false),
         fetchLabelsRegistry: () =>
           Promise.reject(new Error("eth-labels DNS failure")),
         discover: () => Promise.resolve(fakePlan()),
@@ -614,7 +665,6 @@ Deno.test("registry_skipped_when_labels_category_not_requested", async () => {
       categories: ["sanctions"],
       _testHooks: {
         checkSanctionsOracle: cleanOracleFn(),
-        isContract: () => Promise.resolve(false),
         fetchLabelsRegistry: () => {
           registryCalled = true;
           return Promise.resolve({

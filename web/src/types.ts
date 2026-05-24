@@ -5,8 +5,7 @@ export type Category =
   | "labels"
   | "onchain_history"
   | "web_sentiment"
-  | "ens"
-  | "contract_analysis";
+  | "ens";
 
 export type WalletNetwork = "base" | "base-sepolia";
 

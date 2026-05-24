@@ -8,7 +8,6 @@ Deno.test("every non-ens category has a non-empty query", () => {
     "labels",
     "onchain_history",
     "web_sentiment",
-    "contract_analysis",
   ];
   for (const c of cats) {
     const q = CATEGORY_QUERIES[c];

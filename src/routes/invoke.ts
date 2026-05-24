@@ -14,7 +14,6 @@ const DEFAULT_CATEGORIES: Category[] = [
   "labels",
   "onchain_history",
   "web_sentiment",
-  "contract_analysis",
 ];
 
 const invokeBodySchema = z.object({

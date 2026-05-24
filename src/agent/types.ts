@@ -17,6 +17,5 @@ export const CategorySchema = z.enum([
   "onchain_history",
   "web_sentiment",
   "ens",
-  "contract_analysis",
 ]);
 export type Category = z.infer<typeof CategorySchema>;

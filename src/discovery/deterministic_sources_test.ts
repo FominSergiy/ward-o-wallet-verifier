@@ -35,7 +35,6 @@ Deno.test("buildDeterministicSources full default returns all three sources in s
     "onchain_history",
     "web_sentiment",
     "ens",
-    "contract_analysis",
   ];
   const out = buildDeterministicSources(cats, "base");
   assertEquals(out.length, 3);

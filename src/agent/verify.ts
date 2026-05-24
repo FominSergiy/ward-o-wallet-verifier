@@ -8,7 +8,6 @@ import type { WalletVerdict } from "./verdict.ts";
 import type { DiscoveryPlan, WalletNetwork } from "../discovery/types.ts";
 import type { ServiceInvocationOutcome } from "./invoke_service.ts";
 import { type EventEmitter, now, safeEmit } from "./events.ts";
-import { isContract } from "./onchain_viem.ts";
 import {
   checkSanctionsOracle,
   ORACLE_SUPPORTED_CHAINS,
@@ -18,20 +17,13 @@ import { ensSupportedFor, resolveEns } from "./ens_resolver.ts";
 import { fetchLabelsRegistry } from "./labels_registry.ts";
 
 // The user submits a bare EVM address; we no longer ask them to pick a chain.
-// Chain-sensitive downstream paths (x402 invocation, ENS, viem fallback,
-// isContract) use this default — eth has the deepest label / coverage and
-// produces the most useful signal when no chain context is supplied. The
-// Chainalysis sanctions oracle is a separate story: it fans out across every
-// supported EVM chain (see ORACLE_SUPPORTED_CHAINS) so a sanctioned address
-// can't slip through just because one chain's oracle hasn't picked it up.
+// Chain-sensitive downstream paths (x402 invocation, ENS, viem fallback) use
+// this default — eth has the deepest label / coverage and produces the most
+// useful signal when no chain context is supplied. The Chainalysis sanctions
+// oracle is a separate story: it fans out across every supported EVM chain
+// (see ORACLE_SUPPORTED_CHAINS) so a sanctioned address can't slip through
+// just because one chain's oracle hasn't picked it up.
 const DEFAULT_CHAIN: Chain = "eth";
-
-// Categories that only produce signal for contract addresses. Dropped early
-// for EOAs so we don't burn $0.005 on a smart-contract auditor that returns
-// "no source code" and contributes nothing to the verdict.
-const CONTRACT_ONLY_CATEGORIES: ReadonlySet<Category> = new Set([
-  "contract_analysis",
-]);
 
 const DEFAULT_CATEGORIES: Category[] = [
   "sanctions",
@@ -39,7 +31,6 @@ const DEFAULT_CATEGORIES: Category[] = [
   "onchain_history",
   "web_sentiment",
   "ens",
-  "contract_analysis",
 ];
 
 export interface VerifyAgentResult {
@@ -66,7 +57,6 @@ export interface VerifyAgentOpts {
     discover?: typeof discover;
     invokeAll?: typeof invokeAll;
     synthesizeVerdict?: typeof synthesizeVerdict;
-    isContract?: typeof isContract;
     checkSanctionsOracle?: typeof checkSanctionsOracle;
     resolveEns?: typeof resolveEns;
     fetchLabelsRegistry?: typeof fetchLabelsRegistry;
@@ -228,6 +218,7 @@ async function resolveEnsWithEvents(
   emit: EventEmitter | undefined,
 ): Promise<Awaited<ReturnType<typeof resolveEns>> | null> {
   const resource = `ens://${DEFAULT_CHAIN}`;
+  const start = Date.now();
   safeEmit(emit, {
     type: "service",
     status: "start",
@@ -239,6 +230,7 @@ async function resolveEnsWithEvents(
   });
   try {
     const result = await ensResolveFn(address, DEFAULT_CHAIN);
+    const durationMs = Date.now() - start;
     safeEmit(emit, {
       type: "service",
       status: "ok",
@@ -247,17 +239,25 @@ async function resolveEnsWithEvents(
       kind: "direct",
       priceUsdc: 0,
       amountUsdc: 0,
+      durationMs,
       at: now(),
     });
+    // Always emit a log line with the concrete outcome. The UI's LogStream
+    // surfaces this as the human-readable proof that ENS ran, even when the
+    // wallet has no primary name (which is the common case for non-doxxed
+    // addresses).
     safeEmit(emit, {
       type: "log",
       level: "info",
-      message: `ens_resolve: ${result.ensName ?? "(no primary name)"}`,
+      message: result.ensName
+        ? `ens_resolve: ${address} → ${result.ensName}`
+        : `ens_resolve: ${address} → no_primary_name`,
       at: now(),
     });
     return result;
   } catch (e) {
-    const msg = (e as Error).message;
+    const msg = (e as Error).message || "(unknown ENS RPC failure)";
+    const durationMs = Date.now() - start;
     safeEmit(emit, {
       type: "service",
       status: "error",
@@ -265,6 +265,7 @@ async function resolveEnsWithEvents(
       resource,
       kind: "direct",
       priceUsdc: 0,
+      durationMs,
       error: msg,
       at: now(),
     });
@@ -289,37 +290,12 @@ export async function verifyAgent(
   const discoverFn = hooks.discover ?? discover;
   const invokeAllFn = hooks.invokeAll ?? invokeAll;
   const synthesizeFn = hooks.synthesizeVerdict ?? synthesizeVerdict;
-  const isContractFn = hooks.isContract ?? isContract;
   const oracleCheckFn = hooks.checkSanctionsOracle ?? checkSanctionsOracle;
   const ensResolveFn = hooks.resolveEns ?? resolveEns;
   const labelsRegistryFn = hooks.fetchLabelsRegistry ?? fetchLabelsRegistry;
 
-  // EOA short-circuit: drop contract-only categories when the address has no
-  // deployed bytecode. Tracked separately as `not_applicable` so the verdict's
-  // confidence isn't penalized for missing this category.
   const notApplicable: Category[] = [];
   let categories = requestedCategories;
-  const requestedContractOnly = requestedCategories.filter((c) =>
-    CONTRACT_ONLY_CATEGORIES.has(c)
-  );
-  if (requestedContractOnly.length > 0) {
-    const addressIsContract = await isContractFn(req.address, DEFAULT_CHAIN);
-    if (!addressIsContract) {
-      notApplicable.push(...requestedContractOnly);
-      categories = requestedCategories.filter(
-        (c) => !CONTRACT_ONLY_CATEGORIES.has(c),
-      );
-      console.warn(
-        `[verify-agent] address ${req.address} on ${DEFAULT_CHAIN} is an EOA — skipping categories: ${notApplicable.join(", ")}`,
-      );
-      safeEmit(emit, {
-        type: "log",
-        level: "info",
-        message: `category_skipped: ${notApplicable.join(",")} reason=address_is_eoa`,
-        at: now(),
-      });
-    }
-  }
 
   // ENS reverse resolution only exists natively on Ethereum mainnet. Since
   // DEFAULT_CHAIN is eth this branch is currently a no-op, but kept so the
