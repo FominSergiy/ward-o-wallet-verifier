@@ -61,40 +61,40 @@ export function DocsPage() {
                 <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
               </marker>
             </defs>
-            {/* Boxes */}
+            {/* Boxes — each width sized to its label, 22px gaps between, 10px margins */}
             {[
-              { x: 10, label: "address" },
-              { x: 130, label: "detect network" },
-              { x: 270, label: "discover + rerank" },
-              { x: 420, label: "invoke (parallel)" },
-              { x: 560, label: "LLM synthesis" },
-              { x: 680, label: "verdict" },
+              { x: 10,  w: 70,  label: "address" },
+              { x: 102, w: 115, label: "detect network" },
+              { x: 239, w: 130, label: "discover + rerank" },
+              { x: 391, w: 130, label: "invoke (parallel)" },
+              { x: 543, w: 115, label: "LLM synthesis" },
+              { x: 680, w: 70,  label: "verdict" },
             ].map((b) => (
               <g key={b.label}>
-                <rect x={b.x} y={45} width={b.label === "address" || b.label === "verdict" ? 70 : 110} height={40} rx={4} fill="none" stroke="currentColor" strokeOpacity="0.4" />
-                <text x={b.x + (b.label === "address" || b.label === "verdict" ? 35 : 55)} y={70} textAnchor="middle" fill="currentColor" fontSize="11" fontFamily="Menlo, monospace">{b.label}</text>
+                <rect x={b.x} y={45} width={b.w} height={40} rx={4} fill="none" stroke="currentColor" strokeOpacity="0.4" />
+                <text x={b.x + b.w / 2} y={70} textAnchor="middle" fill="currentColor" fontSize="11" fontFamily="Menlo, monospace">{b.label}</text>
               </g>
             ))}
-            {/* Arrows */}
+            {/* Arrows — x1 = prevRight+1, x2 = nextLeft-1 so tip lands on box edge */}
             {[
-              { x1: 82, x2: 128 },
-              { x1: 242, x2: 268 },
-              { x1: 382, x2: 418 },
-              { x1: 532, x2: 558 },
-              { x1: 672, x2: 678 },
+              { x1: 81,  x2: 101 },
+              { x1: 218, x2: 238 },
+              { x1: 370, x2: 390 },
+              { x1: 522, x2: 542 },
+              { x1: 659, x2: 679 },
             ].map((a, i) => (
               <line key={i} x1={a.x1} y1={65} x2={a.x2} y2={65} stroke="currentColor" strokeOpacity="0.5" strokeWidth="1.2" markerEnd="url(#docs-arrow)" />
             ))}
-            {/* Fanout fan above invoke */}
+            {/* Fanout fan above invoke (center x=456) */}
             <g stroke="currentColor" strokeOpacity="0.25" strokeDasharray="2 3" strokeWidth="1">
-              <line x1={475} y1={45} x2={460} y2={20} />
-              <line x1={475} y1={45} x2={475} y2={18} />
-              <line x1={475} y1={45} x2={490} y2={20} />
+              <line x1={456} y1={45} x2={441} y2={20} />
+              <line x1={456} y1={45} x2={456} y2={18} />
+              <line x1={456} y1={45} x2={471} y2={20} />
             </g>
-            <text x={475} y={14} textAnchor="middle" fill="currentColor" fillOpacity="0.55" fontSize="9" fontFamily="Menlo, monospace">N services</text>
-            {/* Short-circuit branch under discover */}
-            <line x1={325} y1={85} x2={325} y2={108} stroke="currentColor" strokeOpacity="0.3" strokeDasharray="2 3" strokeWidth="1" />
-            <text x={325} y={120} textAnchor="middle" fill="currentColor" fillOpacity="0.55" fontSize="9" fontFamily="Menlo, monospace">oracle short-circuit → verdict</text>
+            <text x={456} y={14} textAnchor="middle" fill="currentColor" fillOpacity="0.55" fontSize="9" fontFamily="Menlo, monospace">N services</text>
+            {/* Short-circuit branch under discover + rerank (center x=304) */}
+            <line x1={304} y1={85} x2={304} y2={108} stroke="currentColor" strokeOpacity="0.3" strokeDasharray="2 3" strokeWidth="1" />
+            <text x={304} y={120} textAnchor="middle" fill="currentColor" fillOpacity="0.55" fontSize="9" fontFamily="Menlo, monospace">oracle short-circuit → verdict</text>
           </svg>
           <figcaption>One linear path on the happy day; alternates fan out from invoke; the oracle short-circuits the whole pipeline when an address is sanctioned.</figcaption>
         </figure>
