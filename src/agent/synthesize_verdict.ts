@@ -79,12 +79,7 @@ You MUST follow these per-signal weighting rules in order:
    • Any web search hit referencing scam, exploit, hack, rugpull, lawsuit, indictment → flag as finding with severity "high" or "critical"; modest unsafe bias.
    • No relevant hits → neutral.
 
-**5. contract_analysis — CONDITIONAL**
-   • Only meaningful if the address is a contract. Vulnerabilities reported → unsafe. Clean audit → positive.
-   • Empty or N/A for EOA → ignore.
-   • If a category appears in \`coverage.not_applicable\`, treat it as N/A (not a coverage gap) — do NOT mention it as "unresolved" or let it lower confidence.
-
-**6. ens — CONFIRMATORY**
+**5. ens — CONFIRMATORY**
    • findings.ens is the result of a free on-chain ENS reverse lookup. If \`ensName\` is a non-null string (e.g. "vitalik.eth"), the wallet is publicly doxxed to a real identity — this is STRONG positive evidence; clearly-doxxed wallets are very rarely actively malicious. Treat this as roughly equivalent to a known-safe label.
    • If ensName is null → neutral (most wallets don't have ENS; absence is not a negative).
    • COMBINATION RULE — when findings.ens.ensName is non-null AND sanctions are clean (oracle or x402) AND there is any positive onchain_history evidence (non-zero balance OR txCount > 0), you SHOULD return verdict="safe_to_transact" with at least confidence="medium" even if labels were empty/unresolved. The "insufficient_data" verdict is reserved for genuinely unknowable cases — ENS-doxxed + sanctions-clean is not unknowable.

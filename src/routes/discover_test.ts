@@ -81,7 +81,7 @@ Deno.test({
     // Either resolved or unresolved — every non-ens category must appear in one bucket.
     const resolved = new Set((body.services as { category: string }[]).map((s) => s.category));
     const unresolved = new Set(body.unresolvedCategories as string[]);
-    const expected = ["sanctions", "labels", "onchain_history", "web_sentiment", "contract_analysis"];
+    const expected = ["sanctions", "labels", "onchain_history", "web_sentiment"];
     for (const c of expected) {
       assertEquals(
         resolved.has(c) || unresolved.has(c),

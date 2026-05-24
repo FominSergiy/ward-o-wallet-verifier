@@ -49,6 +49,40 @@ function substitutePathParams(
   return out;
 }
 
+// Matches Express-style `:identifier` path placeholders at the start of a path
+// segment (after `/` or at path start). Used to catch catalog entries that
+// declared a placeholder in the URL but didn't list a matching key in
+// `inputInfo.pathParams` — without this guard, the call goes out with the
+// literal `:foo` token and the upstream returns an HTML error page (see
+// the bad Orbis variant `…wallet-address-risk-api-c6680c/:endpoint`).
+const UNSUBSTITUTED_PLACEHOLDER_RE = /(?:^|\/):[A-Za-z_][A-Za-z0-9_]*/;
+
+/**
+ * Throws AdapterFailedError if `url`'s path still contains a `:placeholder`
+ * token after substitution. Callers are responsible for catching this and
+ * surfacing a clear `unsubstituted_path_param` error code so the durable
+ * health filter can park the malformed catalog entry.
+ */
+export function assertNoUnsubstitutedPlaceholders(url: string): void {
+  let pathname: string;
+  try {
+    pathname = new URL(url).pathname;
+  } catch {
+    // Malformed URL — a different validator will catch it.
+    return;
+  }
+  const m = pathname.match(UNSUBSTITUTED_PLACEHOLDER_RE);
+  if (m) {
+    // m[0] looks like "/:endpoint" or ":endpoint" — strip a leading slash for
+    // a cleaner reason field.
+    const token = m[0].replace(/^\//, "");
+    throw new AdapterFailedError(
+      `unsubstituted_path_param: ${token}`,
+      url,
+    );
+  }
+}
+
 function buildQueryString(
   queryParams: Record<string, unknown>,
   address: string,
@@ -208,6 +242,7 @@ export function buildCallFromInfo(
 
   // No info at all — default to POST {address, chain}.
   if (!info) {
+    assertNoUnsubstitutedPlaceholders(service.resource);
     return { url: service.resource, method: "POST", body: { address, chain } };
   }
 
@@ -225,6 +260,7 @@ export function buildCallFromInfo(
       // GET with no params declared — append ?address= as a best guess.
       url = `${url}?address=${encodeURIComponent(address)}`;
     }
+    assertNoUnsubstitutedPlaceholders(url);
     return { url, method: "GET" };
   }
 
@@ -242,6 +278,7 @@ export function buildCallFromInfo(
   if (info.pathParams && Object.keys(info.pathParams).length > 0) {
     url = substitutePathParams(url, info.pathParams, address);
   }
+  assertNoUnsubstitutedPlaceholders(url);
 
   return { url, method: "POST", body };
 }
@@ -345,17 +382,23 @@ CRITICAL — URL rules (the catalog URL is authoritative):
       `[adapter-llm] url-changed: rewriting LLM url "${out.url}" → catalog "${service.resource}" (method=${out.method})`,
     );
     if (out.method === "GET") {
-      return {
-        url: `${expectedPath}?address=${encodeURIComponent(address)}&chain=${encodeURIComponent(chain)}`,
-        method: "GET",
+      const rewritten = {
+        url:
+          `${expectedPath}?address=${encodeURIComponent(address)}&chain=${encodeURIComponent(chain)}`,
+        method: "GET" as const,
       };
+      assertNoUnsubstitutedPlaceholders(rewritten.url);
+      return rewritten;
     }
-    return {
+    const rewritten = {
       url: expectedPath,
-      method: "POST",
+      method: "POST" as const,
       body: out.body ?? { address, chain },
     };
+    assertNoUnsubstitutedPlaceholders(rewritten.url);
+    return rewritten;
   }
 
+  assertNoUnsubstitutedPlaceholders(out.url);
   return out;
 }

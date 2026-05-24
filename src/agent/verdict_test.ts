@@ -15,9 +15,9 @@ const SAFE_FIXTURE = {
     { category: "onchain_history", severity: "info", finding: ">100 txs over 18 months." },
   ],
   coverage: {
-    requested: ["sanctions", "labels", "onchain_history", "web_sentiment", "contract_analysis"],
+    requested: ["sanctions", "labels", "onchain_history", "web_sentiment"],
     resolved: ["sanctions", "labels", "onchain_history"],
-    unresolved: ["web_sentiment", "contract_analysis"],
+    unresolved: ["web_sentiment"],
   },
   totalSpentUsdc: 0.012,
   generatedAt: "2026-05-21T15:00:00.000Z",

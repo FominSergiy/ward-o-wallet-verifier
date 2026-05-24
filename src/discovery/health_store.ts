@@ -23,14 +23,19 @@ export interface ServiceHealth {
   emptyOnRichAt?: string;
 }
 
-// Error codes that signal a durable config-level mismatch for a specific
-// service (not a transient failure or a global state). A service flagged
-// with one of these has consistently failed under its catalog-advertised
-// price and should be skipped by the ranker until the health store is
-// explicitly reset.
+// Error codes that signal a durable, service-specific failure mode (not a
+// transient hiccup or a global state). A service flagged with one of these
+// is skipped by the ranker on subsequent runs until the health store is
+// explicitly reset. One-strike block — these codes only ever come from
+// malformed catalog entries (e.g. literal `:endpoint` placeholders,
+// descriptor-only roots with no usable action, HTML error pages from a
+// non-x402 upstream), so retrying is wasted spend.
 const DURABLE_BLOCK_CODES = new Set([
   "payment_exceeds_max",
   "not_found",
+  "unsubstituted_path_param",
+  "descriptor_only_response",
+  "non_json_response",
 ]);
 
 export type HealthRecord = Record<string, ServiceHealth>;

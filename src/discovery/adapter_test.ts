@@ -2,6 +2,7 @@ import { assertEquals, assertRejects, assertThrows } from "@std/assert";
 import { z } from "zod";
 import {
   AdapterFailedError,
+  assertNoUnsubstitutedPlaceholders,
   buildCallFromInfo,
   buildCallFromInfoViaLlm,
   buildCallSetFromInfo,
@@ -449,5 +450,115 @@ Deno.test('pickActionEndpoint category="sanctions" prefers /screen over generic 
   assertEquals(
     pickActionEndpoint(["/info", "/ofac-check"], "sanctions"),
     "/ofac-check",
+  );
+});
+
+// --- unsubstituted placeholder validator ----------------------------------
+
+Deno.test("assertNoUnsubstitutedPlaceholders accepts a fully-substituted URL", () => {
+  assertNoUnsubstitutedPlaceholders("https://x.com/api/v1/screen");
+  assertNoUnsubstitutedPlaceholders(
+    `https://x.com/api/${encodeURIComponent(ADDR)}/screen`,
+  );
+  assertNoUnsubstitutedPlaceholders(
+    "https://x.com/api/screen?address=0x123&chain=eth",
+  );
+});
+
+Deno.test("assertNoUnsubstitutedPlaceholders throws on a literal :placeholder in path", () => {
+  assertThrows(
+    () =>
+      assertNoUnsubstitutedPlaceholders(
+        "https://orbisapi.com/proxy/wallet-address-risk-api-c6680c/:endpoint",
+      ),
+    AdapterFailedError,
+    "unsubstituted_path_param",
+  );
+});
+
+Deno.test("assertNoUnsubstitutedPlaceholders throws on :placeholder at start of path", () => {
+  assertThrows(
+    () => assertNoUnsubstitutedPlaceholders("https://x.com/:address"),
+    AdapterFailedError,
+    "unsubstituted_path_param",
+  );
+});
+
+Deno.test("assertNoUnsubstitutedPlaceholders ignores :port in authority", () => {
+  // :8080 is a port, not a path placeholder — must not trigger.
+  assertNoUnsubstitutedPlaceholders("https://x.com:8080/api/screen");
+});
+
+Deno.test("assertNoUnsubstitutedPlaceholders ignores : in middle of a path segment", () => {
+  // `/foo:bar` is a single segment, not a placeholder pattern.
+  assertNoUnsubstitutedPlaceholders("https://x.com/foo:bar/baz");
+});
+
+Deno.test("buildCallFromInfo throws unsubstituted_path_param when pathParams omits the placeholder key", () => {
+  // pathParams declares nothing for `:endpoint` — the literal token survives.
+  const info: BazaarInfo = { method: "POST", pathParams: {} };
+  assertThrows(
+    () =>
+      buildCallFromInfo(
+        svc({
+          resource: "https://x.com/api/:endpoint",
+          inputInfo: info,
+        }),
+        ADDR,
+        "base",
+      ),
+    AdapterFailedError,
+    "unsubstituted_path_param",
+  );
+});
+
+Deno.test("buildCallFromInfo throws unsubstituted_path_param when pathParams provides wrong key", () => {
+  // pathParams has `address` but the URL placeholder is `:endpoint`.
+  const info: BazaarInfo = {
+    method: "POST",
+    pathParams: { address: "0xex" },
+  };
+  assertThrows(
+    () =>
+      buildCallFromInfo(
+        svc({
+          resource: "https://x.com/api/:endpoint",
+          inputInfo: info,
+        }),
+        ADDR,
+        "base",
+      ),
+    AdapterFailedError,
+    "unsubstituted_path_param",
+  );
+});
+
+Deno.test("buildCallFromInfo does NOT throw when :address is substituted", () => {
+  const info: BazaarInfo = {
+    method: "GET",
+    pathParams: { address: "0xex" },
+  };
+  const built = buildCallFromInfo(
+    svc({
+      resource: "https://x.com/api/:address",
+      inputInfo: info,
+    }),
+    ADDR,
+    "base",
+  );
+  assertEquals(built.url.includes(":address"), false);
+});
+
+Deno.test("buildCallFromInfo throws unsubstituted_path_param when no inputInfo and URL has placeholder", () => {
+  // No info → adapter would otherwise pass the raw resource through.
+  assertThrows(
+    () =>
+      buildCallFromInfo(
+        svc({ resource: "https://x.com/api/:endpoint" }),
+        ADDR,
+        "base",
+      ),
+    AdapterFailedError,
+    "unsubstituted_path_param",
   );
 });

@@ -15,6 +15,4 @@ export const CATEGORY_HINTS: Record<Category, string> = {
     "Searches public web and social signals for mentions or reputation of this address.",
   ens:
     "Resolves the address to a human-readable .eth name, if one is registered.",
-  contract_analysis:
-    "If the address is a smart contract, inspects its bytecode and source for risk indicators.",
 };

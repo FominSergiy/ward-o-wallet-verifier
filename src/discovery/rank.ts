@@ -70,11 +70,42 @@ function qualityFor(e: DiscoveryEntry): number | null {
   return e.extensions?.bazaar?.quality?.l30DaysUniquePayers ?? null;
 }
 
+// Extract the bare host (no port, no scheme) for cross-category diversity
+// hints. Falls back to the original string when parsing fails — that yields a
+// no-op hint, which is fine.
+function hostOf(resource: string): string {
+  try {
+    return new URL(resource).hostname;
+  } catch {
+    return resource;
+  }
+}
+
+// Compute the per-host coverage across all categories — used to surface a
+// diversity hint when the same host shows up as a candidate for 2+ categories.
+// The LLM rule below treats this as a soft tiebreaker; we never drop a
+// candidate purely on host collision.
+function buildHostCoverage(
+  candidates: Partial<Record<Category, DiscoveryEntry[]>>,
+): Map<string, Set<Category>> {
+  const out = new Map<string, Set<Category>>();
+  for (const [cat, entries] of Object.entries(candidates) as [Category, DiscoveryEntry[]][]) {
+    for (const e of entries) {
+      const h = hostOf(e.resource);
+      const set = out.get(h) ?? new Set<Category>();
+      set.add(cat);
+      out.set(h, set);
+    }
+  }
+  return out;
+}
+
 function buildPrompt(
   candidates: Partial<Record<Category, DiscoveryEntry[]>>,
   network: string,
 ): string {
   const sections: string[] = [];
+  const hostCoverage = buildHostCoverage(candidates);
   for (const [cat, entries] of Object.entries(candidates) as [Category, DiscoveryEntry[]][]) {
     sections.push(`Category: ${cat}`);
     entries.forEach((e, idx) => {
@@ -87,8 +118,18 @@ function buildPrompt(
           describesEntityAttribution(e.description)
         ? "  [hint: description mentions entity-attribution keywords]"
         : "";
+      // Host-diversity hint: surfaces when the same host shows up as a
+      // candidate in OTHER categories during this run. Lets the LLM apply
+      // Rule 7 (prefer non-colliding hosts on ties) without us hard-coding
+      // any vendor names.
+      const host = hostOf(e.resource);
+      const otherCats = [...(hostCoverage.get(host) ?? [])]
+        .filter((c) => c !== cat);
+      const hostHint = otherCats.length > 0
+        ? `  [hint: host ${host} also appears in candidates for: ${otherCats.join(", ")}]`
+        : "";
       sections.push(
-        `  [${idx}] resource: ${e.resource}${entityHint}`,
+        `  [${idx}] resource: ${e.resource}${entityHint}${hostHint}`,
         `      description: ${(e.description ?? "").slice(0, MAX_DESC_CHARS)}`,
         `      priceUsdc: ${priceUsdcFor(e, network)}`,
         `      qualityScore: ${qualityFor(e) ?? "unknown"}`,
@@ -110,6 +151,7 @@ Selection criteria, in priority order:
 4. Lower priceUsdc breaks ties between similar-quality entries.
 5. The description must clearly match the category intent. If no candidate fits, omit that category.
 6. For the \`labels\` category specifically: when two candidates are otherwise tied on the above criteria, prefer one whose description mentions entity attribution (look for hints like "entity attribution", "name tag", "hot wallet", "known address database", "cluster" — these correlate with better CEX/known-entity coverage). The pre-computed "[hint: …]" tag next to a resource line surfaces this; otherwise inspect the description directly. This is a SOFT preference — never override a stronger failure-rate / quality / completeness signal.
+7. Host diversity: when a candidate's host already appears in candidate lists for OTHER categories (look for "[hint: host ... also appears in candidates for: ...]") AND another candidate in this category is otherwise tied on the above criteria, prefer the one whose host does NOT cross-appear. Vendor-agnostic catalogs occasionally have one provider winning every category by default; spreading across hosts reduces correlated-failure risk. SOFT preference only — failure-rate / quality / completeness always win.
 
 Return one selection per category as { category, resourceIndex, rationale }. The rationale is one short sentence that mentions which of the above signals drove the pick.
 

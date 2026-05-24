@@ -90,7 +90,6 @@ Deno.test("invokeAll runs services concurrently", async () => {
     svc("labels", "https://b"),
     svc("onchain_history", "https://c"),
     svc("web_sentiment", "https://d"),
-    svc("contract_analysis", "https://e"),
   ];
   // Wrap invoker to return the correct category for each call:
   let callIdx = 0;

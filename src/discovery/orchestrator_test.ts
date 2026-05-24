@@ -24,12 +24,12 @@ Deno.test("fetchCandidates fans out concurrently", async () => {
     );
   const start = performance.now();
   await fetchCandidates(
-    ["sanctions", "labels", "onchain_history", "web_sentiment", "contract_analysis"],
+    ["sanctions", "labels", "onchain_history", "web_sentiment"],
     "base",
     { client: sleepClient },
   );
   const elapsed = performance.now() - start;
-  // 5 categories × 100ms = 500ms if sequential, ~100ms if parallel.
+  // 4 categories × 100ms = 400ms if sequential, ~100ms if parallel.
   assertEquals(elapsed < 300, true, `expected parallel (~100ms), got ${elapsed}ms`);
 });
 

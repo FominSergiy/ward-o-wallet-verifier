@@ -10,7 +10,6 @@ const DEFAULT_CATEGORIES: Category[] = [
   "labels",
   "onchain_history",
   "web_sentiment",
-  "contract_analysis",
 ];
 
 const discoverBodySchema = z.object({

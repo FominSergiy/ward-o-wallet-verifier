@@ -1,6 +1,7 @@
 import { agnicFetch, AgnicFetchError } from "../clients/agnic.ts";
 import {
   AdapterFailedError,
+  assertNoUnsubstitutedPlaceholders,
   buildCallFromInfoViaLlm,
   buildCallSetFromInfo,
   type BuiltCall,
@@ -175,12 +176,16 @@ export async function invokeRankedService(
   try {
     callSet = buildCallSetFromInfo(service, address, chain);
   } catch (e) {
+    const code = e instanceof AdapterFailedError &&
+        e.reason.startsWith("unsubstituted_path_param")
+      ? "unsubstituted_path_param"
+      : "adapter_build_failed";
     return errorOutcome(
       service,
       `pattern-adapter: ${(e as Error).message}`,
       start,
       "pattern",
-      "adapter_build_failed",
+      code,
     );
   }
 
@@ -235,10 +240,14 @@ async function invokeViaLlmOnly(
     const reason = lerr instanceof AdapterFailedError
       ? lerr.message
       : (lerr as Error).message;
+    const code = lerr instanceof AdapterFailedError &&
+        lerr.reason.startsWith("unsubstituted_path_param")
+      ? "unsubstituted_path_param"
+      : "adapter_llm_build_failed";
     console.error(
       `[invoke] both adapters failed for ${service.resource}: ${reason}`,
     );
-    return errorOutcome(service, reason, start, "llm", "adapter_llm_build_failed");
+    return errorOutcome(service, reason, start, "llm", code);
   }
 
   try {
@@ -279,6 +288,21 @@ async function handleDescriptorResponse(
   }
 
   const retryUrl = appendSubPath(built.url, action);
+  try {
+    assertNoUnsubstitutedPlaceholders(retryUrl);
+  } catch (e) {
+    const msg = (e as Error).message;
+    console.warn(
+      `[invoke] ${service.resource} descriptor sub-path ${action} reintroduced an unsubstituted placeholder: ${msg}`,
+    );
+    return errorOutcome(
+      service,
+      msg,
+      start,
+      "pattern+subpath",
+      "unsubstituted_path_param",
+    );
+  }
   const retryCall: BuiltCall = built.method === "POST"
     ? { url: retryUrl, method: "POST", body: built.body }
     : { url: retryUrl, method: "GET" };

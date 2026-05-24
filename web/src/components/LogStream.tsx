@@ -27,20 +27,29 @@ function renderEvent(e: VerifyEvent): { cls: string; tag: string; text: string }
       return { cls: "phase", tag: `phase/${e.phase}`, text: e.status };
     case "log":
       return { cls: e.level, tag: e.level, text: e.message };
-    case "service":
+    case "service": {
+      // Direct paths (Chainalysis oracle, ENS resolver, viem fallback) are
+      // free chain primitives — rendering them with "paid $0.0000" looks like
+      // a failure. Use "resolved" so the log line reads as a success signal.
+      const isDirect = e.kind === "direct";
+      const okSuffix = isDirect
+        ? `· resolved · ${e.durationMs ?? "?"}ms`
+        : `· paid ${fmtUsd(e.amountUsdc)} · ${e.durationMs ?? "?"}ms`;
+      const startSuffix = isDirect ? "· free" : `· est ${fmtUsd(e.priceUsdc)}`;
       return {
         cls: "service",
         tag: `service/${e.status}`,
         text:
           `· ${e.category} · ${e.resource} ` +
           (e.status === "ok"
-            ? `· paid ${fmtUsd(e.amountUsdc)} · ${e.durationMs ?? "?"}ms`
+            ? okSuffix
             : e.status === "start"
-            ? `· est ${fmtUsd(e.priceUsdc)}`
+            ? startSuffix
             : e.status === "error" || e.status === "fallback"
             ? `· ${e.error ?? ""}`
             : ""),
       };
+    }
     case "plan":
       return {
         cls: "plan",
