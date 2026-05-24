@@ -1,4 +1,7 @@
-# agnic-agent-wallet-verifier
+<h1>
+  <img src="docs/assets/ward-o.svg" alt="WARD-o mascot" width="56" align="absmiddle" />
+  ward-o-wallet-verifier
+</h1>
 
 [![CI](https://github.com/FominSergiy/ward-o-wallet-verifier/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FominSergiy/ward-o-wallet-verifier/actions/workflows/ci.yml?query=branch%3Amain)
 
