@@ -23,14 +23,14 @@ Three-stage pipeline:
 | POST | `/invoke` | Run discovery + parallel paid invocation across all selected categories. Returns findings, receipts, and total spend. |
 | POST | `/verify-agent` | Same as `/invoke` plus a pre-flight balance guard and LLM synthesis into a final verdict. The endpoint your agent calls. |
 
-Request bodies all share `{ address: "0x…", chain: "eth" | "base" | … }`; `/discover` and `/invoke` accept an optional `categories` array, `/verify-agent` accepts an optional `budgetCeiling` (USDC).
+Request bodies all share `{ address: "0x…" }`; `/discover` and `/invoke` accept an optional `categories` array, `/verify-agent` accepts an optional `budgetCeiling` (USDC). Chain selection is automatic — the Chainalysis sanctions oracle fans out across all five supported EVM chains and the strictest signal wins.
 
 Example:
 
 ```bash
 curl -X POST http://localhost:8000/verify-agent \
   -H "Content-Type: application/json" \
-  -d '{"address":"0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045","chain":"eth"}'
+  -d '{"address":"0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"}'
 ```
 
 Route handlers live in [src/routes/](src/routes/) — look there for the exact request/response shapes.
@@ -85,6 +85,8 @@ On Deno Deploy the filesystem is read-only, so the service-health store transpar
 
 Provisioning runbook + env-var contract: [docs/deployment.md](docs/deployment.md).
 
-## Roadmap
+## UI
 
-- **Coming soon — frontend.** A small Vite + React UI over this API so a human can drive a verification end-to-end, see the discovery plan, watch services resolve in real time, and read the final verdict. In progress.
+A small Vite + React single-page app drives the backend end-to-end — input a wallet, click **Plan** to see the discovery plan (free chain primitives + paid x402 services with cost estimates), click **Execute** to stream phase / service / verdict events in real time. Lives in [web/](web/); see [web/README.md](web/README.md) for dev setup.
+
+![WARD-o UI — header, address input, Plan / Execute buttons, idle pixel tamagotchi](docs/assets/wardo-ui.png)

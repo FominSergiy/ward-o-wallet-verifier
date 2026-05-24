@@ -6,7 +6,7 @@ Use the `gh` CLI via Bash for all GitHub operations — PRs, issues, comments, r
 
 Do NOT use the `mcp__github__*` MCP tools — they have been flaky in practice.
 
-Repo owner: `FominSergiy`, repo name: `agnic-agent-wallet-verifier`.
+Repo owner: `FominSergiy`, repo name: `ward-o-wallet-verifier`.
 
 ## agent docs
 
@@ -37,8 +37,38 @@ When working in a worktree or targeting specific files, use the binary directly:
 ~/.deno/bin/deno test --allow-net --allow-env <file>_test.ts
 ```
 
-**Env vars:** copy `.env.example` → `.env`. `OPENROUTER_API_KEY` is required for any LLM call.
+**Env vars:** copy `.env.example` → `.env`. `AGNIC_API_KEY` (single key for both the LLM gateway and x402 service payments) is required for any LLM call. See [.env.example](.env.example) for optional overrides.
 never commit env vars.
+
+
+## Surfaces
+
+What this repo exposes — names + one-line role + entrypoint pointer.
+
+**HTTP API** (mounted in [src/main.ts](src/main.ts)):
+
+| Route | Purpose | Handler |
+|-------|---------|---------|
+| `GET /health` | Liveness | inline |
+| `POST /discover` | Discovery-only (no payments); returns plan + cost estimate | [src/routes/discover.ts](src/routes/discover.ts) |
+| `POST /discover-stream` | SSE variant of `/discover` | [src/routes/discover_stream.ts](src/routes/discover_stream.ts) |
+| `POST /invoke` | Discovery + parallel paid invocation | [src/routes/invoke.ts](src/routes/invoke.ts) |
+| `POST /verify-agent` | Pre-flight balance guard + invoke + LLM synthesis → final verdict | [src/routes/verify_agent.ts](src/routes/verify_agent.ts) |
+| `POST /verify-agent-stream` | SSE variant of `/verify-agent` (phase/service/plan/verdict events) | [src/routes/verify_agent_stream.ts](src/routes/verify_agent_stream.ts) |
+| `POST /mcp` | MCP Streamable HTTP (bearer-gated; see below) | [src/mcp/http.ts](src/mcp/http.ts) |
+
+**MCP server** ([src/mcp/](src/mcp/)): one tool today (`verify_wallet`). Two transports share a single factory:
+- stdio — [src/mcp/stdio.ts](src/mcp/stdio.ts), run via `deno task mcp:stdio` for local agent integrations.
+- Streamable HTTP — [src/mcp/http.ts](src/mcp/http.ts), mounted at `/mcp`, gated by `MCP_SHARED_SECRET` bearer (returns `503 mcp_disabled` if unset).
+
+**Module map (`src/`):**
+- `agent/*` — verify pipeline orchestrator + LLM synthesis + chain primitives (Chainalysis oracle, ENS, eth-labels registry).
+- `discovery/*` — x402 fanout, LLM rerank, durable health store, deterministic-sources builder.
+- `routes/*` — Hono HTTP handlers (one file per route above).
+- `mcp/*` — MCP transports + tool registration.
+- `clients/agnic.ts` — Agnic gateway client (LLM + x402 proxy).
+
+**Frontend (`web/`):** Vite + React single-page UI. Tasks: `npm run dev` (port 5173, Vite proxies API calls to backend on `:8000`), `npm run typecheck`, `npm run build`. Components in `web/src/components/`; SSE wiring in `web/src/api.ts`; flow-state hook in `web/src/hooks/useFlowState.ts`. Cloudflare Pages auto-deploys `main`.
 
 
 ### Agnic routes
