@@ -1,5 +1,7 @@
 # agnic-agent-wallet-verifier
 
+[![CI](https://github.com/FominSergiy/ward-o-wallet-verifier/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FominSergiy/ward-o-wallet-verifier/actions/workflows/ci.yml?query=branch%3Amain)
+
 Backend service for **autonomous-agent wallet risk verification**. Hand it a wallet address + EVM chain and it returns a structured risk verdict — so your agent can decide whether to proceed with a payment or interaction without a human poking around on Etherscan.
 
 The novel bit: instead of hard-coding a fixed list of intel providers, the service **discovers** relevant third-party services at runtime via the [x402 protocol](https://www.x402.org) and **pays for them on-demand** with USDC micropayments. New services that publish themselves to the x402 directory become available automatically.
