@@ -407,12 +407,12 @@ export async function verifyAgent(
   const wantEns = categories.includes("ens");
   const wantLabels = categories.includes("labels");
   const [invocation, ensSettled, registrySettled] = await Promise.all([
-    invokeAllFn(plan, req.chain, { llm, onEvent: emit }),
+    invokeAllFn(plan, DEFAULT_CHAIN, { llm, onEvent: emit }),
     wantEns
       ? resolveEnsWithEvents(req.address, ensResolveFn, emit)
       : Promise.resolve(null),
     wantLabels
-      ? labelsRegistryFn(req.address, req.chain).catch((e: Error) => {
+      ? labelsRegistryFn(req.address, DEFAULT_CHAIN).catch((e: Error) => {
         console.warn(
           `[verify-agent] eth-labels registry lookup failed (proceeding): ${e.message}`,
         );

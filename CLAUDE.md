@@ -2,10 +2,10 @@
 
 ## GitHub
 
-Use `mcp__github__*` MCP tools for all GitHub operations — PRs, issues, comments, reading files.
-Never use the `gh` CLI.
+Use the `gh` CLI via Bash for all GitHub operations — PRs, issues, comments, reading files, checks, releases. Run it directly; it is authenticated on this machine and pre-approved for use here.
 
-The MCP server is pre-configured in `.mcp.json` (token via `$AGNIC_GH_TOKEN`).
+Do NOT use the `mcp__github__*` MCP tools — they have been flaky in practice.
+
 Repo owner: `FominSergiy`, repo name: `agnic-agent-wallet-verifier`.
 
 ## agent docs

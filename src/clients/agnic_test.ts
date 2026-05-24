@@ -177,6 +177,61 @@ Deno.test("agnicFetch: empty body throws non_json_response (no spurious SyntaxEr
   }
 });
 
+Deno.test("agnicFetch: per-call timeout fires and throws AgnicFetchError with code=timeout", async () => {
+  Deno.env.set("AGNIC_API_KEY", "test-key");
+  const orig = globalThis.fetch;
+  // Real fetch honors the AbortSignal we pass; simulate a hung upstream by
+  // never resolving until the signal aborts, then reject with the abort reason
+  // (matches native fetch behavior).
+  globalThis.fetch = (_url, init) =>
+    new Promise((_resolve, reject) => {
+      const sig = (init as RequestInit | undefined)?.signal ?? null;
+      if (!sig) return;
+      sig.addEventListener("abort", () => reject(sig.reason));
+    });
+  try {
+    const err = await assertRejects(
+      () => agnicFetch("https://example.com/hangs", { timeoutMs: 50 }),
+      AgnicFetchError,
+    );
+    assertEquals(err.code, "timeout");
+    assertEquals(err.message.includes("50ms"), true);
+  } finally {
+    globalThis.fetch = orig;
+    Deno.env.delete("AGNIC_API_KEY");
+  }
+});
+
+Deno.test("agnicFetch: caller-supplied signal aborting first propagates original error (not timeout)", async () => {
+  Deno.env.set("AGNIC_API_KEY", "test-key");
+  const orig = globalThis.fetch;
+  globalThis.fetch = (_url, init) =>
+    new Promise((_resolve, reject) => {
+      const sig = (init as RequestInit | undefined)?.signal ?? null;
+      if (!sig) return;
+      sig.addEventListener("abort", () => reject(sig.reason));
+    });
+  try {
+    const ac = new AbortController();
+    const reason = new Error("caller cancelled");
+    setTimeout(() => ac.abort(reason), 20);
+    // timeoutMs is far longer than the caller cancellation, so the caller
+    // signal wins. We expect the original Error, not an AgnicFetchError(timeout).
+    await assertRejects(
+      () =>
+        agnicFetch("https://example.com/hangs", {
+          timeoutMs: 10_000,
+          signal: ac.signal,
+        }),
+      Error,
+      "caller cancelled",
+    );
+  } finally {
+    globalThis.fetch = orig;
+    Deno.env.delete("AGNIC_API_KEY");
+  }
+});
+
 Deno.test("agnicFetch: missing AGNIC_API_KEY throws before making any fetch call", async () => {
   Deno.env.delete("AGNIC_API_KEY");
   let fetchCalled = false;
