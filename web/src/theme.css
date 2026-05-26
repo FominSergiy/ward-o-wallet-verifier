@@ -657,3 +657,24 @@ body {
 .docs-footer a:hover {
   color: var(--fg);
 }
+
+/* ---------- app footer ---------- */
+
+.app-footer {
+  margin-top: 3rem;
+  padding: 1rem 0 0.5rem;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.app-footer a {
+  color: var(--muted);
+  text-decoration: underline;
+  opacity: 0.75;
+}
+
+.app-footer a:hover {
+  opacity: 1;
+  color: var(--fg);
+}

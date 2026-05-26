@@ -6,6 +6,7 @@ import { TerminalTabs, type TabId } from "./components/TerminalTabs";
 import { VerdictCard } from "./components/VerdictCard";
 import { PixelWardo } from "./components/PixelWardo";
 import { DocsPage } from "./components/DocsPage";
+import { Footer } from "./components/Footer";
 import { streamDiscover, streamVerify } from "./api";
 import { loadLastPlan, saveLastPlan } from "./storage";
 import { useLocation } from "./router";
@@ -176,6 +177,7 @@ export function App() {
       <div className="app">
         <Logo currentPath={path} />
         <DocsPage />
+        <Footer />
       </div>
     );
   }
@@ -221,6 +223,7 @@ export function App() {
       )}
 
       {verifyResult && <VerdictCard result={verifyResult} />}
+      <Footer />
     </div>
   );
 }
