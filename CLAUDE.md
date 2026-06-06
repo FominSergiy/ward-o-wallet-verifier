@@ -25,9 +25,12 @@ all done plans are put under plans/completed
 | Task | Command |
 |------|---------|
 | Dev server (watch) | `deno task dev` |
-| Run tests | `deno task test` |
+| Run tests (offline-safe) | `deno task test` / `deno task test:unit` |
+| Run tests incl. paid E2E | `deno task test:e2e` |
 | Lint | `deno task lint` |
 | Type-check | `deno task check` |
+
+`test` / `test:unit` skip the three `RUN_E2E`-gated route suites (`src/routes/{discover,invoke,verify_agent}_test.ts`) — those make real Agnic/x402 paid calls. `test:e2e` runs them and needs `AGNIC_API_KEY` + USDC balance.
 
 When working in a worktree or targeting specific files, use the binary directly:
 
@@ -67,6 +70,7 @@ What this repo exposes — names + one-line role + entrypoint pointer.
 - `routes/*` — Hono HTTP handlers (one file per route above).
 - `mcp/*` — MCP transports + tool registration.
 - `clients/agnic.ts` — Agnic gateway client (LLM + x402 proxy).
+- `fixtures/wallets.ts` — canonical address→expected-verdict cases (regression anchor; sourced from `docs/real-wallet-tests`).
 
 **Frontend (`web/`):** Vite + React single-page UI. Tasks: `npm run dev` (port 5173, Vite proxies API calls to backend on `:8000`), `npm run typecheck`, `npm run build`. Components in `web/src/components/`; SSE wiring in `web/src/api.ts`; flow-state hook in `web/src/hooks/useFlowState.ts`. Cloudflare Pages auto-deploys `main`.
 
