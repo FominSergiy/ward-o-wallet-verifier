@@ -1,0 +1,11 @@
+{
+  "protocol": "x402",
+  "mode": "simulated",
+  "pricePerCallUsd": 0.12,
+  "currency": "USD",
+  "settlement": "deferred",
+  "resource": "/company-risk-score",
+  "headers": {
+    "X-Payment-Mode": "simulated"
+  }
+}

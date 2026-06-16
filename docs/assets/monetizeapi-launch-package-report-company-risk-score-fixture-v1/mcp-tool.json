@@ -1,0 +1,21 @@
+{
+  "name": "company-risk-score",
+  "description": "Calls POST /company-risk-score and returns risk score, sanctions flags, ESG notes, supplier notes.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "companyName": {
+        "type": "string",
+        "description": "companyName input for /company-risk-score"
+      },
+      "domain": {
+        "type": "string",
+        "description": "domain input for /company-risk-score"
+      }
+    },
+    "required": [
+      "companyName",
+      "domain"
+    ]
+  }
+}

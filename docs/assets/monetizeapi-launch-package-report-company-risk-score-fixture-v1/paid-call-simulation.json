@@ -1,0 +1,107 @@
+{
+  "simulationId": "sim-timeline-company-risk-score-v1",
+  "reportId": "report-company-risk-score-fixture-v1",
+  "generatedAt": "2026-05-16T00:00:00.000Z",
+  "fixtureMode": true,
+  "settlementMode": "simulated",
+  "endpointRequest": {
+    "method": "POST",
+    "path": "/company-risk-score",
+    "headers": {
+      "Content-Type": "application/json",
+      "X-Caller-Type": "agent"
+    },
+    "body": {
+      "companyName": "Example Corp",
+      "domain": "example.com"
+    }
+  },
+  "paymentRequired": {
+    "httpStatus": 402,
+    "reason": "Payment required before tool execution (x402 simulated).",
+    "x402": {
+      "protocol": "x402",
+      "mode": "simulated",
+      "pricePerCallUsd": 0.12,
+      "currency": "USD",
+      "settlement": "deferred",
+      "resource": "/company-risk-score",
+      "headers": {
+        "X-Payment-Mode": "simulated"
+      }
+    }
+  },
+  "paymentAuthorization": {
+    "callId": "sim-call-company-risk-score-001",
+    "status": "settled_simulated",
+    "priceChargedUsd": 0.12,
+    "currency": "USD",
+    "payerType": "agent"
+  },
+  "toolCallAllowed": {
+    "toolName": "company-risk-score",
+    "allowed": true,
+    "mcpTool": {
+      "name": "company-risk-score",
+      "description": "Calls POST /company-risk-score and returns risk score, sanctions flags, ESG notes, supplier notes.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "companyName": {
+            "type": "string",
+            "description": "companyName input for /company-risk-score"
+          },
+          "domain": {
+            "type": "string",
+            "description": "domain input for /company-risk-score"
+          }
+        },
+        "required": [
+          "companyName",
+          "domain"
+        ]
+      }
+    }
+  },
+  "usageEvent": {
+    "eventId": "usage-company-risk-score-001",
+    "timestamp": "2026-05-16T00:00:00.000Z",
+    "endpoint": "/company-risk-score",
+    "callerType": "agent",
+    "units": 1,
+    "costUsd": 0.04,
+    "outcome": "success"
+  },
+  "timeline": [
+    {
+      "step": 1,
+      "phase": "endpoint_request",
+      "timestamp": "2026-05-16T00:00:00.000Z",
+      "summary": "POST /company-risk-score received from agent caller."
+    },
+    {
+      "step": 2,
+      "phase": "payment_required",
+      "timestamp": "2026-05-16T00:00:00.100Z",
+      "summary": "HTTP 402 returned with x402 metadata for $0.12 USD per call."
+    },
+    {
+      "step": 3,
+      "phase": "payment_authorized",
+      "timestamp": "2026-05-16T00:00:00.200Z",
+      "summary": "Simulated payment settled_simulated for call sim-call-company-risk-score-001."
+    },
+    {
+      "step": 4,
+      "phase": "tool_call_allowed",
+      "timestamp": "2026-05-16T00:00:00.300Z",
+      "summary": "MCP tool company-risk-score execution allowed after simulated authorization."
+    },
+    {
+      "step": 5,
+      "phase": "usage_recorded",
+      "timestamp": "2026-05-16T00:00:00.400Z",
+      "summary": "Usage event usage-company-risk-score-001 recorded with outcome success."
+    }
+  ]
+}

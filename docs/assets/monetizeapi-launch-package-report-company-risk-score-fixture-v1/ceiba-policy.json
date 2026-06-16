@@ -1,0 +1,24 @@
+{
+  "version": "0.1",
+  "endpointId": "company-risk-score",
+  "access": {
+    "modes": [
+      "api_key",
+      "x402"
+    ],
+    "defaultMode": "x402"
+  },
+  "pricing": {
+    "model": "per_call",
+    "pricePerCallUsd": 0.12,
+    "currency": "USD"
+  },
+  "quotas": {
+    "requestsPerDay": 500,
+    "burstLimit": 20
+  },
+  "enforcement": {
+    "runtime": "ceiba-runtime-deferred",
+    "controlPlane": "ceiba-control-plane-deferred"
+  }
+}
