@@ -13,7 +13,8 @@
     "test": "deno test --allow-net --allow-env --allow-read --allow-write --allow-sys",
     "test:unit": "deno test --allow-net --allow-env --allow-read --allow-write --allow-sys",
     "test:e2e": "RUN_E2E=1 deno test --allow-net --allow-env --allow-read --allow-write --allow-sys",
-    "mcp:stdio": "deno run --allow-net --allow-env --allow-read --allow-write --env-file=.env src/mcp/stdio.ts"
+    "mcp:stdio": "deno run --allow-net --allow-env --allow-read --allow-write --env-file=.env src/mcp/stdio.ts",
+    "benchmark": "deno run --allow-net --allow-env --allow-read --allow-write --env-file=.env scripts/benchmark.ts"
   },
   "imports": {
     "hono": "jsr:@hono/hono@^4.7.11",
