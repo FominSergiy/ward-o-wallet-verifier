@@ -8,7 +8,7 @@ import {
   WalletUnfundedError,
 } from "../discovery/types.ts";
 import { SanctionsInvocationError } from "../agent/invoke_all.ts";
-import { fetchAgnicBudget, type AgnicBudget } from "../discovery/network.ts";
+import { type AgnicBudget, fetchAgnicBudget } from "../discovery/network.ts";
 
 const VerifyAgentRequestSchema = VerifyRequestSchema.extend({
   budgetCeiling: z.number().positive().optional(),
@@ -20,7 +20,9 @@ function budgetThreshold(): number {
   const raw = Deno.env.get("AGNIC_BUDGET_MIN_USD");
   if (!raw) return DEFAULT_BUDGET_MIN_USD;
   const parsed = parseFloat(raw);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_BUDGET_MIN_USD;
+  return Number.isFinite(parsed) && parsed >= 0
+    ? parsed
+    : DEFAULT_BUDGET_MIN_USD;
 }
 
 export interface VerifyAgentRouterOpts {
@@ -28,7 +30,9 @@ export interface VerifyAgentRouterOpts {
   budgetFetcher?: () => Promise<AgnicBudget | null>;
 }
 
-export function createVerifyAgentRouter(opts: VerifyAgentRouterOpts = {}): Hono {
+export function createVerifyAgentRouter(
+  opts: VerifyAgentRouterOpts = {},
+): Hono {
   const router = new Hono();
   const fetchBudget = opts.budgetFetcher ?? (() => fetchAgnicBudget());
 
@@ -44,9 +48,10 @@ export function createVerifyAgentRouter(opts: VerifyAgentRouterOpts = {}): Hono 
       if (budget !== null && budget.totalBalance < threshold) {
         return c.json({
           error: "budget_exhausted",
-          message:
-            `Agnic budget is below the pre-flight threshold ` +
-            `($${budget.totalBalance.toFixed(4)} < $${threshold.toFixed(2)}). ` +
+          message: `Agnic budget is below the pre-flight threshold ` +
+            `($${budget.totalBalance.toFixed(4)} < $${
+              threshold.toFixed(2)
+            }). ` +
             `Top up or rotate the API key before retrying.`,
           totalBalance: budget.totalBalance,
           threshold,
@@ -54,12 +59,17 @@ export function createVerifyAgentRouter(opts: VerifyAgentRouterOpts = {}): Hono 
       }
     } catch (e) {
       console.warn(
-        `[verify-agent] pre-flight budget check failed (proceeding): ${(e as Error).message}`,
+        `[verify-agent] pre-flight budget check failed (proceeding): ${
+          (e as Error).message
+        }`,
       );
     }
 
     try {
-      const result = await verifyAgent(req, { budgetCeiling });
+      const result = await verifyAgent(req, {
+        budgetCeiling,
+        request_id: crypto.randomUUID(),
+      });
       return c.json({
         verdict: result.verdict,
         synthesisError: result.synthesisError,

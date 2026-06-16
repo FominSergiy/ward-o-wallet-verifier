@@ -33,7 +33,10 @@ function ensHit(name: string): () => Promise<EnsResolution> {
 // Returns a clean oracle result for whichever chain is queried. Used to stub
 // the multi-chain oracle fan-out — each of the 5 chains queried gets a clean
 // response.
-function cleanOracleFn(): (address: string, chain: Chain) => Promise<OracleResult> {
+function cleanOracleFn(): (
+  address: string,
+  chain: Chain,
+) => Promise<OracleResult> {
   return (_address, chain) =>
     Promise.resolve({
       source: "chainalysis_oracle",
@@ -133,7 +136,8 @@ Deno.test("verifyAgent returns stub verdict + receipts when synthesis throws", a
         discover: () => Promise.resolve(fakePlan()),
         // deno-lint-ignore no-explicit-any
         invokeAll: () => Promise.resolve(fakeInvocation() as any),
-        synthesizeVerdict: () => Promise.reject(new Error("Opus 500: internal_error")),
+        synthesizeVerdict: () =>
+          Promise.reject(new Error("Opus 500: internal_error")),
       },
     },
   );
@@ -233,7 +237,8 @@ Deno.test("verifyAgent onEvent emits log:error then phase:synthesize:end on synt
     },
   );
   const idxStart = events.findIndex(
-    (e) => e.type === "phase" && e.phase === "synthesize" && e.status === "start",
+    (e) =>
+      e.type === "phase" && e.phase === "synthesize" && e.status === "start",
   );
   const idxLog = events.findIndex(
     (e) => e.type === "log" && e.level === "error",
@@ -413,7 +418,7 @@ Deno.test("verifyAgent calls ENS resolver and merges result into findings", asyn
   assertEquals(ensServiceOk !== undefined, true);
   if (ensServiceOk?.type === "service") {
     assertEquals(ensServiceOk.kind, "direct");
-    assertEquals(typeof ensServiceOk.durationMs, "number");
+    assertEquals(typeof ensServiceOk.duration_ms, "number");
   }
   // A log event must surface the concrete resolution outcome so the LogStream
   // shows a human-readable line even when service rendering is minimal.
@@ -616,9 +621,10 @@ Deno.test("registry_rescues_labels_when_x402_fails", async () => {
   assertEquals("registry" in (findings.labels ?? {}), true);
   assertEquals("x402_result" in (findings.labels ?? {}), false);
   // Coverage should no longer mark labels as unresolved.
-  const cov =
-    (synthesisInput as { coverage: { unresolved: string[]; resolved: string[] } })
-      .coverage;
+  const cov = (synthesisInput as {
+    coverage: { unresolved: string[]; resolved: string[] };
+  })
+    .coverage;
   assertEquals(cov.unresolved.includes("labels"), false);
   assertEquals(cov.resolved.includes("labels"), true);
 });
