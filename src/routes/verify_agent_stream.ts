@@ -9,12 +9,8 @@ import {
   WalletUnfundedError,
 } from "../discovery/types.ts";
 import { SanctionsInvocationError } from "../agent/invoke_all.ts";
-import { fetchAgnicBudget, type AgnicBudget } from "../discovery/network.ts";
-import {
-  type EventEmitter,
-  now,
-  type VerifyEvent,
-} from "../agent/events.ts";
+import { type AgnicBudget, fetchAgnicBudget } from "../discovery/network.ts";
+import { type EventEmitter, now, type VerifyEvent } from "../agent/events.ts";
 
 const VerifyAgentStreamRequestSchema = VerifyRequestSchema.extend({
   budgetCeiling: z.number().positive().optional(),
@@ -27,7 +23,9 @@ function budgetThreshold(): number {
   const raw = Deno.env.get("AGNIC_BUDGET_MIN_USD");
   if (!raw) return DEFAULT_BUDGET_MIN_USD;
   const parsed = parseFloat(raw);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_BUDGET_MIN_USD;
+  return Number.isFinite(parsed) && parsed >= 0
+    ? parsed
+    : DEFAULT_BUDGET_MIN_USD;
 }
 
 function resultPayload(result: VerifyAgentResult): Record<string, unknown> {
@@ -125,9 +123,10 @@ export function createVerifyAgentStreamRouter(
                 type: "error",
                 code: "budget_exhausted",
                 status: 503,
-                message:
-                  `Agnic budget is below the pre-flight threshold ` +
-                  `($${budget.totalBalance.toFixed(4)} < $${threshold.toFixed(2)}). ` +
+                message: `Agnic budget is below the pre-flight threshold ` +
+                  `($${budget.totalBalance.toFixed(4)} < $${
+                    threshold.toFixed(2)
+                  }). ` +
                   `Top up or rotate the API key before retrying.`,
                 at: now(),
               });
@@ -135,12 +134,18 @@ export function createVerifyAgentStreamRouter(
             }
           } catch (e) {
             console.warn(
-              `[verify-agent-stream] pre-flight budget check failed (proceeding): ${(e as Error).message}`,
+              `[verify-agent-stream] pre-flight budget check failed (proceeding): ${
+                (e as Error).message
+              }`,
             );
           }
 
           try {
-            const result = await verifyFn(req, { budgetCeiling, onEvent: emit });
+            const result = await verifyFn(req, {
+              budgetCeiling,
+              onEvent: emit,
+              request_id: crypto.randomUUID(),
+            });
             emit({ type: "result", payload: resultPayload(result), at: now() });
           } catch (e) {
             if (e instanceof WalletUnfundedError) {

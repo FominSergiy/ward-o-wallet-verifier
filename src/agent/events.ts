@@ -9,15 +9,21 @@ export interface PhaseEvent {
   type: "phase";
   phase: EventPhase;
   status: "start" | "end";
+  request_id: string;
+  duration_ms: number;
   at: string;
 }
 
-export interface LogEvent {
-  type: "log";
-  level: EventLevel;
-  message: string;
-  at: string;
-}
+// Discriminated on level so that error-level events require a code.
+export type LogEvent =
+  | {
+    type: "log";
+    level: "info" | "warn";
+    message: string;
+    code?: string;
+    at: string;
+  }
+  | { type: "log"; level: "error"; message: string; code: string; at: string };
 
 // "kind" distinguishes paid x402 service calls (default) from free chain
 // primitives like the Chainalysis sanctions oracle, ENS reverse resolution,
@@ -31,9 +37,11 @@ export interface ServiceEvent {
   category: Category;
   resource: string;
   kind?: ServiceKind;
+  request_id: string;
+  duration_ms: number;
+  cost_usd: number | null;
   priceUsdc?: number;
   amountUsdc?: number;
-  durationMs?: number;
   error?: string;
   at: string;
 }

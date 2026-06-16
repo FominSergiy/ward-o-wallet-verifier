@@ -1,4 +1,7 @@
-import { invokeRankedService, type ServiceInvocationOutcome } from "./invoke_service.ts";
+import {
+  invokeRankedService,
+  type ServiceInvocationOutcome,
+} from "./invoke_service.ts";
 import type {
   DiscoveryPlan,
   RankedService,
@@ -15,7 +18,13 @@ import type { LlmClient } from "./llm.ts";
 import type { Category, Chain } from "./types.ts";
 import { type EventEmitter, now, safeEmit } from "./events.ts";
 
-const VIEM_SUPPORTED_CHAINS: Chain[] = ["eth", "base", "polygon", "arbitrum", "optimism"];
+const VIEM_SUPPORTED_CHAINS: Chain[] = [
+  "eth",
+  "base",
+  "polygon",
+  "arbitrum",
+  "optimism",
+];
 
 // Cap retries per category — catalog can have 5+ alternates but we don't want
 // to burn time/money exhaustively probing dead services.
@@ -139,6 +148,7 @@ export interface InvokeAllOpts {
   // Disable the viem fallback entirely (used in some tests).
   disableViemFallback?: boolean;
   onEvent?: EventEmitter;
+  request_id?: string;
 }
 
 async function invokeWithAlternates(
@@ -149,8 +159,12 @@ async function invokeWithAlternates(
   invoker: NonNullable<InvokeAllOpts["invoker"]>,
   llm?: LlmClient,
   emit?: EventEmitter,
+  request_id = "",
 ): Promise<ServiceInvocationOutcome> {
-  const candidates = [primary, ...alternates.slice(0, MAX_ALTERNATES_PER_CATEGORY)];
+  const candidates = [
+    primary,
+    ...alternates.slice(0, MAX_ALTERNATES_PER_CATEGORY),
+  ];
   const failedHosts = new Set<string>();
   let lastOutcome: ServiceInvocationOutcome | null = null;
   for (let i = 0; i < candidates.length; i++) {
@@ -162,12 +176,16 @@ async function invokeWithAlternates(
       );
       continue;
     }
+    const svcStart = Date.now();
     safeEmit(emit, {
       type: "service",
       status: "start",
       category: svc.category,
       resource: svc.resource,
       priceUsdc: svc.priceUsdc,
+      request_id,
+      duration_ms: 0,
+      cost_usd: null,
       at: now(),
     });
     const outcome = await invoker(svc, address, chain, { llm });
@@ -186,7 +204,9 @@ async function invokeWithAlternates(
         resource: svc.resource,
         priceUsdc: svc.priceUsdc,
         amountUsdc: outcome.amountUsdc,
-        durationMs: outcome.durationMs,
+        request_id,
+        duration_ms: outcome.durationMs ?? (Date.now() - svcStart),
+        cost_usd: outcome.paid ? outcome.amountUsdc : null,
         at: now(),
       });
       return outcome;
@@ -203,7 +223,9 @@ async function invokeWithAlternates(
       category: svc.category,
       resource: svc.resource,
       priceUsdc: svc.priceUsdc,
-      durationMs: outcome.durationMs,
+      request_id,
+      duration_ms: outcome.durationMs ?? (Date.now() - svcStart),
+      cost_usd: null,
       error: outcome.error,
       at: now(),
     });
@@ -225,6 +247,7 @@ export async function invokeAll(
   const viemFetcher = opts.onchainViemFetcher ?? fetchOnchainHistory;
   const viemEnabled = !opts.disableViemFallback;
   const emit = opts.onEvent;
+  const request_id = opts.request_id ?? "";
 
   const outcomes = await Promise.all(
     plan.services.map((s) =>
@@ -236,6 +259,7 @@ export async function invokeAll(
         invoker,
         opts.llm,
         emit,
+        request_id,
       )
     ),
   );
@@ -246,6 +270,7 @@ export async function invokeAll(
       const o = outcomes[i];
       if (o.category !== "onchain_history" || o.status !== "error") continue;
       const viemResource = `viem://${chain}`;
+      const viemStart = Date.now();
       safeEmit(emit, {
         type: "service",
         status: "start",
@@ -253,14 +278,18 @@ export async function invokeAll(
         resource: viemResource,
         kind: "direct",
         priceUsdc: 0,
+        request_id,
+        duration_ms: 0,
+        cost_usd: null,
         at: now(),
       });
       try {
-        const start = Date.now();
         const viemData = await viemFetcher(plan.address, chain);
-        const durationMs = Date.now() - start;
+        const durationMs = Date.now() - viemStart;
         console.warn(
-          `[invoke] onchain_history x402 failed; viem fallback succeeded (txCount=${viemData.txCount}, balanceEth=${viemData.balanceEth.toFixed(4)})`,
+          `[invoke] onchain_history x402 failed; viem fallback succeeded (txCount=${viemData.txCount}, balanceEth=${
+            viemData.balanceEth.toFixed(4)
+          })`,
         );
         outcomes[i] = {
           category: "onchain_history",
@@ -284,7 +313,9 @@ export async function invokeAll(
           kind: "direct",
           priceUsdc: 0,
           amountUsdc: 0,
-          durationMs,
+          request_id,
+          duration_ms: durationMs,
+          cost_usd: null,
           at: now(),
         });
       } catch (e) {
@@ -299,6 +330,9 @@ export async function invokeAll(
           resource: viemResource,
           kind: "direct",
           priceUsdc: 0,
+          request_id,
+          duration_ms: Date.now() - viemStart,
+          cost_usd: null,
           error: msg,
           at: now(),
         });

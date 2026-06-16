@@ -5,10 +5,10 @@ import { fetchCandidates } from "./orchestrator.ts";
 import { rankServices } from "./rank.ts";
 import { type EventEmitter, now, safeEmit } from "../agent/events.ts";
 import {
-  extractBazaarInfo,
   type DiscoveryCandidatesByCategory,
   type DiscoveryEntry,
   type DiscoveryPlan,
+  extractBazaarInfo,
   type RankedService,
   type WalletNetwork,
 } from "./types.ts";
@@ -22,6 +22,7 @@ export interface DiscoverOpts {
   limit?: number;
   maxUsdPrice?: number;
   onEvent?: EventEmitter;
+  request_id?: string;
 }
 
 export async function discover(
@@ -86,12 +87,16 @@ function buildAlternates(
   walletNetwork: WalletNetwork,
 ): Partial<Record<Category, RankedService[]>> {
   const network = walletNetwork === "base" ? "eip155:8453" : "eip155:84532";
-  const primaryByCategory = new Map(primary.map((s) => [s.category, s.resource]));
+  const primaryByCategory = new Map(
+    primary.map((s) => [s.category, s.resource]),
+  );
   const out: Partial<Record<Category, RankedService[]>> = {};
-  for (const [cat, entries] of Object.entries(candidates.candidates) as [
-    Category,
-    DiscoveryEntry[],
-  ][]) {
+  for (
+    const [cat, entries] of Object.entries(candidates.candidates) as [
+      Category,
+      DiscoveryEntry[],
+    ][]
+  ) {
     const primaryUrl = primaryByCategory.get(cat);
     const remaining = entries.filter((e) => e.resource !== primaryUrl);
     if (remaining.length === 0) continue;
@@ -133,7 +138,8 @@ function entryToRanked(
     network,
     payTo: accept.payTo,
     scheme: accept.scheme,
-    qualityScore: entry.extensions?.bazaar?.quality?.l30DaysUniquePayers ?? null,
+    qualityScore: entry.extensions?.bazaar?.quality?.l30DaysUniquePayers ??
+      null,
     rationale,
     inputInfo: extractBazaarInfo(entry),
   };

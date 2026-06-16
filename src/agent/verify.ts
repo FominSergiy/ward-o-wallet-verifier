@@ -50,6 +50,7 @@ export interface VerifyAgentOpts {
   llm?: LlmClient;
   categories?: Category[];
   onEvent?: EventEmitter;
+  request_id?: string;
   // Injection seam for unit tests — replace any of the discovery-flow
   // collaborators. Real callers leave undefined and the default
   // implementations are used.
@@ -78,7 +79,9 @@ function stubVerdict(
     safe: false,
     verdict: "insufficient_data",
     confidence: "low",
-    headline: `Synthesis failed — manual review required: ${errorMessage.slice(0, 120)}`,
+    headline: `Synthesis failed — manual review required: ${
+      errorMessage.slice(0, 120)
+    }`,
     reasoning:
       "The risk analysis step errored before producing a final verdict. " +
       "Raw service findings are available in the receipts for manual review. " +
@@ -152,10 +155,12 @@ async function checkOracleAcrossChains(
   address: string,
   oracleCheckFn: typeof checkSanctionsOracle,
   emit: EventEmitter | undefined,
+  request_id: string,
 ): Promise<ChainOracleAttempt[]> {
   const attempts = await Promise.all(
     ORACLE_SUPPORTED_CHAINS.map(async (chain): Promise<ChainOracleAttempt> => {
       const resource = `chainalysis_oracle://${chain}`;
+      const start = Date.now();
       safeEmit(emit, {
         type: "service",
         status: "start",
@@ -163,6 +168,9 @@ async function checkOracleAcrossChains(
         resource,
         kind: "direct",
         priceUsdc: 0,
+        request_id,
+        duration_ms: 0,
+        cost_usd: null,
         at: now(),
       });
       try {
@@ -175,6 +183,9 @@ async function checkOracleAcrossChains(
           kind: "direct",
           priceUsdc: 0,
           amountUsdc: 0,
+          request_id,
+          duration_ms: Date.now() - start,
+          cost_usd: null,
           at: now(),
         });
         safeEmit(emit, {
@@ -194,6 +205,9 @@ async function checkOracleAcrossChains(
           resource,
           kind: "direct",
           priceUsdc: 0,
+          request_id,
+          duration_ms: Date.now() - start,
+          cost_usd: null,
           error: msg,
           at: now(),
         });
@@ -216,6 +230,7 @@ async function resolveEnsWithEvents(
   address: string,
   ensResolveFn: typeof resolveEns,
   emit: EventEmitter | undefined,
+  request_id: string,
 ): Promise<Awaited<ReturnType<typeof resolveEns>> | null> {
   const resource = `ens://${DEFAULT_CHAIN}`;
   const start = Date.now();
@@ -226,11 +241,14 @@ async function resolveEnsWithEvents(
     resource,
     kind: "direct",
     priceUsdc: 0,
+    request_id,
+    duration_ms: 0,
+    cost_usd: null,
     at: now(),
   });
   try {
     const result = await ensResolveFn(address, DEFAULT_CHAIN);
-    const durationMs = Date.now() - start;
+    const duration_ms = Date.now() - start;
     safeEmit(emit, {
       type: "service",
       status: "ok",
@@ -239,7 +257,9 @@ async function resolveEnsWithEvents(
       kind: "direct",
       priceUsdc: 0,
       amountUsdc: 0,
-      durationMs,
+      request_id,
+      duration_ms,
+      cost_usd: null,
       at: now(),
     });
     // Always emit a log line with the concrete outcome. The UI's LogStream
@@ -257,7 +277,7 @@ async function resolveEnsWithEvents(
     return result;
   } catch (e) {
     const msg = (e as Error).message || "(unknown ENS RPC failure)";
-    const durationMs = Date.now() - start;
+    const duration_ms = Date.now() - start;
     safeEmit(emit, {
       type: "service",
       status: "error",
@@ -265,7 +285,9 @@ async function resolveEnsWithEvents(
       resource,
       kind: "direct",
       priceUsdc: 0,
-      durationMs,
+      request_id,
+      duration_ms,
+      cost_usd: null,
       error: msg,
       at: now(),
     });
@@ -293,6 +315,7 @@ export async function verifyAgent(
   const oracleCheckFn = hooks.checkSanctionsOracle ?? checkSanctionsOracle;
   const ensResolveFn = hooks.resolveEns ?? resolveEns;
   const labelsRegistryFn = hooks.fetchLabelsRegistry ?? fetchLabelsRegistry;
+  const request_id = opts.request_id ?? crypto.randomUUID();
 
   const notApplicable: Category[] = [];
   let categories = requestedCategories;
@@ -306,7 +329,8 @@ export async function verifyAgent(
     safeEmit(emit, {
       type: "log",
       level: "info",
-      message: `category_skipped: ens reason=chain_not_supported (${DEFAULT_CHAIN})`,
+      message:
+        `category_skipped: ens reason=chain_not_supported (${DEFAULT_CHAIN})`,
       at: now(),
     });
   }
@@ -322,6 +346,7 @@ export async function verifyAgent(
     req.address,
     oracleCheckFn,
     emit,
+    request_id,
   );
   const flaggedAttempt = oracleAttempts.find((a) =>
     a.result?.isSanctioned === true
@@ -355,12 +380,24 @@ export async function verifyAgent(
   }
   // Prefer the eth result for merging into findings (deepest coverage). Fall
   // back to any successful clean result if eth failed.
-  const oracleResult: OracleResult | null = oracleAttempts.find((a) =>
-    a.chain === "eth" && a.result
-  )?.result ?? oracleAttempts.find((a) => a.result)?.result ?? null;
+  const oracleResult: OracleResult | null =
+    oracleAttempts.find((a) => a.chain === "eth" && a.result)?.result ??
+      oracleAttempts.find((a) => a.result)?.result ?? null;
 
-  safeEmit(emit, { type: "phase", phase: "discover", status: "start", at: now() });
-  const plan = await discoverFn(req.address, categories, { llm, onEvent: emit });
+  const discoverStart = Date.now();
+  safeEmit(emit, {
+    type: "phase",
+    phase: "discover",
+    status: "start",
+    request_id,
+    duration_ms: 0,
+    at: now(),
+  });
+  const plan = await discoverFn(req.address, categories, {
+    llm,
+    onEvent: emit,
+    request_id,
+  });
   safeEmit(emit, {
     type: "plan",
     services: plan.services.map((s) => ({
@@ -373,9 +410,24 @@ export async function verifyAgent(
     walletNetwork: plan.walletNetwork,
     at: now(),
   });
-  safeEmit(emit, { type: "phase", phase: "discover", status: "end", at: now() });
+  safeEmit(emit, {
+    type: "phase",
+    phase: "discover",
+    status: "end",
+    request_id,
+    duration_ms: Date.now() - discoverStart,
+    at: now(),
+  });
 
-  safeEmit(emit, { type: "phase", phase: "invoke", status: "start", at: now() });
+  const invokeStart = Date.now();
+  safeEmit(emit, {
+    type: "phase",
+    phase: "invoke",
+    status: "start",
+    request_id,
+    duration_ms: 0,
+    at: now(),
+  });
   // Run x402 invocation, the ENS chain-primitive resolver, and the
   // hardcoded eth-labels.com registry supplement in parallel — all three
   // are independent. ENS + registry failures are silent (resolved as null)
@@ -383,9 +435,9 @@ export async function verifyAgent(
   const wantEns = categories.includes("ens");
   const wantLabels = categories.includes("labels");
   const [invocation, ensSettled, registrySettled] = await Promise.all([
-    invokeAllFn(plan, DEFAULT_CHAIN, { llm, onEvent: emit }),
+    invokeAllFn(plan, DEFAULT_CHAIN, { llm, onEvent: emit, request_id }),
     wantEns
-      ? resolveEnsWithEvents(req.address, ensResolveFn, emit)
+      ? resolveEnsWithEvents(req.address, ensResolveFn, emit, request_id)
       : Promise.resolve(null),
     wantLabels
       ? labelsRegistryFn(req.address, DEFAULT_CHAIN).catch((e: Error) => {
@@ -402,7 +454,14 @@ export async function verifyAgent(
       })
       : Promise.resolve(null),
   ]);
-  safeEmit(emit, { type: "phase", phase: "invoke", status: "end", at: now() });
+  safeEmit(emit, {
+    type: "phase",
+    phase: "invoke",
+    status: "end",
+    request_id,
+    duration_ms: Date.now() - invokeStart,
+    at: now(),
+  });
 
   if (wantLabels && registrySettled !== null) {
     safeEmit(emit, {
@@ -442,7 +501,15 @@ export async function verifyAgent(
   const resolved = Object.keys(invocation.findings) as Category[];
   let verdict: WalletVerdict;
   let synthesisError: string | undefined;
-  safeEmit(emit, { type: "phase", phase: "synthesize", status: "start", at: now() });
+  const synthesizeStart = Date.now();
+  safeEmit(emit, {
+    type: "phase",
+    phase: "synthesize",
+    status: "start",
+    request_id,
+    duration_ms: 0,
+    at: now(),
+  });
   try {
     verdict = await synthesizeFn({
       address: req.address,
@@ -464,6 +531,7 @@ export async function verifyAgent(
     safeEmit(emit, {
       type: "log",
       level: "error",
+      code: "synthesis_failed",
       message: `synthesis failed: ${synthesisError}`,
       at: now(),
     });
@@ -477,7 +545,14 @@ export async function verifyAgent(
       synthesisError,
     );
   }
-  safeEmit(emit, { type: "phase", phase: "synthesize", status: "end", at: now() });
+  safeEmit(emit, {
+    type: "phase",
+    phase: "synthesize",
+    status: "end",
+    request_id,
+    duration_ms: Date.now() - synthesizeStart,
+    at: now(),
+  });
 
   return {
     verdict,

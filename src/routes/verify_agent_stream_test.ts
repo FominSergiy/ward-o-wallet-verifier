@@ -109,7 +109,15 @@ Deno.test("POST /verify-agent-stream streams phase, plan, service, result events
     verifyAgentFn: (_req, opts) => {
       const emit = opts.onEvent!;
       // Canned event script mirroring the real pipeline shape.
-      emit({ type: "phase", phase: "discover", status: "start", at: "t" });
+      const rid = "00000000-0000-0000-0000-000000000000";
+      emit({
+        type: "phase",
+        phase: "discover",
+        status: "start",
+        request_id: rid,
+        duration_ms: 0,
+        at: "t",
+      });
       emit({
         type: "plan",
         services: [
@@ -124,14 +132,31 @@ Deno.test("POST /verify-agent-stream streams phase, plan, service, result events
         walletNetwork: "base",
         at: "t",
       });
-      emit({ type: "phase", phase: "discover", status: "end", at: "t" });
-      emit({ type: "phase", phase: "invoke", status: "start", at: "t" });
+      emit({
+        type: "phase",
+        phase: "discover",
+        status: "end",
+        request_id: rid,
+        duration_ms: 10,
+        at: "t",
+      });
+      emit({
+        type: "phase",
+        phase: "invoke",
+        status: "start",
+        request_id: rid,
+        duration_ms: 0,
+        at: "t",
+      });
       emit({
         type: "service",
         status: "start",
         category: "sanctions",
         resource: "https://sanc.example",
         priceUsdc: 0.001,
+        request_id: rid,
+        duration_ms: 0,
+        cost_usd: null,
         at: "t",
       });
       emit({
@@ -141,12 +166,35 @@ Deno.test("POST /verify-agent-stream streams phase, plan, service, result events
         resource: "https://sanc.example",
         priceUsdc: 0.001,
         amountUsdc: 0.001,
-        durationMs: 5,
+        request_id: rid,
+        duration_ms: 5,
+        cost_usd: 0.001,
         at: "t",
       });
-      emit({ type: "phase", phase: "invoke", status: "end", at: "t" });
-      emit({ type: "phase", phase: "synthesize", status: "start", at: "t" });
-      emit({ type: "phase", phase: "synthesize", status: "end", at: "t" });
+      emit({
+        type: "phase",
+        phase: "invoke",
+        status: "end",
+        request_id: rid,
+        duration_ms: 20,
+        at: "t",
+      });
+      emit({
+        type: "phase",
+        phase: "synthesize",
+        status: "start",
+        request_id: rid,
+        duration_ms: 0,
+        at: "t",
+      });
+      emit({
+        type: "phase",
+        phase: "synthesize",
+        status: "end",
+        request_id: rid,
+        duration_ms: 30,
+        at: "t",
+      });
       return Promise.resolve(fakeResult());
     },
   });
