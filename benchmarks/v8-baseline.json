@@ -1,0 +1,329 @@
+{
+  "generated_at": "2026-06-16T20:04:07.224Z",
+  "fixture_version": "v8",
+  "wallets": [
+    {
+      "address": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045",
+      "label": "Vitalik (vitalik.eth)",
+      "expected": "safe_to_transact",
+      "verdict": "safe_to_transact",
+      "accuracy_match": true,
+      "duration_ms": 55231,
+      "phases": {
+        "discover": {
+          "duration_ms": 13159
+        },
+        "invoke": {
+          "duration_ms": 23254
+        },
+        "synthesize": {
+          "duration_ms": 18621
+        }
+      },
+      "services": [
+        {
+          "resource": "https://api.anchor-x402.com/v1/screen",
+          "category": "sanctions",
+          "cost_usd": 0.001
+        },
+        {
+          "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+          "category": "onchain_history",
+          "cost_usd": 0.005
+        },
+        {
+          "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
+          "category": "labels",
+          "cost_usd": 0.01
+        }
+      ],
+      "total_cost_usd": 0.016
+    },
+    {
+      "address": "0xf977814e90da44bfa03b6295a0616a897441acec",
+      "label": "Binance Hot Wallet 20",
+      "expected": "safe_to_transact",
+      "verdict": "safe_to_transact",
+      "accuracy_match": true,
+      "duration_ms": 49363,
+      "phases": {
+        "discover": {
+          "duration_ms": 11525
+        },
+        "invoke": {
+          "duration_ms": 25402
+        },
+        "synthesize": {
+          "duration_ms": 12286
+        }
+      },
+      "services": [
+        {
+          "resource": "https://api.anchor-x402.com/v1/screen",
+          "category": "sanctions",
+          "cost_usd": 0.001
+        },
+        {
+          "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+          "category": "onchain_history",
+          "cost_usd": 0.005
+        },
+        {
+          "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
+          "category": "labels",
+          "cost_usd": 0.01
+        }
+      ],
+      "total_cost_usd": 0.016
+    },
+    {
+      "address": "0x71660c4005BA85c37ccec55d0C4493E66Fe775d3",
+      "label": "Coinbase 1 hot wallet",
+      "expected": "safe_to_transact",
+      "verdict": "safe_to_transact",
+      "accuracy_match": true,
+      "duration_ms": 33304,
+      "phases": {
+        "discover": {
+          "duration_ms": 11304
+        },
+        "invoke": {
+          "duration_ms": 8683
+        },
+        "synthesize": {
+          "duration_ms": 13243
+        }
+      },
+      "services": [
+        {
+          "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+          "category": "onchain_history",
+          "cost_usd": 0.005
+        },
+        {
+          "resource": "https://api.anchor-x402.com/v1/screen",
+          "category": "sanctions",
+          "cost_usd": 0.001
+        },
+        {
+          "resource": "https://orbisapi.com/proxy/crypto-news-sentiment-api-628b81",
+          "category": "web_sentiment",
+          "cost_usd": 0.01
+        },
+        {
+          "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
+          "category": "labels",
+          "cost_usd": 0.01
+        }
+      ],
+      "total_cost_usd": 0.026000000000000002
+    },
+    {
+      "address": "0x2910543Af39abA0Cd09dBb2D50200b3E800A63D2",
+      "label": "Kraken 4 hot wallet",
+      "expected": "safe_to_transact",
+      "verdict": "safe_to_transact",
+      "accuracy_match": true,
+      "duration_ms": 33889,
+      "phases": {
+        "discover": {
+          "duration_ms": 11509
+        },
+        "invoke": {
+          "duration_ms": 7897
+        },
+        "synthesize": {
+          "duration_ms": 14326
+        }
+      },
+      "services": [
+        {
+          "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+          "category": "onchain_history",
+          "cost_usd": 0.005
+        },
+        {
+          "resource": "https://api.anchor-x402.com/v1/screen",
+          "category": "sanctions",
+          "cost_usd": 0.001
+        },
+        {
+          "resource": "https://orbisapi.com/proxy/crypto-address-labeler-api-79be80",
+          "category": "labels",
+          "cost_usd": 0.01
+        },
+        {
+          "resource": "https://orbisapi.com/proxy/crypto-news-sentiment-api-628b81",
+          "category": "web_sentiment",
+          "cost_usd": 0.01
+        }
+      ],
+      "total_cost_usd": 0.026000000000000002
+    },
+    {
+      "address": "0xb8c2C29ee19D8307cb7255e1Cd9CbDE883A267d5",
+      "label": "Nick Johnson (nick.eth)",
+      "expected": "safe_to_transact",
+      "verdict": "safe_to_transact",
+      "accuracy_match": true,
+      "duration_ms": 382372,
+      "phases": {
+        "discover": {
+          "duration_ms": 10600
+        },
+        "invoke": {
+          "duration_ms": 6345
+        },
+        "synthesize": {
+          "duration_ms": 365267
+        }
+      },
+      "services": [
+        {
+          "resource": "https://api.anchor-x402.com/v1/screen",
+          "category": "sanctions",
+          "cost_usd": 0.001
+        },
+        {
+          "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+          "category": "onchain_history",
+          "cost_usd": 0.005
+        },
+        {
+          "resource": "https://orbisapi.com/proxy/wallet-cex-flows-api-2b99a1",
+          "category": "labels",
+          "cost_usd": 0.005
+        },
+        {
+          "resource": "https://orbisapi.com/proxy/crypto-news-sentiment-api-628b81",
+          "category": "web_sentiment",
+          "cost_usd": 0.01
+        }
+      ],
+      "total_cost_usd": 0.020999999999999998
+    },
+    {
+      "address": "0x098B716B8Aaf21512996dC57EB0615e2383E2f96",
+      "label": "Lazarus Group (Ronin bridge hack)",
+      "expected": "do_not_transact",
+      "verdict": "do_not_transact",
+      "accuracy_match": true,
+      "duration_ms": 168,
+      "phases": {},
+      "services": [],
+      "total_cost_usd": 0
+    },
+    {
+      "address": "0xd90e2f925da726b50c4ed8d0fb90ad053324f31b",
+      "label": "Tornado Cash router contract",
+      "expected": "do_not_transact",
+      "verdict": "do_not_transact",
+      "accuracy_match": true,
+      "duration_ms": 37627,
+      "phases": {
+        "discover": {
+          "duration_ms": 12494
+        },
+        "invoke": {
+          "duration_ms": 9119
+        },
+        "synthesize": {
+          "duration_ms": 15867
+        }
+      },
+      "services": [
+        {
+          "resource": "https://api.anchor-x402.com/v1/screen",
+          "category": "sanctions",
+          "cost_usd": 0.001
+        },
+        {
+          "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+          "category": "onchain_history",
+          "cost_usd": 0.005
+        },
+        {
+          "resource": "https://orbisapi.com/proxy/wallet-cex-flows-api-2b99a1",
+          "category": "labels",
+          "cost_usd": 0.005
+        },
+        {
+          "resource": "https://orbisapi.com/proxy/crypto-news-sentiment-api-628b81",
+          "category": "web_sentiment",
+          "cost_usd": 0.01
+        }
+      ],
+      "total_cost_usd": 0.020999999999999998
+    },
+    {
+      "address": "0x7F367cC41522cE07553e823bf3be79A889DEbe1B",
+      "label": "OFAC SDN Tornado Cash deposit",
+      "expected": "do_not_transact",
+      "verdict": "do_not_transact",
+      "accuracy_match": true,
+      "duration_ms": 161,
+      "phases": {},
+      "services": [],
+      "total_cost_usd": 0
+    },
+    {
+      "address": "0xAaBbCcDdEeFf00112233445566778899AaBbCcDd",
+      "label": "Synthetic fresh wallet (no history)",
+      "expected": "insufficient_data",
+      "verdict": "insufficient_data",
+      "accuracy_match": true,
+      "duration_ms": 36093,
+      "phases": {
+        "discover": {
+          "duration_ms": 11936
+        },
+        "invoke": {
+          "duration_ms": 10643
+        },
+        "synthesize": {
+          "duration_ms": 13511
+        }
+      },
+      "services": [
+        {
+          "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+          "category": "onchain_history",
+          "cost_usd": 0.005
+        },
+        {
+          "resource": "https://api.anchor-x402.com/v1/screen",
+          "category": "sanctions",
+          "cost_usd": 0.001
+        },
+        {
+          "resource": "https://orbisapi.com/proxy/wallet-cex-flows-api-2b99a1",
+          "category": "labels",
+          "cost_usd": 0.005
+        },
+        {
+          "resource": "https://orbisapi.com/proxy/crypto-news-sentiment-api-628b81",
+          "category": "web_sentiment",
+          "cost_usd": 0.01
+        }
+      ],
+      "total_cost_usd": 0.020999999999999998
+    }
+  ],
+  "aggregate": {
+    "accuracy": {
+      "correct": 9,
+      "total": 9,
+      "label": "9/9"
+    },
+    "latency_ms": {
+      "mean": 69801,
+      "p50": 36093,
+      "p95": 382372
+    },
+    "cost_usd": {
+      "mean": 0.016333,
+      "p95": 0.026,
+      "total": 0.147
+    }
+  }
+}
