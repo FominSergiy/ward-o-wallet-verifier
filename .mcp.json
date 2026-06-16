@@ -6,6 +6,19 @@
       "env": {
         "GITHUB_PERSONAL_ACCESS_TOKEN": "${AGNIC_GH_TOKEN}"
       }
+    },
+    "ward-o-wallet-verifier": {
+      "command": "/Users/sfomin/.deno/bin/deno",
+      "args": [
+        "run",
+        "--allow-net",
+        "--allow-env",
+        "--allow-read",
+        "--allow-write",
+        "--env-file=.env",
+        "src/mcp/stdio.ts"
+      ],
+      "cwd": "/Users/sfomin/project-space/agnic-agent-wallet-verifier"
     }
   }
 }

@@ -1,3 +1,19 @@
 {
-  "enabledMcpjsonServers": ["github"]
+  "enabledMcpjsonServers": ["github"],
+  "permissions": {
+    "allow": ["Bash(gh *)"]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(python3 -c \"import json,sys; print(json.load(sys.stdin).get('tool_input',{}).get('file_path',''))\"); case \"$f\" in *.ts) ~/.deno/bin/deno fmt \"$f\" >/dev/null 2>&1; ~/.deno/bin/deno lint \"$f\" 2>&1 | tail -20;; esac"
+          }
+        ]
+      }
+    ]
+  }
 }
