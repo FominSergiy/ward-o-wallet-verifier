@@ -1,5 +1,8 @@
 {
   "enabledMcpjsonServers": ["github"],
+  "permissions": {
+    "allow": ["Bash(gh *)"]
+  },
   "hooks": {
     "PostToolUse": [
       {
