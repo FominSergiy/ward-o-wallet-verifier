@@ -1,0 +1,52 @@
+{
+  "2cd85635": {
+    "service_id": "2cd85635",
+    "category": "sanctions",
+    "resource": "https://api.anchor-x402.com/v1/screen",
+    "method": "GET",
+    "query_params": {
+      "wallet": "0x8589427373d6d84e98730d7795d8f6f8731fda16"
+    },
+    "pay_to": "0x127462e296fAc1A7F5cF33bA57bB2f0FFf5cD0B6",
+    "network": "eip155:8453",
+    "price_usdc": 0.001,
+    "snapshotted_at": "2026-06-16T20:15:13.434Z"
+  },
+  "fa57acc6": {
+    "service_id": "fa57acc6",
+    "category": "labels",
+    "resource": "https://orbisapi.com/proxy/wallet-cex-flows-api-2b99a1",
+    "method": "POST",
+    "body_schema": {},
+    "body_type": "json",
+    "pay_to": "0x2bb72231EeD303cc91a462A1fA738b42B6a9ac6d",
+    "network": "eip155:8453",
+    "price_usdc": 0.005,
+    "snapshotted_at": "2026-06-16T20:15:13.436Z"
+  },
+  "2ea24300": {
+    "service_id": "2ea24300",
+    "category": "onchain_history",
+    "resource": "https://orbisapi.com/proxy/wallet-api-5f3267/balance/:address",
+    "method": "GET",
+    "path_params": {
+      "address": "EVM wallet address (0x-prefixed, 40 hex characters)"
+    },
+    "query_params": {},
+    "pay_to": "0x2bb72231EeD303cc91a462A1fA738b42B6a9ac6d",
+    "network": "eip155:8453",
+    "price_usdc": 0.005,
+    "snapshotted_at": "2026-06-16T20:15:13.436Z"
+  },
+  "76236d8a": {
+    "service_id": "76236d8a",
+    "category": "web_sentiment",
+    "resource": "https://orbisapi.com/proxy/crypto-news-sentiment-api-628b81/news/sentiment",
+    "method": "GET",
+    "query_params": {},
+    "pay_to": "0x2bb72231EeD303cc91a462A1fA738b42B6a9ac6d",
+    "network": "eip155:8453",
+    "price_usdc": 0.005,
+    "snapshotted_at": "2026-06-16T20:15:13.436Z"
+  }
+}
