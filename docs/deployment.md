@@ -59,7 +59,7 @@ Managed serverless Postgres. Chosen for its pooled endpoint, which fits Deno Dep
    DATABASE_URL='<pooled-string>' deno task db:migrate
    # → applied 0001_init.sql   (re-running prints "up to date")
    ```
-5. **Local dev:** create a Neon **dev branch** (Branches → New branch off `main`), copy *its* connection string into your local `.env` as `DATABASE_URL`, and run `deno task db:migrate` against it. The branch is isolated, so local writes never touch prod.
+5. **Local dev:** create a Neon **dev branch** (Branches → New branch off `main`), copy *its* **pooled** (`-pooler`) connection string into your local `.env` as `DATABASE_URL`, and run `deno task db:migrate` against it. We use the pooled endpoint in both prod and local so the connection path is identical everywhere; the dev branch is isolated, so local writes never touch prod.
 
 Leaving `DATABASE_URL` unset makes the DB layer a no-op — fine for running the offline test suite, but routes that read/write Postgres will behave as if the store is empty.
 

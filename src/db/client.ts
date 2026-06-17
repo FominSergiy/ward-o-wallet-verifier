@@ -62,6 +62,11 @@ export function getDb(): Db {
     // Keep the per-isolate pool small — Deno Deploy spins up many isolates and
     // the pooled endpoint multiplexes for us.
     max: 5,
+    // We connect through Neon's pooled (-pooler) endpoint in both local dev and
+    // prod. That pooler is PgBouncer in transaction-pooling mode, which is
+    // incompatible with postgres.js's default named prepared statements (causes
+    // intermittent `prepared statement already exists`). Disable them.
+    prepare: false,
   });
   return cached;
 }

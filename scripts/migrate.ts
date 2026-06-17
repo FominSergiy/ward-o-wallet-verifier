@@ -46,7 +46,10 @@ async function listMigrations(): Promise<
 }
 
 export async function migrate(url: string): Promise<string[]> {
-  const sql = postgres(url, { ssl: "require", max: 1 });
+  // prepare: false — we run through Neon's pooled (-pooler) endpoint, which is
+  // PgBouncer in transaction-pooling mode and incompatible with postgres.js's
+  // default named prepared statements. See src/db/client.ts.
+  const sql = postgres(url, { ssl: "require", max: 1, prepare: false });
   const applied: string[] = [];
   try {
     await sql`
