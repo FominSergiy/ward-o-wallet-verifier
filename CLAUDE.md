@@ -40,6 +40,8 @@ When working in a worktree or targeting specific files, use the binary directly:
 ~/.deno/bin/deno test --allow-net --allow-env <file>_test.ts
 ```
 
+Once a worktree's work is merged (or abandoned), clean it up — leftover worktrees under `.claude/worktrees/` accumulate as orphans. After confirming the worktree is clean and its branch is merged, run `git worktree remove <path>`, `git branch -D <branch>`, then `git worktree prune`.
+
 **Env vars:** copy `.env.example` → `.env`. `AGNIC_API_KEY` (single key for both the LLM gateway and x402 service payments) is required for any LLM call. See [.env.example](.env.example) for optional overrides.
 never commit env vars.
 
