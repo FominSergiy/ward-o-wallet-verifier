@@ -1,7 +1,7 @@
 import { assertEquals } from "@std/assert";
 import { z } from "zod";
 import { rankServices } from "./rank.ts";
-import { mockLlm, type LlmClient } from "../agent/llm.ts";
+import { type LlmClient, mockLlm } from "../agent/llm.ts";
 import {
   _resetHealthStoreForTests,
   recordEmptyOnRich,
@@ -11,18 +11,16 @@ import {
 import type { DiscoveryCandidatesByCategory, DiscoveryEntry } from "./types.ts";
 
 // Each test that exercises rank's prompt gets a fresh health store.
-function withTempHealthStore(fn: () => Promise<void>): Promise<void> {
-  const tmp = Deno.makeTempFileSync({ suffix: ".json" });
-  Deno.env.set("HEALTH_STORE_PATH", tmp);
-  _resetHealthStoreForTests();
-  return fn().finally(() => {
-    Deno.env.delete("HEALTH_STORE_PATH");
-    try {
-      Deno.removeSync(tmp);
-    } catch {
-      // ignore
-    }
-  });
+async function withTempHealthStore(fn: () => Promise<void>): Promise<void> {
+  const savedUrl = Deno.env.get("DATABASE_URL");
+  Deno.env.delete("DATABASE_URL");
+  await _resetHealthStoreForTests();
+  try {
+    await fn();
+  } finally {
+    if (savedUrl) Deno.env.set("DATABASE_URL", savedUrl);
+    await _resetHealthStoreForTests();
+  }
 }
 
 function entry(args: {
@@ -101,7 +99,11 @@ Deno.test("rankServices bounds-checks LLM index", async () => {
   };
   const llm = mockLlm({
     RankedSelection: {
-      selections: [{ category: "sanctions", resourceIndex: 99, rationale: "bad" }],
+      selections: [{
+        category: "sanctions",
+        resourceIndex: 99,
+        rationale: "bad",
+      }],
     },
   });
   const out = await rankServices(candidates, llm);
@@ -144,9 +146,9 @@ Deno.test("rankServices returns empty on empty candidates", async () => {
 Deno.test("rankServices includes recentFailureRate in the prompt", async () => {
   await withTempHealthStore(async () => {
     // Seed the store with a known-bad and a known-good service.
-    recordError("https://bad.example", "Bad Request");
-    recordError("https://bad.example", "Bad Request");
-    recordOk("https://good.example");
+    await recordError("https://bad.example", "Bad Request");
+    await recordError("https://bad.example", "Bad Request");
+    await recordOk("https://good.example");
     const candidates: DiscoveryCandidatesByCategory = {
       walletNetwork: "base",
       candidates: {
@@ -167,7 +169,11 @@ Deno.test("rankServices includes recentFailureRate in the prompt", async () => {
         captured = prompt;
         return Promise.resolve(
           schema.parse({
-            selections: [{ category: "sanctions", resourceIndex: 1, rationale: "r" }],
+            selections: [{
+              category: "sanctions",
+              resourceIndex: 1,
+              rationale: "r",
+            }],
           }),
         );
       },
@@ -228,7 +234,11 @@ Deno.test("rankServices includes inputInfoCompleteness score for each candidate"
         captured = prompt;
         return Promise.resolve(
           schema.parse({
-            selections: [{ category: "sanctions", resourceIndex: 1, rationale: "r" }],
+            selections: [{
+              category: "sanctions",
+              resourceIndex: 1,
+              rationale: "r",
+            }],
           }),
         );
       },
@@ -292,7 +302,7 @@ Deno.test("rankServices leaves inputInfo undefined when absent", async () => {
 Deno.test("rankServices filters durably-blocked candidates from the rerank prompt", async () => {
   await withTempHealthStore(async () => {
     // Seed: one service durably blocked, one healthy.
-    recordError(
+    await recordError(
       "https://blocked.example",
       "Payment Required",
       "payment_exceeds_max",
@@ -317,7 +327,11 @@ Deno.test("rankServices filters durably-blocked candidates from the rerank promp
         return Promise.resolve(
           schema.parse({
             // Healthy is now at index 0 after filtering.
-            selections: [{ category: "sanctions", resourceIndex: 0, rationale: "r" }],
+            selections: [{
+              category: "sanctions",
+              resourceIndex: 0,
+              rationale: "r",
+            }],
           }),
         );
       },
@@ -332,7 +346,7 @@ Deno.test("rankServices filters durably-blocked candidates from the rerank promp
 
 Deno.test("rankServices re-includes durably-blocked candidates if filtering empties a category", async () => {
   await withTempHealthStore(async () => {
-    recordError(
+    await recordError(
       "https://only-option.example",
       "Payment Required",
       "payment_exceeds_max",
@@ -355,7 +369,11 @@ Deno.test("rankServices re-includes durably-blocked candidates if filtering empt
         captured = prompt;
         return Promise.resolve(
           schema.parse({
-            selections: [{ category: "sanctions", resourceIndex: 0, rationale: "r" }],
+            selections: [{
+              category: "sanctions",
+              resourceIndex: 0,
+              rationale: "r",
+            }],
           }),
         );
       },
@@ -379,7 +397,8 @@ Deno.test("rankServices fallback prefers entity-attribution descriptions for lab
       resource: "https://lbl.entity",
       amount: "1000",
       quality: 5,
-      desc: "Provides entity attribution, name tag and known address database for CEX hot wallet identification.",
+      desc:
+        "Provides entity attribution, name tag and known address database for CEX hot wallet identification.",
     });
     const candidates: DiscoveryCandidatesByCategory = {
       walletNetwork: "base",
@@ -452,7 +471,11 @@ Deno.test("rankServices surfaces an entity-attribution hint in the prompt for la
         captured = prompt;
         return Promise.resolve(
           s.parse({
-            selections: [{ category: "labels", resourceIndex: 1, rationale: "r" }],
+            selections: [{
+              category: "labels",
+              resourceIndex: 1,
+              rationale: "r",
+            }],
           }),
         );
       },
@@ -461,7 +484,9 @@ Deno.test("rankServices surfaces an entity-attribution hint in the prompt for la
     // The entity-attribution candidate gets the hint annotation.
     assertEquals(captured.includes("https://lbl.entity"), true);
     assertEquals(
-      captured.includes("[hint: description mentions entity-attribution keywords]"),
+      captured.includes(
+        "[hint: description mentions entity-attribution keywords]",
+      ),
       true,
     );
   });
@@ -471,9 +496,9 @@ Deno.test("rankServices pushes quality-demoted candidates to the bottom of their
   await withTempHealthStore(async () => {
     // Demote one service via 3 empty-on-rich-history records.
     const demoted = "https://lbl.demoted";
-    recordEmptyOnRich(demoted);
-    recordEmptyOnRich(demoted);
-    recordEmptyOnRich(demoted);
+    await recordEmptyOnRich(demoted);
+    await recordEmptyOnRich(demoted);
+    await recordEmptyOnRich(demoted);
 
     const candidates: DiscoveryCandidatesByCategory = {
       walletNetwork: "base",
@@ -491,7 +516,11 @@ Deno.test("rankServices pushes quality-demoted candidates to the bottom of their
         captured = prompt;
         return Promise.resolve(
           s.parse({
-            selections: [{ category: "labels", resourceIndex: 0, rationale: "r" }],
+            selections: [{
+              category: "labels",
+              resourceIndex: 0,
+              rationale: "r",
+            }],
           }),
         );
       },
@@ -613,7 +642,11 @@ Deno.test("rankServices skips categories missing from LLM output", async () => {
   };
   const llm = mockLlm({
     RankedSelection: {
-      selections: [{ category: "sanctions", resourceIndex: 0, rationale: "ok" }],
+      selections: [{
+        category: "sanctions",
+        resourceIndex: 0,
+        rationale: "ok",
+      }],
     },
   });
   const out = await rankServices(candidates, llm);

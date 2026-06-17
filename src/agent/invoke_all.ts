@@ -191,7 +191,7 @@ async function invokeWithAlternates(
     const outcome = await invoker(svc, address, chain, { llm });
     // Update health stats so future rerank calls can weight this service.
     if (outcome.status === "ok" || outcome.status === "fallback_ok") {
-      recordOk(svc.resource);
+      await recordOk(svc.resource);
       if (i > 0) {
         console.warn(
           `[invoke] primary failed for ${primary.category}; succeeded on alternate ${svc.resource}`,
@@ -211,7 +211,11 @@ async function invokeWithAlternates(
       });
       return outcome;
     }
-    recordError(svc.resource, outcome.error ?? "(unknown)", outcome.errorCode);
+    await recordError(
+      svc.resource,
+      outcome.error ?? "(unknown)",
+      outcome.errorCode,
+    );
     lastOutcome = outcome;
     if (isDomainLevelError(outcome.error)) {
       failedHosts.add(host);
@@ -359,9 +363,9 @@ export async function invokeAll(
       console.warn(
         `[invoke] labels service ${labelsOutcome.resource} returned empty attribution on rich-history wallet — recording quality miss`,
       );
-      recordEmptyOnRich(labelsOutcome.resource);
+      await recordEmptyOnRich(labelsOutcome.resource);
     } else {
-      resetEmptyOnRich(labelsOutcome.resource);
+      await resetEmptyOnRich(labelsOutcome.resource);
     }
   }
 
