@@ -16,7 +16,8 @@
     "mcp:stdio": "deno run --allow-net --allow-env --allow-read --allow-write --env-file=.env src/mcp/stdio.ts",
     "benchmark": "deno run --allow-net --allow-env --allow-read --allow-write --env-file=.env scripts/benchmark.ts",
     "cassette:record": "HEALTH_TRACKING=false deno run --allow-net --allow-env --allow-read --allow-write --env-file=.env scripts/record-cassettes.ts",
-    "test:replay": "HEALTH_TRACKING=false deno test --allow-read --allow-env tests/replay_test.ts"
+    "test:replay": "HEALTH_TRACKING=false deno test --allow-read --allow-env tests/replay_test.ts",
+    "db:migrate": "deno run --allow-net --allow-env --allow-read --env-file=.env scripts/migrate.ts"
   },
   "imports": {
     "hono": "jsr:@hono/hono@^4.7.11",
@@ -25,6 +26,7 @@
     "hono/zod-validator": "jsr:@hono/zod-validator@^0.7.0",
     "zod": "npm:zod@^4.4.3",
     "viem": "npm:viem@^2",
+    "postgres": "npm:postgres@^3.4.5",
     "@std/assert": "jsr:@std/assert@^1.0.19",
     "@std/path": "jsr:@std/path@^1.1.5",
     "@std/fs": "jsr:@std/fs@^1.0.24",

@@ -29,6 +29,7 @@ all done plans are put under plans/completed
 | Run tests incl. paid E2E | `deno task test:e2e` |
 | Lint | `deno task lint` |
 | Type-check | `deno task check` |
+| Run DB migrations | `deno task db:migrate` (needs `DATABASE_URL`) |
 
 `test` / `test:unit` skip the three `RUN_E2E`-gated route suites (`src/routes/{discover,invoke,verify_agent}_test.ts`) — those make real Agnic/x402 paid calls. `test:e2e` runs them and needs `AGNIC_API_KEY` + USDC balance.
 
@@ -44,6 +45,15 @@ Once a worktree's work is merged (or abandoned), clean it up — leftover worktr
 
 **Env vars:** copy `.env.example` → `.env`. `AGNIC_API_KEY` (single key for both the LLM gateway and x402 service payments) is required for any LLM call. See [.env.example](.env.example) for optional overrides.
 never commit env vars.
+
+### Database (locked — don't re-litigate)
+
+Postgres conventions, settled in W0.1. Follow these; don't introduce another DB, ORM, or driver.
+
+- **Host:** Neon (managed serverless Postgres). **No Docker / no local Postgres install** — local dev points at a Neon *dev branch*, prod uses the Neon *pooled* endpoint. Identical code path for both.
+- **Driver/access:** `npm:postgres` (postgres.js), reached **only** through `getDb()` in [src/db/client.ts](src/db/client.ts). Never instantiate a client elsewhere. Swapping to the `@neondatabase/serverless` HTTP driver later stays local to that file.
+- **Config:** a single `DATABASE_URL`. **Unset = no-op client** (queries resolve empty, no socket) so `deno task test` stays offline-safe. Gate any DB-dependent test on `dbEnabled()` / `DATABASE_URL` and `ignore` it when absent.
+- **Schema:** plain portable Postgres in `db/migrations/*.sql` (no Neon/Supabase-specific features), applied by [scripts/migrate.ts](scripts/migrate.ts) via `deno task db:migrate` (forward-only, tracked in `schema_migrations`). Row types live in [src/db/types.ts](src/db/types.ts) — keep them column-for-column with the SQL.
 
 
 ## Surfaces

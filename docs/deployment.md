@@ -47,6 +47,22 @@ Both platforms also build preview deployments for every PR. The Actions workflow
      -d '{"address":"0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045","chain":"eth"}'
    ```
 
+## 1b. Database — Neon (one-time)
+
+Managed serverless Postgres. Chosen for its pooled endpoint, which fits Deno Deploy's many-short-lived-isolates connection model. No Docker anywhere — local dev uses a Neon dev branch.
+
+1. Sign in at https://neon.tech → **Create project** (region close to the Deno Deploy region).
+2. Copy the **pooled** connection string (Dashboard → Connection Details → toggle **Pooled connection**). It looks like `postgresql://USER:PASS@ep-xxxx-pooler.REGION.aws.neon.tech/DB?sslmode=require`.
+3. In **Deno Deploy** → Project → Settings → Environment Variables, add `DATABASE_URL` = that pooled string.
+4. Apply the schema once against prod:
+   ```bash
+   DATABASE_URL='<pooled-string>' deno task db:migrate
+   # → applied 0001_init.sql   (re-running prints "up to date")
+   ```
+5. **Local dev:** create a Neon **dev branch** (Branches → New branch off `main`), copy *its* **pooled** (`-pooler`) connection string into your local `.env` as `DATABASE_URL`, and run `deno task db:migrate` against it. We use the pooled endpoint in both prod and local so the connection path is identical everywhere; the dev branch is isolated, so local writes never touch prod.
+
+Leaving `DATABASE_URL` unset makes the DB layer a no-op — fine for running the offline test suite, but routes that read/write Postgres will behave as if the store is empty.
+
 ## 2. Frontend — Cloudflare Pages (one-time)
 
 1. Sign in at https://dash.cloudflare.com → **Workers & Pages → Create → Pages → Connect to Git**.
