@@ -1,13 +1,17 @@
 import type { Category } from "../agent/types.ts";
 import { defaultLlm, type LlmClient } from "../agent/llm.ts";
-import { failureRate, isDurablyBlocked, isQualityDemoted } from "./health_store.ts";
 import {
-  extractBazaarInfo,
-  RankedSelectionSchema,
+  failureRate,
+  isDurablyBlocked,
+  isQualityDemoted,
+} from "./health_store.ts";
+import {
   type BazaarInfo,
   type DiscoveryCandidatesByCategory,
   type DiscoveryEntry,
+  extractBazaarInfo,
   type RankedSelection,
+  RankedSelectionSchema,
   type RankedService,
 } from "./types.ts";
 
@@ -89,7 +93,12 @@ function buildHostCoverage(
   candidates: Partial<Record<Category, DiscoveryEntry[]>>,
 ): Map<string, Set<Category>> {
   const out = new Map<string, Set<Category>>();
-  for (const [cat, entries] of Object.entries(candidates) as [Category, DiscoveryEntry[]][]) {
+  for (
+    const [cat, entries] of Object.entries(candidates) as [
+      Category,
+      DiscoveryEntry[],
+    ][]
+  ) {
     for (const e of entries) {
       const h = hostOf(e.resource);
       const set = out.get(h) ?? new Set<Category>();
@@ -100,16 +109,21 @@ function buildHostCoverage(
   return out;
 }
 
-function buildPrompt(
+async function buildPrompt(
   candidates: Partial<Record<Category, DiscoveryEntry[]>>,
   network: string,
-): string {
+): Promise<string> {
   const sections: string[] = [];
   const hostCoverage = buildHostCoverage(candidates);
-  for (const [cat, entries] of Object.entries(candidates) as [Category, DiscoveryEntry[]][]) {
+  for (
+    const [cat, entries] of Object.entries(candidates) as [
+      Category,
+      DiscoveryEntry[],
+    ][]
+  ) {
     sections.push(`Category: ${cat}`);
-    entries.forEach((e, idx) => {
-      const fr = failureRate(e.resource);
+    for (const [idx, e] of entries.entries()) {
+      const fr = await failureRate(e.resource);
       const frStr = fr === null
         ? "unknown (untested)"
         : `${(fr * 100).toFixed(0)}%`;
@@ -126,7 +140,9 @@ function buildPrompt(
       const otherCats = [...(hostCoverage.get(host) ?? [])]
         .filter((c) => c !== cat);
       const hostHint = otherCats.length > 0
-        ? `  [hint: host ${host} also appears in candidates for: ${otherCats.join(", ")}]`
+        ? `  [hint: host ${host} also appears in candidates for: ${
+          otherCats.join(", ")
+        }]`
         : "";
       sections.push(
         `  [${idx}] resource: ${e.resource}${entityHint}${hostHint}`,
@@ -137,7 +153,7 @@ function buildPrompt(
         `      inputInfoCompleteness: ${inputInfoCompleteness(info)}/3`,
         `      scheme: ${schemeFor(e, network)}`,
       );
-    });
+    }
     sections.push("");
   }
 
@@ -219,12 +235,20 @@ function toRanked(
  * filtering would empty a category, the blocked entries are re-included —
  * better to try a known-bad service than to skip the category entirely.
  */
-function filterDurablyBlocked(
+async function filterDurablyBlocked(
   candidates: Partial<Record<Category, DiscoveryEntry[]>>,
-): Partial<Record<Category, DiscoveryEntry[]>> {
+): Promise<Partial<Record<Category, DiscoveryEntry[]>>> {
   const out: Partial<Record<Category, DiscoveryEntry[]>> = {};
-  for (const [cat, entries] of Object.entries(candidates) as [Category, DiscoveryEntry[]][]) {
-    const kept = entries.filter((e) => !isDurablyBlocked(e.resource));
+  for (
+    const [cat, entries] of Object.entries(candidates) as [
+      Category,
+      DiscoveryEntry[],
+    ][]
+  ) {
+    const blockedFlags = await Promise.all(
+      entries.map((e) => isDurablyBlocked(e.resource)),
+    );
+    const kept = entries.filter((_, i) => !blockedFlags[i]);
     let final: DiscoveryEntry[];
     if (kept.length === 0 && entries.length > 0) {
       console.warn(
@@ -244,9 +268,12 @@ function filterDurablyBlocked(
     // (preserve relative order otherwise). Doesn't drop them — they can still
     // be picked if no better candidate exists, but they're no longer the
     // default. The LLM rerank also sees their position and biases away.
-    if (final.some((e) => isQualityDemoted(e.resource))) {
-      const promoted = final.filter((e) => !isQualityDemoted(e.resource));
-      const demoted = final.filter((e) => isQualityDemoted(e.resource));
+    const demotedFlags = await Promise.all(
+      final.map((e) => isQualityDemoted(e.resource)),
+    );
+    if (demotedFlags.some(Boolean)) {
+      const promoted = final.filter((_, i) => !demotedFlags[i]);
+      const demoted = final.filter((_, i) => demotedFlags[i]);
       if (demoted.length > 0) {
         console.warn(
           `[rank] quality-demoted ${demoted.length} candidate(s) in ${cat} (empty-on-rich-history pattern detected)`,
@@ -263,14 +290,19 @@ export async function rankServices(
   candidates: DiscoveryCandidatesByCategory,
   llm: LlmClient = defaultLlm,
 ): Promise<RankedService[]> {
-  const network = candidates.walletNetwork === "base" ? "eip155:8453" : "eip155:84532";
-  const filteredCandidates = filterDurablyBlocked(candidates.candidates);
-  const entries = Object.entries(filteredCandidates) as [Category, DiscoveryEntry[]][];
+  const network = candidates.walletNetwork === "base"
+    ? "eip155:8453"
+    : "eip155:84532";
+  const filteredCandidates = await filterDurablyBlocked(candidates.candidates);
+  const entries = Object.entries(filteredCandidates) as [
+    Category,
+    DiscoveryEntry[],
+  ][];
   if (entries.length === 0) return [];
 
   let selection: RankedSelection | null = null;
   try {
-    const prompt = buildPrompt(filteredCandidates, network);
+    const prompt = await buildPrompt(filteredCandidates, network);
     selection = await llm.generateStructured(RankedSelectionSchema, prompt, {
       toolName: "select_services",
       toolDescription:
@@ -291,7 +323,9 @@ export async function rankServices(
   } catch (e) {
     const cats = entries.map(([cat]) => cat).join(",");
     console.warn(
-      `[rank] LLM rerank failed for categories [${cats}], falling back to quality-sort: ${(e as Error).message}`,
+      `[rank] LLM rerank failed for categories [${cats}], falling back to quality-sort: ${
+        (e as Error).message
+      }`,
     );
   }
 
@@ -300,8 +334,12 @@ export async function rankServices(
   if (selection) {
     for (const s of selection.selections) {
       const list = filteredCandidates[s.category];
-      if (!list || s.resourceIndex < 0 || s.resourceIndex >= list.length) continue;
-      out.push(toRanked(s.category, list[s.resourceIndex], network, s.rationale));
+      if (!list || s.resourceIndex < 0 || s.resourceIndex >= list.length) {
+        continue;
+      }
+      out.push(
+        toRanked(s.category, list[s.resourceIndex], network, s.rationale),
+      );
     }
   } else {
     for (const [cat, list] of entries) {
