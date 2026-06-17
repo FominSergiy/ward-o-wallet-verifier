@@ -17,6 +17,7 @@ import { fetchOnchainHistory } from "./onchain_viem.ts";
 import type { LlmClient } from "./llm.ts";
 import type { Category, Chain } from "./types.ts";
 import { type EventEmitter, now, safeEmit } from "./events.ts";
+import { recordServiceObservation } from "../observability/observations.ts";
 
 const VIEM_SUPPORTED_CHAINS: Chain[] = [
   "eth",
@@ -197,9 +198,9 @@ async function invokeWithAlternates(
           `[invoke] primary failed for ${primary.category}; succeeded on alternate ${svc.resource}`,
         );
       }
-      safeEmit(emit, {
-        type: "service",
-        status: "ok",
+      const okEvent = {
+        type: "service" as const,
+        status: "ok" as const,
         category: svc.category,
         resource: svc.resource,
         priceUsdc: svc.priceUsdc,
@@ -208,7 +209,9 @@ async function invokeWithAlternates(
         duration_ms: outcome.durationMs ?? (Date.now() - svcStart),
         cost_usd: outcome.paid ? outcome.amountUsdc : null,
         at: now(),
-      });
+      };
+      safeEmit(emit, okEvent);
+      recordServiceObservation(okEvent);
       return outcome;
     }
     await recordError(
@@ -221,18 +224,20 @@ async function invokeWithAlternates(
       failedHosts.add(host);
     }
     const hasNextCandidate = i < candidates.length - 1;
-    safeEmit(emit, {
-      type: "service",
-      status: hasNextCandidate ? "fallback" : "error",
+    const failEvent = {
+      type: "service" as const,
+      status: (hasNextCandidate ? "fallback" : "error") as "fallback" | "error",
       category: svc.category,
       resource: svc.resource,
       priceUsdc: svc.priceUsdc,
       request_id,
       duration_ms: outcome.durationMs ?? (Date.now() - svcStart),
-      cost_usd: null,
+      cost_usd: null as null,
       error: outcome.error,
       at: now(),
-    });
+    };
+    safeEmit(emit, failEvent);
+    recordServiceObservation(failEvent);
     if (hasNextCandidate) {
       console.warn(
         `[invoke] ${primary.category}: ${svc.resource} errored (${outcome.error}); trying next alternate`,
@@ -309,37 +314,41 @@ export async function invokeAll(
           // enough that this overload is acceptable.
           adapterPath: "llm",
         };
-        safeEmit(emit, {
-          type: "service",
-          status: "ok",
-          category: "onchain_history",
+        const viemOkEvent = {
+          type: "service" as const,
+          status: "ok" as const,
+          category: "onchain_history" as const,
           resource: viemResource,
-          kind: "direct",
+          kind: "direct" as const,
           priceUsdc: 0,
           amountUsdc: 0,
           request_id,
           duration_ms: durationMs,
-          cost_usd: null,
+          cost_usd: null as null,
           at: now(),
-        });
+        };
+        safeEmit(emit, viemOkEvent);
+        recordServiceObservation(viemOkEvent);
       } catch (e) {
         const msg = (e as Error).message;
         console.warn(
           `[invoke] viem fallback for onchain_history failed: ${msg}`,
         );
-        safeEmit(emit, {
-          type: "service",
-          status: "error",
-          category: "onchain_history",
+        const viemErrEvent = {
+          type: "service" as const,
+          status: "error" as const,
+          category: "onchain_history" as const,
           resource: viemResource,
-          kind: "direct",
+          kind: "direct" as const,
           priceUsdc: 0,
           request_id,
           duration_ms: Date.now() - viemStart,
-          cost_usd: null,
+          cost_usd: null as null,
           error: msg,
           at: now(),
-        });
+        };
+        safeEmit(emit, viemErrEvent);
+        recordServiceObservation(viemErrEvent);
         // Leave the error outcome in place — coverage gap surfaces in synth.
       }
     }
