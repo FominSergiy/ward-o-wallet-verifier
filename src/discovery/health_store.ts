@@ -1,11 +1,11 @@
 // Persisted per-service health stats. Updated by invokeAll after each call
 // and consumed by rankServices to demote unreliable catalog entries.
 //
-// Storage: a single JSON file at data/service_health.json (gitignored) for
-// local dev. On Deno Deploy the filesystem is read-only, so we fall back to
-// an in-memory Map that resets on cold start — acceptable for hackathon
-// scale. Detect Deploy via the DENO_DEPLOYMENT_ID env var, which Deploy
-// sets automatically.
+// Storage: Postgres `service_health_durable` table (W0.3). When DATABASE_URL
+// is unset (offline / unit-test mode) the module falls back to an in-memory
+// Map so `deno task test` stays fully offline-safe.
+
+import { dbEnabled, getDb } from "../db/client.ts";
 
 export interface ServiceHealth {
   ok: number;
@@ -40,85 +40,143 @@ const DURABLE_BLOCK_CODES = new Set([
 
 export type HealthRecord = Record<string, ServiceHealth>;
 
-const DEFAULT_PATH = "data/service_health.json";
 const ENABLED = Deno.env.get("HEALTH_TRACKING") !== "false";
 
+// In-memory fallback (used when DATABASE_URL is unset).
 const memoryStore = new Map<string, ServiceHealth>();
 
-function isDeploy(): boolean {
-  return Deno.env.get("DENO_DEPLOYMENT_ID") !== undefined;
-}
+// ---------------------------------------------------------------------------
+// Internal helpers — DB path
+// ---------------------------------------------------------------------------
 
-function pathFor(): string {
-  return Deno.env.get("HEALTH_STORE_PATH") ?? DEFAULT_PATH;
-}
-
-function ensureDir(filePath: string) {
-  const slash = filePath.lastIndexOf("/");
-  if (slash <= 0) return;
-  const dir = filePath.slice(0, slash);
-  try {
-    Deno.mkdirSync(dir, { recursive: true });
-  } catch {
-    // ignore — likely already exists
-  }
-}
-
-export function readHealth(): HealthRecord {
-  if (!ENABLED) return {};
-  if (isDeploy()) return Object.fromEntries(memoryStore);
-  try {
-    const text = Deno.readTextFileSync(pathFor());
-    return JSON.parse(text) as HealthRecord;
-  } catch {
-    return {};
-  }
-}
-
-function writeHealth(record: HealthRecord): void {
-  if (!ENABLED) return;
-  if (isDeploy()) {
-    memoryStore.clear();
-    for (const [k, v] of Object.entries(record)) memoryStore.set(k, v);
-    return;
-  }
-  const p = pathFor();
-  ensureDir(p);
-  try {
-    Deno.writeTextFileSync(p, JSON.stringify(record, null, 2));
-  } catch (e) {
-    console.warn(`[health-store] failed to write ${p}: ${(e as Error).message}`);
-  }
-}
-
-export function recordOk(resource: string): void {
-  if (!ENABLED) return;
-  const all = readHealth();
-  const cur = all[resource] ?? { ok: 0, err: 0, lastSeen: "" };
-  all[resource] = {
-    ...cur,
-    ok: cur.ok + 1,
-    lastSeen: new Date().toISOString(),
+/** Read one row from Postgres; returns undefined if not found. */
+async function dbGet(resource: string): Promise<ServiceHealth | undefined> {
+  const db = getDb();
+  const rows = await db`
+    SELECT ok, err, last_seen, last_error, last_error_code,
+           empty_on_rich, empty_on_rich_at
+    FROM service_health_durable
+    WHERE resource = ${resource}
+  `;
+  if (rows.length === 0) return undefined;
+  const r = rows[0] as Record<string, unknown>;
+  return {
+    ok: r.ok as number,
+    err: r.err as number,
+    lastSeen: r.last_seen ? String(r.last_seen) : "",
+    lastError: r.last_error ? String(r.last_error) : undefined,
+    lastErrorCode: r.last_error_code ? String(r.last_error_code) : undefined,
+    emptyOnRich: r.empty_on_rich as number | undefined,
+    emptyOnRichAt: r.empty_on_rich_at ? String(r.empty_on_rich_at) : undefined,
   };
-  writeHealth(all);
 }
 
-export function recordError(
+/** Upsert a row in Postgres. */
+async function dbSet(resource: string, h: ServiceHealth): Promise<void> {
+  const db = getDb();
+  await db`
+    INSERT INTO service_health_durable
+      (resource, ok, err, last_seen, last_error, last_error_code,
+       empty_on_rich, empty_on_rich_at)
+    VALUES (
+      ${resource},
+      ${h.ok},
+      ${h.err},
+      ${h.lastSeen ? new Date(h.lastSeen) : null},
+      ${h.lastError ?? null},
+      ${h.lastErrorCode ?? null},
+      ${h.emptyOnRich ?? 0},
+      ${h.emptyOnRichAt ? new Date(h.emptyOnRichAt) : null}
+    )
+    ON CONFLICT (resource) DO UPDATE SET
+      ok               = EXCLUDED.ok,
+      err              = EXCLUDED.err,
+      last_seen        = EXCLUDED.last_seen,
+      last_error       = EXCLUDED.last_error,
+      last_error_code  = EXCLUDED.last_error_code,
+      empty_on_rich    = EXCLUDED.empty_on_rich,
+      empty_on_rich_at = EXCLUDED.empty_on_rich_at
+  `;
+}
+
+// ---------------------------------------------------------------------------
+// Public API — all async
+// ---------------------------------------------------------------------------
+
+export async function readHealth(): Promise<HealthRecord> {
+  if (!ENABLED) return {};
+  if (dbEnabled()) {
+    const db = getDb();
+    const rows = await db`
+      SELECT resource, ok, err, last_seen, last_error, last_error_code,
+             empty_on_rich, empty_on_rich_at
+      FROM service_health_durable
+    `;
+    const out: HealthRecord = {};
+    for (const r of rows as Record<string, unknown>[]) {
+      out[String(r.resource)] = {
+        ok: r.ok as number,
+        err: r.err as number,
+        lastSeen: r.last_seen ? String(r.last_seen) : "",
+        lastError: r.last_error ? String(r.last_error) : undefined,
+        lastErrorCode: r.last_error_code
+          ? String(r.last_error_code)
+          : undefined,
+        emptyOnRich: r.empty_on_rich as number | undefined,
+        emptyOnRichAt: r.empty_on_rich_at
+          ? String(r.empty_on_rich_at)
+          : undefined,
+      };
+    }
+    return out;
+  }
+  return Object.fromEntries(memoryStore);
+}
+
+export async function recordOk(resource: string): Promise<void> {
+  if (!ENABLED) return;
+  if (dbEnabled()) {
+    const cur = (await dbGet(resource)) ?? { ok: 0, err: 0, lastSeen: "" };
+    await dbSet(resource, {
+      ...cur,
+      ok: cur.ok + 1,
+      lastSeen: new Date().toISOString(),
+    });
+  } else {
+    const cur = memoryStore.get(resource) ?? { ok: 0, err: 0, lastSeen: "" };
+    memoryStore.set(resource, {
+      ...cur,
+      ok: cur.ok + 1,
+      lastSeen: new Date().toISOString(),
+    });
+  }
+}
+
+export async function recordError(
   resource: string,
   msg: string,
   code?: string,
-): void {
+): Promise<void> {
   if (!ENABLED) return;
-  const all = readHealth();
-  const cur = all[resource] ?? { ok: 0, err: 0, lastSeen: "" };
-  all[resource] = {
-    ...cur,
-    err: cur.err + 1,
-    lastSeen: new Date().toISOString(),
-    lastError: msg.slice(0, 200),
-    lastErrorCode: code,
-  };
-  writeHealth(all);
+  if (dbEnabled()) {
+    const cur = (await dbGet(resource)) ?? { ok: 0, err: 0, lastSeen: "" };
+    await dbSet(resource, {
+      ...cur,
+      err: cur.err + 1,
+      lastSeen: new Date().toISOString(),
+      lastError: msg.slice(0, 200),
+      lastErrorCode: code,
+    });
+  } else {
+    const cur = memoryStore.get(resource) ?? { ok: 0, err: 0, lastSeen: "" };
+    memoryStore.set(resource, {
+      ...cur,
+      err: cur.err + 1,
+      lastSeen: new Date().toISOString(),
+      lastError: msg.slice(0, 200),
+      lastErrorCode: code,
+    });
+  }
 }
 
 /**
@@ -127,8 +185,13 @@ export function recordError(
  * an x402 upstream). Used by the ranker to skip services that consistently
  * cannot be paid for under their advertised price.
  */
-export function isDurablyBlocked(resource: string): boolean {
-  const stats = readHealth()[resource];
+export async function isDurablyBlocked(resource: string): Promise<boolean> {
+  let stats: ServiceHealth | undefined;
+  if (dbEnabled()) {
+    stats = await dbGet(resource);
+  } else {
+    stats = memoryStore.get(resource);
+  }
   if (!stats?.lastErrorCode) return false;
   return DURABLE_BLOCK_CODES.has(stats.lastErrorCode);
 }
@@ -142,25 +205,36 @@ const QUALITY_DEMOTION_THRESHOLD = 3;
 // gets a fresh chance — provider coverage may improve over time.
 const QUALITY_DEMOTION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-export function recordEmptyOnRich(resource: string): void {
+export async function recordEmptyOnRich(resource: string): Promise<void> {
   if (!ENABLED) return;
-  const all = readHealth();
-  const cur = all[resource] ?? { ok: 0, err: 0, lastSeen: "" };
-  all[resource] = {
-    ...cur,
-    emptyOnRich: (cur.emptyOnRich ?? 0) + 1,
-    emptyOnRichAt: new Date().toISOString(),
-  };
-  writeHealth(all);
+  if (dbEnabled()) {
+    const cur = (await dbGet(resource)) ?? { ok: 0, err: 0, lastSeen: "" };
+    await dbSet(resource, {
+      ...cur,
+      emptyOnRich: (cur.emptyOnRich ?? 0) + 1,
+      emptyOnRichAt: new Date().toISOString(),
+    });
+  } else {
+    const cur = memoryStore.get(resource) ?? { ok: 0, err: 0, lastSeen: "" };
+    memoryStore.set(resource, {
+      ...cur,
+      emptyOnRich: (cur.emptyOnRich ?? 0) + 1,
+      emptyOnRichAt: new Date().toISOString(),
+    });
+  }
 }
 
-export function resetEmptyOnRich(resource: string): void {
+export async function resetEmptyOnRich(resource: string): Promise<void> {
   if (!ENABLED) return;
-  const all = readHealth();
-  const cur = all[resource];
-  if (!cur || !cur.emptyOnRich) return;
-  all[resource] = { ...cur, emptyOnRich: 0 };
-  writeHealth(all);
+  if (dbEnabled()) {
+    const cur = await dbGet(resource);
+    if (!cur || !cur.emptyOnRich) return;
+    await dbSet(resource, { ...cur, emptyOnRich: 0 });
+  } else {
+    const cur = memoryStore.get(resource);
+    if (!cur || !cur.emptyOnRich) return;
+    memoryStore.set(resource, { ...cur, emptyOnRich: 0 });
+  }
 }
 
 /**
@@ -170,8 +244,13 @@ export function resetEmptyOnRich(resource: string): void {
  * window passes the demotion lifts automatically — provider coverage can
  * improve and we want to give updated catalogs a fresh shot.
  */
-export function isQualityDemoted(resource: string): boolean {
-  const stats = readHealth()[resource];
+export async function isQualityDemoted(resource: string): Promise<boolean> {
+  let stats: ServiceHealth | undefined;
+  if (dbEnabled()) {
+    stats = await dbGet(resource);
+  } else {
+    stats = memoryStore.get(resource);
+  }
   if (!stats?.emptyOnRich || !stats.emptyOnRichAt) return false;
   if (stats.emptyOnRich < QUALITY_DEMOTION_THRESHOLD) return false;
   const ageMs = Date.now() - Date.parse(stats.emptyOnRichAt);
@@ -184,20 +263,28 @@ export function isQualityDemoted(resource: string): boolean {
  * data has been recorded. Use null to signal "untested" to the ranker — it
  * shouldn't bias against unknown services.
  */
-export function failureRate(resource: string): number | null {
-  const stats = readHealth()[resource];
+export async function failureRate(resource: string): Promise<number | null> {
+  let stats: ServiceHealth | undefined;
+  if (dbEnabled()) {
+    stats = await dbGet(resource);
+  } else {
+    stats = memoryStore.get(resource);
+  }
   if (!stats) return null;
   const total = stats.ok + stats.err;
   if (total === 0) return null;
   return stats.err / total;
 }
 
-/** Test-only helper to reset state between cases. */
-export function _resetHealthStoreForTests(): void {
+/**
+ * Test-only helper to reset state between cases.
+ * Clears the in-memory map and, when DB is enabled, deletes all rows from
+ * service_health_durable.
+ */
+export async function _resetHealthStoreForTests(): Promise<void> {
   memoryStore.clear();
-  try {
-    Deno.removeSync(pathFor());
-  } catch {
-    // file doesn't exist — fine
+  if (dbEnabled()) {
+    const db = getDb();
+    await db`DELETE FROM service_health_durable`;
   }
 }

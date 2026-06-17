@@ -5,22 +5,20 @@ import type { DiscoveryPlan, RankedService } from "../discovery/types.ts";
 import type { Category } from "./types.ts";
 import {
   _resetHealthStoreForTests,
+  isQualityDemoted,
   readHealth,
 } from "../discovery/health_store.ts";
-import { isQualityDemoted } from "../discovery/health_store.ts";
 
-function withTempHealthStore(fn: () => Promise<void>): Promise<void> {
-  const tmp = Deno.makeTempFileSync({ suffix: ".json" });
-  Deno.env.set("HEALTH_STORE_PATH", tmp);
-  _resetHealthStoreForTests();
-  return fn().finally(() => {
-    Deno.env.delete("HEALTH_STORE_PATH");
-    try {
-      Deno.removeSync(tmp);
-    } catch {
-      // ignore
-    }
-  });
+async function withTempHealthStore(fn: () => Promise<void>): Promise<void> {
+  const savedUrl = Deno.env.get("DATABASE_URL");
+  Deno.env.delete("DATABASE_URL");
+  await _resetHealthStoreForTests();
+  try {
+    await fn();
+  } finally {
+    if (savedUrl) Deno.env.set("DATABASE_URL", savedUrl);
+    await _resetHealthStoreForTests();
+  }
 }
 
 function svc(category: Category, resource: string): RankedService {
@@ -50,7 +48,11 @@ function plan(services: RankedService[]): DiscoveryPlan {
   };
 }
 
-function okOutcome(category: Category, data: unknown, amountUsdc = 0.001): ServiceInvocationOutcome {
+function okOutcome(
+  category: Category,
+  data: unknown,
+  amountUsdc = 0.001,
+): ServiceInvocationOutcome {
   return {
     category,
     resource: `https://${category}.example`,
@@ -64,7 +66,10 @@ function okOutcome(category: Category, data: unknown, amountUsdc = 0.001): Servi
   };
 }
 
-function errorOutcome(category: Category, msg: string): ServiceInvocationOutcome {
+function errorOutcome(
+  category: Category,
+  msg: string,
+): ServiceInvocationOutcome {
   return {
     category,
     resource: `https://${category}.example`,
@@ -96,13 +101,20 @@ Deno.test("invokeAll runs services concurrently", async () => {
   const cats = services.map((s) => s.category);
   const wrapped = (_s: RankedService) =>
     new Promise<ServiceInvocationOutcome>((resolve) =>
-      setTimeout(() => resolve(okOutcome(cats[callIdx++], { ok: true })), sleepMs)
+      setTimeout(
+        () => resolve(okOutcome(cats[callIdx++], { ok: true })),
+        sleepMs,
+      )
     );
   const start = performance.now();
   await invokeAll(plan(services), "base", { invoker: wrapped });
   const elapsed = performance.now() - start;
   // 5 calls × 50ms = 250ms if sequential. Parallel should be ~50–80ms.
-  assertEquals(elapsed < 150, true, `expected parallel ~50ms, got ${elapsed}ms`);
+  assertEquals(
+    elapsed < 150,
+    true,
+    `expected parallel ~50ms, got ${elapsed}ms`,
+  );
 });
 
 Deno.test("invokeAll throws SanctionsInvocationError when sanctions fails", async () => {
@@ -151,7 +163,9 @@ Deno.test("invokeAll sums totalSpentUsdc across successful calls", async () => {
       labels: 0.002,
       onchain_history: 0.0007,
     };
-    return Promise.resolve(okOutcome(s.category, { ok: true }, amounts[s.category]));
+    return Promise.resolve(
+      okOutcome(s.category, { ok: true }, amounts[s.category]),
+    );
   };
   const r = await invokeAll(plan(services), "base", { invoker });
   assertEquals(Math.abs(r.totalSpentUsdc - 0.0037) < 1e-9, true);
@@ -180,7 +194,9 @@ Deno.test("invokeAll proceeds when sanctions is absent from plan", async () => {
 
 Deno.test("invokeAll skips same-host alternates after domain-level error", async () => {
   // Primary + 2 alternates all on the same host.
-  const services = [svc("onchain_history", "https://orbisapi.com/proxy/v1/main")];
+  const services = [
+    svc("onchain_history", "https://orbisapi.com/proxy/v1/main"),
+  ];
   const planWithAlts: DiscoveryPlan = {
     ...plan(services),
     alternates: {
@@ -216,7 +232,9 @@ Deno.test("invokeAll skips same-host alternates after domain-level error", async
   };
   await invokeAll(planFull, "base", {
     invoker: (s) => {
-      if (s.category === "sanctions") return Promise.resolve(okOutcome("sanctions", { ok: true }));
+      if (s.category === "sanctions") {
+        return Promise.resolve(okOutcome("sanctions", { ok: true }));
+      }
       return invoker(s);
     },
     disableViemFallback: true,
@@ -227,7 +245,9 @@ Deno.test("invokeAll skips same-host alternates after domain-level error", async
 });
 
 Deno.test("invokeAll still tries different-host alternates after domain-level error", async () => {
-  const services = [svc("onchain_history", "https://orbisapi.com/proxy/v1/main")];
+  const services = [
+    svc("onchain_history", "https://orbisapi.com/proxy/v1/main"),
+  ];
   const planWithAlts: DiscoveryPlan = {
     ...plan([svc("sanctions", "https://sanc.example"), ...services]),
     alternates: {
@@ -240,7 +260,9 @@ Deno.test("invokeAll still tries different-host alternates after domain-level er
   const calls: string[] = [];
   const invoker = (s: RankedService) => {
     calls.push(s.resource);
-    if (s.category === "sanctions") return Promise.resolve(okOutcome("sanctions", { ok: true }));
+    if (s.category === "sanctions") {
+      return Promise.resolve(okOutcome("sanctions", { ok: true }));
+    }
     if (s.resource.includes("other-provider")) {
       return Promise.resolve(okOutcome("onchain_history", { txCount: 5 }));
     }
@@ -281,7 +303,7 @@ Deno.test("invokeAll records ok in the health store on success", async () => {
     await invokeAll(plan(services), "base", {
       invoker: (s) => Promise.resolve(okOutcome(s.category, { ok: true })),
     });
-    const health = readHealth();
+    const health = await readHealth();
     assertEquals(health["https://sanc.example"]?.ok, 1);
     assertEquals(health["https://sanc.example"]?.err ?? 0, 0);
   });
@@ -294,8 +316,12 @@ Deno.test("invokeAll runs viem fallback when onchain_history x402 fails on eth",
       svc("onchain_history", "https://dead-onchain.example"),
     ];
     const invoker = (s: RankedService) => {
-      if (s.category === "sanctions") return Promise.resolve(okOutcome("sanctions", { ok: true }));
-      return Promise.resolve(errorOutcome("onchain_history", "Target API is not X402 enabled"));
+      if (s.category === "sanctions") {
+        return Promise.resolve(okOutcome("sanctions", { ok: true }));
+      }
+      return Promise.resolve(
+        errorOutcome("onchain_history", "Target API is not X402 enabled"),
+      );
     };
     let viemCalled = false;
     const r = await invokeAll(plan(services), "eth", {
@@ -316,7 +342,10 @@ Deno.test("invokeAll runs viem fallback when onchain_history x402 fails on eth",
     });
     assertEquals(viemCalled, true);
     assertEquals(r.findings.onchain_history !== undefined, true);
-    const data = r.findings.onchain_history as { source: string; txCount: number };
+    const data = r.findings.onchain_history as {
+      source: string;
+      txCount: number;
+    };
     assertEquals(data.source, "viem");
     assertEquals(data.txCount, 17);
     // onchain_history should no longer be in unresolved.
@@ -379,7 +408,7 @@ Deno.test("invokeAll records err in the health store on failure", async () => {
           : errorOutcome("labels", "Bad Request"),
       );
     await invokeAll(plan(services), "base", { invoker });
-    const health = readHealth();
+    const health = await readHealth();
     assertEquals(health["https://sanc-ok.example"]?.ok, 1);
     assertEquals(health["https://labels-fail.example"]?.err, 1);
     assertEquals(
@@ -412,10 +441,13 @@ Deno.test("invokeAll onEvent emits service start/ok per resolved category", asyn
   assertEquals(svcEvents.length, 4);
   // sanctions
   const sancStart = svcEvents.find(
-    (e) => e.type === "service" && e.category === "sanctions" && e.status === "start",
+    (e) =>
+      e.type === "service" && e.category === "sanctions" &&
+      e.status === "start",
   );
   const sancOk = svcEvents.find(
-    (e) => e.type === "service" && e.category === "sanctions" && e.status === "ok",
+    (e) =>
+      e.type === "service" && e.category === "sanctions" && e.status === "ok",
   );
   assertEquals(sancStart !== undefined, true);
   assertEquals(sancOk !== undefined, true);
@@ -437,7 +469,9 @@ Deno.test("invokeAll onEvent emits service fallback when primary errors and alte
   };
   const events: VerifyEvent[] = [];
   const invoker = (s: RankedService) => {
-    if (s.category === "sanctions") return Promise.resolve(okOutcome("sanctions", { ok: true }));
+    if (s.category === "sanctions") {
+      return Promise.resolve(okOutcome("sanctions", { ok: true }));
+    }
     if (s.resource.includes("primary-host")) {
       return Promise.resolve(errorOutcome("labels", "Bad Request"));
     }
@@ -499,7 +533,9 @@ Deno.test("invokeAll records empty-on-rich-history when labeler returns nothing 
           adapterPath: "pattern" as const,
         });
       }
-      return Promise.resolve(okOutcome("sanctions", { sanctions_match: false }));
+      return Promise.resolve(
+        okOutcome("sanctions", { sanctions_match: false }),
+      );
     };
     // Record 3 times to trigger quality demotion.
     for (let i = 0; i < 3; i++) {
@@ -508,7 +544,7 @@ Deno.test("invokeAll records empty-on-rich-history when labeler returns nothing 
         disableViemFallback: true,
       });
     }
-    assertEquals(isQualityDemoted(labelsResource), true);
+    assertEquals(await isQualityDemoted(labelsResource), true);
   });
 });
 
@@ -547,7 +583,9 @@ Deno.test("invokeAll does NOT record empty-on-rich when wallet history is sparse
           adapterPath: "pattern" as const,
         });
       }
-      return Promise.resolve(okOutcome("sanctions", { sanctions_match: false }));
+      return Promise.resolve(
+        okOutcome("sanctions", { sanctions_match: false }),
+      );
     };
     for (let i = 0; i < 5; i++) {
       await invokeAll(plan(services), "base", {
@@ -556,7 +594,7 @@ Deno.test("invokeAll does NOT record empty-on-rich when wallet history is sparse
       });
     }
     // Empty labels on a brand-new wallet ≠ a quality miss.
-    assertEquals(isQualityDemoted(labelsResource), false);
+    assertEquals(await isQualityDemoted(labelsResource), false);
   });
 });
 
@@ -576,7 +614,9 @@ Deno.test("invokeAll resets empty-on-rich counter when labels returns a real att
           category: "labels" as const,
           resource: labelsResource,
           // First 3 calls: empty; 4th: real attribution.
-          data: attempt < 4 ? { tags: [] } : { entity: "Binance", tags: ["exchange"] },
+          data: attempt < 4
+            ? { tags: [] }
+            : { entity: "Binance", tags: ["exchange"] },
           status: "ok" as const,
           amountUsdc: 0.001,
           durationMs: 5,
@@ -598,7 +638,9 @@ Deno.test("invokeAll resets empty-on-rich counter when labels returns a real att
           adapterPath: "pattern" as const,
         });
       }
-      return Promise.resolve(okOutcome("sanctions", { sanctions_match: false }));
+      return Promise.resolve(
+        okOutcome("sanctions", { sanctions_match: false }),
+      );
     };
     for (let i = 0; i < 3; i++) {
       await invokeAll(plan(services), "base", {
@@ -606,13 +648,13 @@ Deno.test("invokeAll resets empty-on-rich counter when labels returns a real att
         disableViemFallback: true,
       });
     }
-    assertEquals(isQualityDemoted(labelsResource), true);
+    assertEquals(await isQualityDemoted(labelsResource), true);
     // 4th call returns real attribution — counter resets.
     await invokeAll(plan(services), "base", {
       invoker,
       disableViemFallback: true,
     });
-    assertEquals(isQualityDemoted(labelsResource), false);
-    assertEquals(readHealth()[labelsResource]?.emptyOnRich, 0);
+    assertEquals(await isQualityDemoted(labelsResource), false);
+    assertEquals((await readHealth())[labelsResource]?.emptyOnRich, 0);
   });
 });
