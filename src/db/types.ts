@@ -36,7 +36,8 @@ export interface UsageEventRow {
   created_at: Date;
 }
 
-/** service_registry — curated x402 catalog (W0.2). */
+/** service_registry — curated x402 catalog (W0.2). score and last_vetted_at
+ * added in 0002_service_registry_score.sql. */
 export interface ServiceRegistryRow {
   id: string;
   resource: string;
@@ -45,6 +46,8 @@ export interface ServiceRegistryRow {
   rationale: string | null;
   status: string;
   source: string | null;
+  score: string;
+  last_vetted_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }
