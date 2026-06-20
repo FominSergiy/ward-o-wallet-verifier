@@ -19,6 +19,43 @@ import type { Category, Chain } from "./types.ts";
 import { type EventEmitter, now, safeEmit } from "./events.ts";
 import { recordServiceObservation } from "../observability/observations.ts";
 
+const DEFAULT_INVOKE_TIMEOUT_MS = parseInt(
+  Deno.env.get("INVOKE_TIMEOUT_MS") ?? "2000",
+  10,
+);
+
+function withInvokeTimeout(
+  promise: Promise<ServiceInvocationOutcome>,
+  timeoutMs: number,
+  svc: RankedService,
+): Promise<ServiceInvocationOutcome> {
+  let timerId: ReturnType<typeof setTimeout>;
+  const timeoutP = new Promise<ServiceInvocationOutcome>((resolve) => {
+    timerId = setTimeout(
+      () =>
+        resolve({
+          category: svc.category,
+          resource: svc.resource,
+          data: null,
+          status: "error",
+          error: `per-call timeout after ${timeoutMs}ms`,
+          amountUsdc: 0,
+          durationMs: timeoutMs,
+          paid: false,
+          network: null,
+          adapterPath: "pattern",
+        }),
+      timeoutMs,
+    );
+  });
+  // When the invoker settles first, clear the pending timer so it doesn't
+  // register as a leaked async resource in Deno's test runner.
+  return Promise.race([
+    promise.finally(() => clearTimeout(timerId!)),
+    timeoutP,
+  ]);
+}
+
 const VIEM_SUPPORTED_CHAINS: Chain[] = [
   "eth",
   "base",
@@ -150,6 +187,8 @@ export interface InvokeAllOpts {
   disableViemFallback?: boolean;
   onEvent?: EventEmitter;
   request_id?: string;
+  // Per-call timeout in ms. Defaults to INVOKE_TIMEOUT_MS env (2000ms).
+  timeoutMs?: number;
 }
 
 async function invokeWithAlternates(
@@ -161,6 +200,7 @@ async function invokeWithAlternates(
   llm?: LlmClient,
   emit?: EventEmitter,
   request_id = "",
+  timeoutMs = DEFAULT_INVOKE_TIMEOUT_MS,
 ): Promise<ServiceInvocationOutcome> {
   const candidates = [
     primary,
@@ -189,7 +229,11 @@ async function invokeWithAlternates(
       cost_usd: null,
       at: now(),
     });
-    const outcome = await invoker(svc, address, chain, { llm });
+    const outcome = await withInvokeTimeout(
+      invoker(svc, address, chain, { llm }),
+      timeoutMs,
+      svc,
+    );
     // Update health stats so future rerank calls can weight this service.
     if (outcome.status === "ok" || outcome.status === "fallback_ok") {
       await recordOk(svc.resource);
@@ -257,6 +301,7 @@ export async function invokeAll(
   const viemEnabled = !opts.disableViemFallback;
   const emit = opts.onEvent;
   const request_id = opts.request_id ?? "";
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_INVOKE_TIMEOUT_MS;
 
   const outcomes = await Promise.all(
     plan.services.map((s) =>
@@ -269,6 +314,7 @@ export async function invokeAll(
         opts.llm,
         emit,
         request_id,
+        timeoutMs,
       )
     ),
   );

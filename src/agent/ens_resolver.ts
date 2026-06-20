@@ -25,6 +25,12 @@ import {
 } from "viem";
 import { mainnet } from "viem/chains";
 import type { Chain } from "./types.ts";
+import { getKv, type KvStore } from "../cache/kv.ts";
+
+const ENS_CACHE_TTL_MS = parseInt(
+  Deno.env.get("ENS_CACHE_TTL_MS") ?? "86400000",
+  10,
+);
 
 // viem's getEnsName uses the Universal Resolver with CCIP-read batch gateways.
 // Cloudflare-eth.com returns "Internal error" for this call, so we default to
@@ -48,6 +54,8 @@ export interface ResolveEnsOpts {
   client?: PublicClient;
   /** Inject only the transport — useful when tests stub HTTP responses. */
   transport?: Transport;
+  /** KV store override for tests (skips the global singleton). */
+  cache?: KvStore;
 }
 
 // ENS reverse resolution is a property of Ethereum mainnet. L2s like Base,
@@ -73,6 +81,11 @@ export async function resolveEns(
     };
   }
 
+  const cache = opts.cache ?? await getKv();
+  const cacheKey = `ens:${address.toLowerCase()}:${chain}`;
+  const cached = await cache.get<EnsResolution>(cacheKey);
+  if (cached) return cached;
+
   // deno-lint-ignore no-explicit-any
   const client: PublicClient = (opts.client ?? createPublicClient({
     chain: mainnet,
@@ -81,7 +94,7 @@ export async function resolveEns(
 
   const ensName = await client.getEnsName({ address: address as Address });
 
-  return {
+  const result: EnsResolution = {
     source: "viem_ens",
     chain,
     address,
@@ -89,4 +102,7 @@ export async function resolveEns(
     rpcUrl: ETH_RPC_URL,
     checkedAt: new Date().toISOString(),
   };
+
+  await cache.set(cacheKey, result, ENS_CACHE_TTL_MS);
+  return result;
 }
