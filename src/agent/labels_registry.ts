@@ -17,9 +17,15 @@
 //     and the caller swallows. Self-discovery still produces a verdict.
 
 import type { Chain } from "./types.ts";
+import { getKv, type KvStore } from "../cache/kv.ts";
 
 export const ETH_LABELS_BASE_URL = "https://eth-labels.com";
 const DEFAULT_TIMEOUT_MS = 5_000;
+
+const ETH_LABELS_CACHE_TTL_MS = parseInt(
+  Deno.env.get("ETH_LABELS_CACHE_TTL_MS") ?? "86400000",
+  10,
+);
 
 export interface RegistryLabel {
   address: string;
@@ -47,6 +53,8 @@ export class LabelsRegistryError extends Error {
 export interface FetchLabelsRegistryOpts {
   fetcher?: typeof fetch;
   timeoutMs?: number;
+  /** KV store override for tests (skips the global singleton). */
+  cache?: KvStore;
 }
 
 export async function fetchLabelsRegistry(
@@ -54,6 +62,11 @@ export async function fetchLabelsRegistry(
   chain: Chain,
   opts: FetchLabelsRegistryOpts = {},
 ): Promise<RegistryResult> {
+  const cache = opts.cache ?? await getKv();
+  const cacheKey = `eth_labels:${address.toLowerCase()}`;
+  const cached = await cache.get<RegistryResult>(cacheKey);
+  if (cached) return cached;
+
   const fetcher = opts.fetcher ?? fetch;
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const endpoint = `${ETH_LABELS_BASE_URL}/labels/${address}`;
@@ -119,7 +132,7 @@ export async function fetchLabelsRegistry(
     }))
     .filter((entry) => entry.label.length > 0);
 
-  return {
+  const result: RegistryResult = {
     source: "eth_labels_registry",
     endpoint,
     address,
@@ -127,4 +140,7 @@ export async function fetchLabelsRegistry(
     labels,
     checkedAt: new Date().toISOString(),
   };
+
+  await cache.set(cacheKey, result, ETH_LABELS_CACHE_TTL_MS);
+  return result;
 }

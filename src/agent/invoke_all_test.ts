@@ -598,6 +598,30 @@ Deno.test("invokeAll does NOT record empty-on-rich when wallet history is sparse
   });
 });
 
+Deno.test("invokeAll: service that takes longer than timeoutMs is treated as error", async () => {
+  await withTempHealthStore(async () => {
+    const services = [
+      svc("sanctions", "https://sanc.example"),
+      svc("labels", "https://slow.example"),
+    ];
+    // sanctions resolves instantly; labels never resolves (no timer leak) —
+    // the 100ms timeout races it and wins.
+    const invoker = (s: RankedService) => {
+      if (s.category === "sanctions") {
+        return Promise.resolve(okOutcome("sanctions", { ok: true }));
+      }
+      return new Promise<ServiceInvocationOutcome>(() => {});
+    };
+    const r = await invokeAll(plan(services), "base", {
+      invoker,
+      timeoutMs: 100,
+      disableViemFallback: true,
+    });
+    assertEquals(r.unresolved.includes("labels"), true);
+    assertEquals(r.findings.labels, undefined);
+  });
+});
+
 Deno.test("invokeAll resets empty-on-rich counter when labels returns a real attribution", async () => {
   await withTempHealthStore(async () => {
     const labelsResource = "https://lbl.recovering";
