@@ -50,12 +50,13 @@ export function memoryCache(): VerdictCache & {
   }
   return {
     store,
-    async get(chain, address) {
-      return store.get(storeKey(chain, address)) ?? null;
+    get(chain, address) {
+      return Promise.resolve(store.get(storeKey(chain, address)) ?? null);
     },
-    async set(chain, address, verdict) {
-      if (ttlFor(verdict) === null) return;
+    set(chain, address, verdict) {
+      if (ttlFor(verdict) === null) return Promise.resolve();
       store.set(storeKey(chain, address), verdict);
+      return Promise.resolve();
     },
   };
 }
