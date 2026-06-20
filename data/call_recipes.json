@@ -46,7 +46,7 @@
     "query_params": {},
     "pay_to": "0x2bb72231EeD303cc91a462A1fA738b42B6a9ac6d",
     "network": "eip155:8453",
-    "price_usdc": 0.005,
+    "price_usdc": 0.012,
     "snapshotted_at": "2026-06-16T20:15:13.436Z"
   }
 }
