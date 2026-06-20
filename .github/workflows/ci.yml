@@ -29,6 +29,30 @@ jobs:
       - name: Test
         run: deno task test
 
+  migrate:
+    name: Migrate prod DB (Neon main)
+    runs-on: ubuntu-latest
+    # Only after tests pass, and only on a push to main — never on PRs, so PR
+    # branches can't touch the prod database.
+    needs: [backend]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: deno-deploy
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      # Forward-only + idempotent (scripts/migrate.ts tracks applied versions in
+      # schema_migrations), so re-running on every main push is a no-op once the
+      # schema is current. Runs against the prod main-branch pooled endpoint.
+      # DATABASE_URL is stored in the deno-deploy GitHub environment.
+      - name: Apply migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: deno run --allow-net --allow-env --allow-read scripts/migrate.ts
+
   frontend:
     name: Frontend (Vite + React)
     runs-on: ubuntu-latest

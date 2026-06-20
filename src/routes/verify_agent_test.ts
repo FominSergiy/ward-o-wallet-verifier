@@ -11,7 +11,10 @@ function buildApp(): Hono {
 }
 
 // Builds an app whose router uses a stubbed budget fetcher. Lets us test the
-// 503 path without hitting the real Agnic API.
+// 503 path without hitting the real Agnic API. The verify pipeline is stubbed
+// to throw a missing-config error so these hermetic tests exercise the budget
+// guard / schema paths without driving the real pipeline into live oracle/x402
+// network calls (which leak timers/handles under the test sanitizer).
 function buildAppWithBudgetStub(
   budget: AgnicBudget | null | (() => Promise<never>),
 ): Hono {
@@ -20,6 +23,7 @@ function buildAppWithBudgetStub(
     budgetFetcher: typeof budget === "function"
       ? budget
       : () => Promise.resolve(budget),
+    verify: () => Promise.reject(new Error("AGNIC_API_KEY not set")),
   });
   app.route("/verify-agent", router);
   return app;
@@ -121,7 +125,9 @@ Deno.test("POST /verify-agent does not block on budget-fetch failure", async () 
   // A throwing fetcher should be swallowed and the request should proceed.
   Deno.env.set("AGNIC_BUDGET_MIN_USD", "10000");
   try {
-    const app = buildAppWithBudgetStub(() => Promise.reject(new Error("network down")));
+    const app = buildAppWithBudgetStub(() =>
+      Promise.reject(new Error("network down"))
+    );
     const res = await app.request("/verify-agent", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -162,7 +168,9 @@ Deno.test({
     const verdict = WalletVerdictSchema.parse(body.verdict);
     assertEquals(typeof verdict.safe, "boolean");
     assertEquals(
-      ["safe_to_transact", "do_not_transact", "insufficient_data"].includes(verdict.verdict),
+      ["safe_to_transact", "do_not_transact", "insufficient_data"].includes(
+        verdict.verdict,
+      ),
       true,
     );
     assertEquals(verdict.coverage.resolved.length >= 1, true);

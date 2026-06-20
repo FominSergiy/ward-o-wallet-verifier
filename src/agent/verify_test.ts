@@ -133,7 +133,7 @@ Deno.test("verifyAgent returns stub verdict + receipts when synthesis throws", a
     {
       _testHooks: {
         checkSanctionsOracle: cleanOracleFn(),
-        discover: () => Promise.resolve(fakePlan()),
+        selectFromRegistry: () => Promise.resolve(fakePlan()),
         // deno-lint-ignore no-explicit-any
         invokeAll: () => Promise.resolve(fakeInvocation() as any),
         synthesizeVerdict: () =>
@@ -159,7 +159,7 @@ Deno.test("verifyAgent onEvent emits phase boundaries and plan event for happy p
       onEvent: (e) => events.push(e),
       _testHooks: {
         checkSanctionsOracle: cleanOracleFn(),
-        discover: () => Promise.resolve(fakePlan()),
+        selectFromRegistry: () => Promise.resolve(fakePlan()),
         // deno-lint-ignore no-explicit-any
         invokeAll: () => Promise.resolve(fakeInvocation() as any),
         synthesizeVerdict: () => Promise.resolve(fakeVerdict()),
@@ -198,7 +198,7 @@ Deno.test("verifyAgent fans out oracle: emits one service event per supported ch
       _testHooks: {
         checkSanctionsOracle: cleanOracleFn(),
         resolveEns: ensNull(),
-        discover: () => Promise.resolve(fakePlan()),
+        selectFromRegistry: () => Promise.resolve(fakePlan()),
         // deno-lint-ignore no-explicit-any
         invokeAll: () => Promise.resolve(fakeInvocation() as any),
         synthesizeVerdict: () => Promise.resolve(fakeVerdict()),
@@ -229,7 +229,7 @@ Deno.test("verifyAgent onEvent emits log:error then phase:synthesize:end on synt
       onEvent: (e) => events.push(e),
       _testHooks: {
         checkSanctionsOracle: cleanOracleFn(),
-        discover: () => Promise.resolve(fakePlan()),
+        selectFromRegistry: () => Promise.resolve(fakePlan()),
         // deno-lint-ignore no-explicit-any
         invokeAll: () => Promise.resolve(fakeInvocation() as any),
         synthesizeVerdict: () => Promise.reject(new Error("Opus 500")),
@@ -252,15 +252,15 @@ Deno.test("verifyAgent onEvent emits log:error then phase:synthesize:end on synt
 });
 
 Deno.test("verifyAgent does not include contract_analysis in plan, discovery, or coverage", async () => {
-  let categoriesPassedToDiscover: string[] = [];
+  let categoriesPassedToSelect: string[] = [];
   let coveragePassedToSynthesize: unknown = null;
   await verifyAgent(
     { address: "0xABC0000000000000000000000000000000000123" },
     {
       _testHooks: {
         checkSanctionsOracle: cleanOracleFn(),
-        discover: (_addr, categories) => {
-          categoriesPassedToDiscover = [...categories];
+        selectFromRegistry: (_addr, categories) => {
+          categoriesPassedToSelect = [...categories];
           return Promise.resolve(fakePlan());
         },
         // deno-lint-ignore no-explicit-any
@@ -272,7 +272,7 @@ Deno.test("verifyAgent does not include contract_analysis in plan, discovery, or
       },
     },
   );
-  assertEquals(categoriesPassedToDiscover.includes("contract_analysis"), false);
+  assertEquals(categoriesPassedToSelect.includes("contract_analysis"), false);
   const cov = coveragePassedToSynthesize as {
     requested: string[];
     not_applicable?: string[];
@@ -282,7 +282,7 @@ Deno.test("verifyAgent does not include contract_analysis in plan, discovery, or
 });
 
 Deno.test("verifyAgent short-circuits when oracle flags address on any chain (eth-only hit)", async () => {
-  let discoverCalled = false;
+  let selectCalled = false;
   let invokeCalled = false;
   let synthesizeCalled = false;
   const r = await verifyAgent(
@@ -293,8 +293,8 @@ Deno.test("verifyAgent short-circuits when oracle flags address on any chain (et
         // oracle deployment. Old single-chain code (chain="base") would have
         // missed it. The new fan-out must still catch it.
         checkSanctionsOracle: oracleSanctionedOn("eth"),
-        discover: () => {
-          discoverCalled = true;
+        selectFromRegistry: () => {
+          selectCalled = true;
           return Promise.resolve(fakePlan());
         },
         // deno-lint-ignore no-explicit-any
@@ -309,7 +309,7 @@ Deno.test("verifyAgent short-circuits when oracle flags address on any chain (et
       },
     },
   );
-  assertEquals(discoverCalled, false);
+  assertEquals(selectCalled, false);
   assertEquals(invokeCalled, false);
   assertEquals(synthesizeCalled, false);
   assertEquals(r.verdict.verdict, "do_not_transact");
@@ -332,7 +332,7 @@ Deno.test("verifyAgent merges oracle-clean result into findings.sanctions for sy
       _testHooks: {
         checkSanctionsOracle: cleanOracleFn(),
         resolveEns: ensNull(),
-        discover: () => Promise.resolve(fakePlan()),
+        selectFromRegistry: () => Promise.resolve(fakePlan()),
         // deno-lint-ignore no-explicit-any
         invokeAll: () => Promise.resolve(fakeInvocation() as any),
         synthesizeVerdict: (input) => {
@@ -348,7 +348,7 @@ Deno.test("verifyAgent merges oracle-clean result into findings.sanctions for sy
 });
 
 Deno.test("verifyAgent proceeds normally when every oracle chain throws", async () => {
-  let discoverCalled = false;
+  let selectCalled = false;
   const r = await verifyAgent(
     { address: "0xABC0000000000000000000000000000000000123" },
     {
@@ -356,8 +356,8 @@ Deno.test("verifyAgent proceeds normally when every oracle chain throws", async 
         checkSanctionsOracle: () =>
           Promise.reject(new Error("RPC timeout — oracle unavailable")),
         resolveEns: ensNull(),
-        discover: () => {
-          discoverCalled = true;
+        selectFromRegistry: () => {
+          selectCalled = true;
           return Promise.resolve(fakePlan());
         },
         // deno-lint-ignore no-explicit-any
@@ -366,7 +366,7 @@ Deno.test("verifyAgent proceeds normally when every oracle chain throws", async 
       },
     },
   );
-  assertEquals(discoverCalled, true);
+  assertEquals(selectCalled, true);
   assertEquals(r.verdict.verdict, "safe_to_transact");
 });
 
@@ -380,7 +380,7 @@ Deno.test("verifyAgent calls ENS resolver and merges result into findings", asyn
       _testHooks: {
         checkSanctionsOracle: cleanOracleFn(),
         resolveEns: ensHit("vitalik.eth"),
-        discover: () => Promise.resolve(fakePlan()),
+        selectFromRegistry: () => Promise.resolve(fakePlan()),
         // deno-lint-ignore no-explicit-any
         invokeAll: () => Promise.resolve(fakeInvocation() as any),
         synthesizeVerdict: (input) => {
@@ -440,7 +440,7 @@ Deno.test("verifyAgent emits ens_resolve log with no_primary_name when ENS retur
       _testHooks: {
         checkSanctionsOracle: cleanOracleFn(),
         resolveEns: ensNull(),
-        discover: () => Promise.resolve(fakePlan()),
+        selectFromRegistry: () => Promise.resolve(fakePlan()),
         // deno-lint-ignore no-explicit-any
         invokeAll: () => Promise.resolve(fakeInvocation() as any),
         synthesizeVerdict: () => Promise.resolve(fakeVerdict()),
@@ -475,7 +475,7 @@ Deno.test("verifyAgent emits ens service error + log with underlying RPC message
       _testHooks: {
         checkSanctionsOracle: cleanOracleFn(),
         resolveEns: () => Promise.reject(new Error("ENS RPC went sideways")),
-        discover: () => Promise.resolve(fakePlan()),
+        selectFromRegistry: () => Promise.resolve(fakePlan()),
         // deno-lint-ignore no-explicit-any
         invokeAll: () => Promise.resolve(fakeInvocation() as any),
         synthesizeVerdict: () => Promise.resolve(fakeVerdict()),
@@ -511,7 +511,7 @@ Deno.test("verifyAgent treats ENS resolver failure as silent (no verdict impact)
       _testHooks: {
         checkSanctionsOracle: cleanOracleFn(),
         resolveEns: () => Promise.reject(new Error("ENS RPC blew up")),
-        discover: () => Promise.resolve(fakePlan()),
+        selectFromRegistry: () => Promise.resolve(fakePlan()),
         // deno-lint-ignore no-explicit-any
         invokeAll: () => Promise.resolve(fakeInvocation() as any),
         synthesizeVerdict: (input) => {
@@ -555,7 +555,7 @@ Deno.test("registry_merges_into_findings_labels_when_x402_succeeds", async () =>
             nameTag: "Coinbase 1",
           },
         ]),
-        discover: () => Promise.resolve(fakePlan()),
+        selectFromRegistry: () => Promise.resolve(fakePlan()),
         invokeAll: () =>
           Promise.resolve({
             findings: { labels: { some_x402_payload: true } },
@@ -597,7 +597,7 @@ Deno.test("registry_rescues_labels_when_x402_fails", async () => {
             nameTag: "Coinbase 1",
           },
         ]),
-        discover: () => Promise.resolve(fakePlan()),
+        selectFromRegistry: () => Promise.resolve(fakePlan()),
         invokeAll: () =>
           Promise.resolve({
             findings: {},
@@ -639,7 +639,7 @@ Deno.test("registry_failure_is_swallowed_and_does_not_block_verdict", async () =
         resolveEns: ensNull(),
         fetchLabelsRegistry: () =>
           Promise.reject(new Error("eth-labels DNS failure")),
-        discover: () => Promise.resolve(fakePlan()),
+        selectFromRegistry: () => Promise.resolve(fakePlan()),
         invokeAll: () =>
           Promise.resolve({
             findings: { labels: { some_x402_payload: true } },
@@ -682,7 +682,7 @@ Deno.test("registry_skipped_when_labels_category_not_requested", async () => {
             checkedAt: new Date().toISOString(),
           });
         },
-        discover: () => Promise.resolve(fakePlan()),
+        selectFromRegistry: () => Promise.resolve(fakePlan()),
         // deno-lint-ignore no-explicit-any
         invokeAll: () => Promise.resolve(fakeInvocation() as any),
         synthesizeVerdict: () => Promise.resolve(fakeVerdict()),
@@ -703,7 +703,7 @@ Deno.test("verifyAgent onEvent thrown by consumer does not crash verifyAgent", a
       },
       _testHooks: {
         checkSanctionsOracle: cleanOracleFn(),
-        discover: () => Promise.resolve(fakePlan()),
+        selectFromRegistry: () => Promise.resolve(fakePlan()),
         // deno-lint-ignore no-explicit-any
         invokeAll: () => Promise.resolve(fakeInvocation() as any),
         synthesizeVerdict: () => Promise.resolve(fakeVerdict()),

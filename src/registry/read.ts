@@ -43,11 +43,26 @@ export async function getActiveServices(
  * Throws if no matching entry is found.
  */
 export async function getRecipe(service_id: string): Promise<CallRecipe> {
-  const raw = await Deno.readTextFile(RECIPES_PATH);
-  const all = JSON.parse(raw) as Record<string, unknown>;
+  const all = await loadAllRecipes();
   const entry = all[service_id];
   if (entry == null) {
     throw new Error(`no recipe found for service_id: ${service_id}`);
   }
-  return CallRecipeSchema.parse(entry);
+  return entry;
+}
+
+/**
+ * Loads and validates every recipe in call_recipes.json, keyed by service_id.
+ * This is the offline source of call shapes used by selectFromRegistry — it
+ * needs no DB or network, so the registry hot path (and replay tests) work
+ * even when DATABASE_URL is unset.
+ */
+export async function loadAllRecipes(): Promise<Record<string, CallRecipe>> {
+  const raw = await Deno.readTextFile(RECIPES_PATH);
+  const all = JSON.parse(raw) as Record<string, unknown>;
+  const out: Record<string, CallRecipe> = {};
+  for (const [id, entry] of Object.entries(all)) {
+    out[id] = CallRecipeSchema.parse(entry);
+  }
+  return out;
 }

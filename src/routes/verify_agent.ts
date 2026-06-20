@@ -28,6 +28,12 @@ function budgetThreshold(): number {
 export interface VerifyAgentRouterOpts {
   /** Test seam for the pre-flight budget fetcher. Defaults to fetchAgnicBudget. */
   budgetFetcher?: () => Promise<AgnicBudget | null>;
+  /**
+   * Test seam for the verify pipeline. Defaults to the real verifyAgent.
+   * Used by hermetic route tests so they can exercise the budget-guard / schema
+   * paths without driving the full pipeline into real oracle/x402 network calls.
+   */
+  verify?: typeof verifyAgent;
 }
 
 export function createVerifyAgentRouter(
@@ -35,6 +41,7 @@ export function createVerifyAgentRouter(
 ): Hono {
   const router = new Hono();
   const fetchBudget = opts.budgetFetcher ?? (() => fetchAgnicBudget());
+  const runVerify = opts.verify ?? verifyAgent;
 
   router.post("/", zValidator("json", VerifyAgentRequestSchema), async (c) => {
     const { budgetCeiling, ...req } = c.req.valid("json");
@@ -66,7 +73,7 @@ export function createVerifyAgentRouter(
     }
 
     try {
-      const result = await verifyAgent(req, {
+      const result = await runVerify(req, {
         budgetCeiling,
         request_id: crypto.randomUUID(),
       });
