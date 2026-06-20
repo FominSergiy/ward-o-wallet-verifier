@@ -14,18 +14,19 @@ class MemoryKv implements KvStore {
     { value: unknown; expiresAt: number }
   >();
 
-  async get<T>(key: string): Promise<T | null> {
+  get<T>(key: string): Promise<T | null> {
     const entry = this.store.get(key);
-    if (!entry) return null;
+    if (!entry) return Promise.resolve(null);
     if (Date.now() > entry.expiresAt) {
       this.store.delete(key);
-      return null;
+      return Promise.resolve(null);
     }
-    return entry.value as T;
+    return Promise.resolve(entry.value as T);
   }
 
-  async set<T>(key: string, value: T, ttlMs: number): Promise<void> {
+  set<T>(key: string, value: T, ttlMs: number): Promise<void> {
     this.store.set(key, { value, expiresAt: Date.now() + ttlMs });
+    return Promise.resolve();
   }
 }
 

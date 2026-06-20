@@ -138,6 +138,33 @@ Deno.test("selectFromRegistry: reconstructs invocation call shape from recipe", 
   assertEquals(svc.inputInfo?.queryParams, { wallet: "0xexample" });
 });
 
+Deno.test(
+  "selectFromRegistry: blocked service never appears regardless of score",
+  async () => {
+    const plan = await selectFromRegistry("0xabc", ["sanctions"], {
+      loadRecipes: () => Promise.resolve(RECIPES),
+      // sanc2 is blocked but has a higher score — must be excluded.
+      // sanc1 is active at a lower score — must be the primary.
+      getActive: () =>
+        Promise.resolve([
+          {
+            ...entry(
+              "sanc2",
+              "sanctions",
+              "https://sanc-b.example/screen",
+              0.95,
+            ),
+            status: "blocked",
+          },
+          entry("sanc1", "sanctions", "https://sanc-a.example/screen", 0.42),
+        ]),
+    });
+
+    assertEquals(plan.services.length, 1);
+    assertEquals(plan.services[0].resource, "https://sanc-a.example/screen");
+  },
+);
+
 Deno.test("selectFromRegistry: never invokes searchDiscovery (Bazaar)", async () => {
   // Guard the architectural invariant: a registry selection must not reach
   // through to the Bazaar discovery client. We stub globalThis.fetch to throw

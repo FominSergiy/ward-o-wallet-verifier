@@ -151,12 +151,14 @@ Deno.test("labels_registry: cache returns stored result on second call", async (
   const fixture = [
     { address: "0xCEX", chainId: 1, label: "exchange", nameTag: "Binance" },
   ];
-  const countingFetcher = (async () => {
+  const countingFetcher = (() => {
     fetchCount++;
-    return new Response(JSON.stringify(fixture), {
-      status: 200,
-      headers: { "content-type": "application/json" },
-    });
+    return Promise.resolve(
+      new Response(JSON.stringify(fixture), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
   }) as unknown as typeof fetch;
 
   const addr = "0xCEX000000000000000000000000000000000000A";

@@ -76,9 +76,10 @@ Deno.test("resolveEns: second call for same address hits cache, no extra network
   const cache: KvStore = (() => {
     const store = new Map<string, unknown>();
     return {
-      get: async <T>(key: string) => (store.get(key) as T) ?? null,
-      set: async <T>(key: string, value: T) => {
+      get: <T>(key: string) => Promise.resolve((store.get(key) as T) ?? null),
+      set: <T>(key: string, value: T) => {
         store.set(key, value);
+        return Promise.resolve();
       },
     };
   })();

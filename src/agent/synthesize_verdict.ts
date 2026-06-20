@@ -1,9 +1,34 @@
 import { defaultLlm, type LlmClient } from "./llm.ts";
-import { WalletVerdictSchema, type WalletVerdict } from "./verdict.ts";
+import { type WalletVerdict, WalletVerdictSchema } from "./verdict.ts";
 import type { Category, Chain } from "./types.ts";
 import type { Findings } from "./invoke_all.ts";
 
-const OPUS_MODEL = Deno.env.get("SYNTHESIS_MODEL") ?? "anthropic/claude-opus-4.7";
+// Fast default — used for unambiguous wallets (clear signals, no risk keywords).
+const HAIKU_MODEL = "anthropic/claude-haiku-4.5";
+// Heavy fallback — used when signals conflict, coverage is thin, or risk
+// keywords appear in findings. Env override applies to this model only so
+// operators can pin a specific Opus release without changing the Haiku path.
+const OPUS_MODEL = Deno.env.get("SYNTHESIS_MODEL") ??
+  "anthropic/claude-opus-4.7";
+
+// Keywords in findings JSON that indicate conflicting or risky signals.
+// Haiku can mis-weigh these — Opus handles the ambiguous judgment better.
+const RISK_KEYWORDS = [
+  "tornado",
+  "scam",
+  "mixer",
+  "tumbler",
+  "darknet",
+  "phishing",
+  "hacker",
+  "exploit",
+  "rugpull",
+  "fraud",
+  "malicious",
+  "criminal",
+  "blocked",
+  "ofac-sanctions", // more specific than "ofac" to avoid matching "isSanctioned:false"
+];
 
 // Placeholder values for the tool-call example. Opus produces more reliable
 // structured output when shown a concrete schema-conforming example.
@@ -44,6 +69,33 @@ export interface SynthesisInput {
     not_applicable?: Category[];
   };
   totalSpentUsdc: number;
+}
+
+// Route to Opus when inputs are ambiguous; Haiku otherwise.
+// Called once per synthesis request — the returned model string is passed to
+// llm.generateStructured unless the caller provides an explicit model override.
+export function selectSynthesisModel(input: SynthesisInput): string {
+  const { requested, resolved } = input.coverage;
+
+  // (b) Coverage < 50% — too few categories resolved to trust a light model.
+  if (requested.length > 0 && resolved.length < requested.length / 2) {
+    return OPUS_MODEL;
+  }
+
+  // (c) Extremely thin signal — ≤1 category means confidence would be "low".
+  if (resolved.length <= 1) {
+    return OPUS_MODEL;
+  }
+
+  // (a) Conflicting signals — risk keywords present despite passing oracle.
+  // Reaching here means oracle didn't veto, so a risk keyword in the findings
+  // is evidence of mixed/conflicting signals that Haiku may mis-weigh.
+  const findingsJson = JSON.stringify(input.findings).toLowerCase();
+  if (RISK_KEYWORDS.some((k) => findingsJson.includes(k))) {
+    return OPUS_MODEL;
+  }
+
+  return HAIKU_MODEL;
 }
 
 const PROMPT_PREAMBLE = `
@@ -132,7 +184,7 @@ export async function synthesizeVerdict(
   opts: { llm?: LlmClient; model?: string } = {},
 ): Promise<WalletVerdict> {
   const llm = opts.llm ?? defaultLlm;
-  const model = opts.model ?? OPUS_MODEL;
+  const model = opts.model ?? selectSynthesisModel(input);
 
   const safeInput = { ...input, findings: truncateFindings(input.findings) };
 
@@ -141,7 +193,9 @@ export async function synthesizeVerdict(
 Input:
 ${JSON.stringify(safeInput, null, 2)}
 
-The current ISO 8601 timestamp to use for generatedAt is: ${new Date().toISOString()}
+The current ISO 8601 timestamp to use for generatedAt is: ${
+    new Date().toISOString()
+  }
 `.trim();
 
   return await llm.generateStructured(WalletVerdictSchema, prompt, {
