@@ -1,7 +1,7 @@
 import type { VerifyRequest } from "./types.ts";
 import type { LlmClient } from "./llm.ts";
 import type { Category, Chain } from "./types.ts";
-import { discover } from "../discovery/discover.ts";
+import { selectFromRegistry } from "../registry/select.ts";
 import { invokeAll } from "./invoke_all.ts";
 import { synthesizeVerdict } from "./synthesize_verdict.ts";
 import type { WalletVerdict } from "./verdict.ts";
@@ -55,7 +55,7 @@ export interface VerifyAgentOpts {
   // collaborators. Real callers leave undefined and the default
   // implementations are used.
   _testHooks?: {
-    discover?: typeof discover;
+    selectFromRegistry?: typeof selectFromRegistry;
     invokeAll?: typeof invokeAll;
     synthesizeVerdict?: typeof synthesizeVerdict;
     checkSanctionsOracle?: typeof checkSanctionsOracle;
@@ -309,7 +309,7 @@ export async function verifyAgent(
   const llm = opts.llm;
   const emit = opts.onEvent;
   const hooks = opts._testHooks ?? {};
-  const discoverFn = hooks.discover ?? discover;
+  const selectFn = hooks.selectFromRegistry ?? selectFromRegistry;
   const invokeAllFn = hooks.invokeAll ?? invokeAll;
   const synthesizeFn = hooks.synthesizeVerdict ?? synthesizeVerdict;
   const oracleCheckFn = hooks.checkSanctionsOracle ?? checkSanctionsOracle;
@@ -393,7 +393,11 @@ export async function verifyAgent(
     duration_ms: 0,
     at: now(),
   });
-  const plan = await discoverFn(req.address, categories, {
+  // HOT-PATH SWAP (W0.4): the request path reads the curated service_registry
+  // instead of fanning out to Bazaar + LLM rerank. discover() is preserved but
+  // now only runs off the hot path (snapshot-recipes, the W0.10 vetter). The
+  // emitted phase keeps the "discover" label so the SSE/UI contract is stable.
+  const plan = await selectFn(req.address, categories, {
     llm,
     onEvent: emit,
     request_id,

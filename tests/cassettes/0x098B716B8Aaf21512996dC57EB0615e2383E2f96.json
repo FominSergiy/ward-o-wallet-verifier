@@ -3,62 +3,6 @@
   "expectedVerdict": "do_not_transact",
   "entries": [
     {
-      "key": "POST:https://ethereum-rpc.publicnode.com/",
-      "request": {
-        "url": "https://ethereum-rpc.publicnode.com/",
-        "method": "POST",
-        "body": "{\"jsonrpc\":\"2.0\",\"id\":30,\"method\":\"eth_call\",\"params\":[{\"data\":\"0xdf592f7d000000000000000000000000098b716b8aaf21512996dc57eb0615e2383e2f96\",\"to\":\"0x40C57923924B5c5c5455c48D93317139ADDaC8fb\"},\"latest\"]}"
-      },
-      "response": {
-        "status": 200,
-        "statusText": "OK",
-        "headers": {
-          "access-control-max-age": "1728000",
-          "alt-svc": "h3=\":443\"; ma=86400",
-          "cf-cache-status": "DYNAMIC",
-          "cf-ray": "a0ce3305596836f9-YYZ",
-          "content-type": "application/json",
-          "date": "Wed, 17 Jun 2026 01:14:46 GMT",
-          "server": "cloudflare",
-          "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
-          "vary": "Origin, accept-encoding",
-          "x-content-type-options": "nosniff",
-          "x-envoy-upstream-service-time": "2",
-          "x-pn-datacenter": "ash1",
-          "x-pn-region": "ash"
-        },
-        "body": "{\"jsonrpc\":\"2.0\",\"id\":30,\"result\":\"0x0000000000000000000000000000000000000000000000000000000000000001\"}\n"
-      }
-    },
-    {
-      "key": "POST:https://arbitrum-one-rpc.publicnode.com/",
-      "request": {
-        "url": "https://arbitrum-one-rpc.publicnode.com/",
-        "method": "POST",
-        "body": "{\"jsonrpc\":\"2.0\",\"id\":33,\"method\":\"eth_call\",\"params\":[{\"data\":\"0xdf592f7d000000000000000000000000098b716b8aaf21512996dc57eb0615e2383e2f96\",\"to\":\"0x40C57923924B5c5c5455c48D93317139ADDaC8fb\"},\"latest\"]}"
-      },
-      "response": {
-        "status": 200,
-        "statusText": "OK",
-        "headers": {
-          "access-control-max-age": "1728000",
-          "alt-svc": "h3=\":443\"; ma=86400",
-          "cf-cache-status": "DYNAMIC",
-          "cf-ray": "a0ce33055c6e3705-YYZ",
-          "content-type": "application/json",
-          "date": "Wed, 17 Jun 2026 01:14:46 GMT",
-          "server": "cloudflare",
-          "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
-          "vary": "Origin, accept-encoding",
-          "x-content-type-options": "nosniff",
-          "x-envoy-upstream-service-time": "2",
-          "x-pn-datacenter": "ash1",
-          "x-pn-region": "ash"
-        },
-        "body": "{\"jsonrpc\":\"2.0\",\"id\":33,\"result\":\"0x0000000000000000000000000000000000000000000000000000000000000001\"}\n"
-      }
-    },
-    {
       "key": "POST:https://optimism-rpc.publicnode.com/",
       "request": {
         "url": "https://optimism-rpc.publicnode.com/",
@@ -72,9 +16,9 @@
           "access-control-max-age": "1728000",
           "alt-svc": "h3=\":443\"; ma=86400",
           "cf-cache-status": "DYNAMIC",
-          "cf-ray": "a0ce33055b8c880c-YYZ",
+          "cf-ray": "a0d4dd563bfec109-YYZ",
           "content-type": "application/json",
-          "date": "Wed, 17 Jun 2026 01:14:46 GMT",
+          "date": "Wed, 17 Jun 2026 20:39:36 GMT",
           "server": "cloudflare",
           "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
           "vary": "Origin, accept-encoding",
@@ -84,6 +28,34 @@
           "x-pn-region": "ash"
         },
         "body": "{\"jsonrpc\":\"2.0\",\"id\":34,\"result\":\"0x0000000000000000000000000000000000000000000000000000000000000001\"}\n"
+      }
+    },
+    {
+      "key": "POST:https://ethereum-rpc.publicnode.com/",
+      "request": {
+        "url": "https://ethereum-rpc.publicnode.com/",
+        "method": "POST",
+        "body": "{\"jsonrpc\":\"2.0\",\"id\":30,\"method\":\"eth_call\",\"params\":[{\"data\":\"0xdf592f7d000000000000000000000000098b716b8aaf21512996dc57eb0615e2383e2f96\",\"to\":\"0x40C57923924B5c5c5455c48D93317139ADDaC8fb\"},\"latest\"]}"
+      },
+      "response": {
+        "status": 200,
+        "statusText": "OK",
+        "headers": {
+          "access-control-max-age": "1728000",
+          "alt-svc": "h3=\":443\"; ma=86400",
+          "cf-cache-status": "DYNAMIC",
+          "cf-ray": "a0d4dd563aacb0a3-YYZ",
+          "content-type": "application/json",
+          "date": "Wed, 17 Jun 2026 20:39:36 GMT",
+          "server": "cloudflare",
+          "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
+          "vary": "Origin, accept-encoding",
+          "x-content-type-options": "nosniff",
+          "x-envoy-upstream-service-time": "3",
+          "x-pn-datacenter": "ash1",
+          "x-pn-region": "ash"
+        },
+        "body": "{\"jsonrpc\":\"2.0\",\"id\":30,\"result\":\"0x0000000000000000000000000000000000000000000000000000000000000001\"}\n"
       }
     },
     {
@@ -100,18 +72,46 @@
           "access-control-max-age": "1728000",
           "alt-svc": "h3=\":443\"; ma=86400",
           "cf-cache-status": "DYNAMIC",
-          "cf-ray": "a0ce330558aea1f0-YYZ",
+          "cf-ray": "a0d4dd563814fc7d-YYZ",
           "content-type": "application/json",
-          "date": "Wed, 17 Jun 2026 01:14:46 GMT",
+          "date": "Wed, 17 Jun 2026 20:39:36 GMT",
           "server": "cloudflare",
           "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
           "vary": "Origin, accept-encoding",
           "x-content-type-options": "nosniff",
-          "x-envoy-upstream-service-time": "8",
+          "x-envoy-upstream-service-time": "2",
           "x-pn-datacenter": "ash1",
           "x-pn-region": "ash"
         },
         "body": "{\"jsonrpc\":\"2.0\",\"id\":32,\"result\":\"0x0000000000000000000000000000000000000000000000000000000000000001\"}\n"
+      }
+    },
+    {
+      "key": "POST:https://arbitrum-one-rpc.publicnode.com/",
+      "request": {
+        "url": "https://arbitrum-one-rpc.publicnode.com/",
+        "method": "POST",
+        "body": "{\"jsonrpc\":\"2.0\",\"id\":33,\"method\":\"eth_call\",\"params\":[{\"data\":\"0xdf592f7d000000000000000000000000098b716b8aaf21512996dc57eb0615e2383e2f96\",\"to\":\"0x40C57923924B5c5c5455c48D93317139ADDaC8fb\"},\"latest\"]}"
+      },
+      "response": {
+        "status": 200,
+        "statusText": "OK",
+        "headers": {
+          "access-control-max-age": "1728000",
+          "alt-svc": "h3=\":443\"; ma=86400",
+          "cf-cache-status": "DYNAMIC",
+          "cf-ray": "a0d4dd563f7fabfa-YYZ",
+          "content-type": "application/json",
+          "date": "Wed, 17 Jun 2026 20:39:36 GMT",
+          "server": "cloudflare",
+          "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
+          "vary": "Origin, accept-encoding",
+          "x-content-type-options": "nosniff",
+          "x-envoy-upstream-service-time": "4",
+          "x-pn-datacenter": "ash1",
+          "x-pn-region": "ash"
+        },
+        "body": "{\"jsonrpc\":\"2.0\",\"id\":33,\"result\":\"0x0000000000000000000000000000000000000000000000000000000000000001\"}\n"
       }
     },
     {
@@ -128,15 +128,15 @@
           "access-control-max-age": "1728000",
           "alt-svc": "h3=\":443\"; ma=86400",
           "cf-cache-status": "DYNAMIC",
-          "cf-ray": "a0ce33055a94aaf8-YYZ",
+          "cf-ray": "a0d4dd563edbe080-YYZ",
           "content-length": "40",
           "content-type": "application/json",
-          "date": "Wed, 17 Jun 2026 01:14:46 GMT",
+          "date": "Wed, 17 Jun 2026 20:39:36 GMT",
           "server": "cloudflare",
           "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
           "vary": "Origin, accept-encoding",
           "x-content-type-options": "nosniff",
-          "x-envoy-upstream-service-time": "87",
+          "x-envoy-upstream-service-time": "92",
           "x-pn-datacenter": "ash1",
           "x-pn-region": "ash"
         },

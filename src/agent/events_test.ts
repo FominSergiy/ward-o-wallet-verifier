@@ -186,7 +186,7 @@ Deno.test("all events from a verify run share the same request_id", async () => 
       categories: ["sanctions"],
       _testHooks: {
         checkSanctionsOracle: fakeOracle,
-        discover: () => Promise.resolve(fakePlan),
+        selectFromRegistry: () => Promise.resolve(fakePlan),
         // deno-lint-ignore no-explicit-any
         invokeAll: () =>
           Promise.resolve({

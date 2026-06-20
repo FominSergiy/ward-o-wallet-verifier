@@ -54,12 +54,29 @@ Managed serverless Postgres. Chosen for its pooled endpoint, which fits Deno Dep
 1. Sign in at https://neon.tech → **Create project** (region close to the Deno Deploy region).
 2. Copy the **pooled** connection string (Dashboard → Connection Details → toggle **Pooled connection**). It looks like `postgresql://USER:PASS@ep-xxxx-pooler.REGION.aws.neon.tech/DB?sslmode=require`.
 3. In **Deno Deploy** → Project → Settings → Environment Variables, add `DATABASE_URL` = that pooled string.
-4. Apply the schema once against prod:
-   ```bash
-   DATABASE_URL='<pooled-string>' deno task db:migrate
-   # → applied 0001_init.sql   (re-running prints "up to date")
-   ```
+4. Apply the schema against prod. Two paths:
+   - **One-time / manual:**
+     ```bash
+     DATABASE_URL='<pooled-string>' deno task db:migrate
+     # → applied 0001_init.sql   (re-running prints "up to date")
+     ```
+   - **CI (ongoing):** add the prod pooled string as a GitHub repo secret named
+     `DATABASE_URL` (Settings → Secrets and variables → Actions). The `migrate`
+     job in `.github/workflows/ci.yml` then runs `scripts/migrate.ts` on every
+     push to `main` (after backend tests pass). It's forward-only + idempotent,
+     so it applies only new migrations and no-ops once current; if the secret is
+     absent the job skips cleanly. This keeps prod schema in lockstep with `main`
+     without manual runs.
+
    Then verify the deploy is actually wired to it — `curl https://<project>.deno.dev/health` should now report `{"status":"ok","db":"ok"}` (`"db":"error"` means the URL is set but unreachable; `"disabled"` means it's still unset).
+
+   > **Note — schema only, not data.** CI migrates the schema; it does **not** run
+   > `scripts/seed-registry.ts`. Seeding the curated `service_registry` from
+   > `data/call_recipes.json` is a separate, deliberate step (run it once per
+   > branch) so automated deploys don't clobber registry rows the future W0.10
+   > vetter will manage (status flips, recomputed scores). Until the registry is
+   > seeded on a given branch, `selectFromRegistry` falls back to reading
+   > `data/call_recipes.json` directly at score 1.0.
 5. **Local dev:** create a Neon **dev branch** (Branches → New branch off `main`), copy *its* **pooled** (`-pooler`) connection string into your local `.env` as `DATABASE_URL`, and run `deno task db:migrate` against it. We use the pooled endpoint in both prod and local so the connection path is identical everywhere; the dev branch is isolated, so local writes never touch prod.
 
 Leaving `DATABASE_URL` unset makes the DB layer a no-op — fine for running the offline test suite, but routes that read/write Postgres will behave as if the store is empty.
