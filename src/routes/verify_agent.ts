@@ -9,6 +9,7 @@ import {
 } from "../discovery/types.ts";
 import { SanctionsInvocationError } from "../agent/invoke_all.ts";
 import { type AgnicBudget, fetchAgnicBudget } from "../discovery/network.ts";
+import { type VerdictCache } from "../agent/verdict_cache.ts";
 
 const VerifyAgentRequestSchema = VerifyRequestSchema.extend({
   budgetCeiling: z.number().positive().optional(),
@@ -34,6 +35,7 @@ export interface VerifyAgentRouterOpts {
    * paths without driving the full pipeline into real oracle/x402 network calls.
    */
   verify?: typeof verifyAgent;
+  verdictCache?: VerdictCache;
 }
 
 export function createVerifyAgentRouter(
@@ -42,6 +44,7 @@ export function createVerifyAgentRouter(
   const router = new Hono();
   const fetchBudget = opts.budgetFetcher ?? (() => fetchAgnicBudget());
   const runVerify = opts.verify ?? verifyAgent;
+  const verdictCache = opts.verdictCache;
 
   router.post("/", zValidator("json", VerifyAgentRequestSchema), async (c) => {
     const { budgetCeiling, ...req } = c.req.valid("json");
@@ -76,6 +79,7 @@ export function createVerifyAgentRouter(
       const result = await runVerify(req, {
         budgetCeiling,
         request_id: crypto.randomUUID(),
+        verdictCache,
       });
       return c.json({
         verdict: result.verdict,
