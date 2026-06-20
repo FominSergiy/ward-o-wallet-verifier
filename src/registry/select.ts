@@ -112,6 +112,9 @@ export async function selectFromRegistry(
     // getActiveServices() already returns rows ordered by score DESC, so
     // iterating in order preserves the ranking within each category.
     for (const entry of active) {
+      // Explicit guard: blocked services must never be selected regardless of
+      // what the caller's getActive seam returns or how the DB query is shaped.
+      if (entry.status === "blocked") continue;
       const recipe = recipesById[entry.service_id];
       if (!recipe) {
         // Registry row references a service_id we have no call recipe for —
@@ -155,9 +158,7 @@ export async function selectFromRegistry(
     const [primary, ...rest] = candidates;
     services.push(recipeToRanked(primary.recipe, primary.score));
     if (rest.length > 0) {
-      alternates[cat] = rest.map((c) =>
-        recipeToRanked(c.recipe, c.score)
-      );
+      alternates[cat] = rest.map((c) => recipeToRanked(c.recipe, c.score));
     }
     safeEmit(emit, {
       type: "log",
