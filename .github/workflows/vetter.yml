@@ -1,0 +1,28 @@
+name: Background Vetter
+
+on:
+  schedule:
+    # Every 12 hours at :00
+    - cron: "0 */12 * * *"
+  workflow_dispatch:
+
+jobs:
+  vet:
+    name: Vet registry
+    runs-on: ubuntu-latest
+    environment: deno-deploy
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Run vetter
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          AGNIC_API_KEY: ${{ secrets.AGNIC_API_KEY }}
+        run: |
+          ~/.deno/bin/deno run \
+            --allow-net --allow-env --allow-read --allow-write \
+            scripts/vet.ts

@@ -1,0 +1,310 @@
+import { getDb } from "../db/client.ts";
+import { type RecomputeResult, recomputeScores } from "../registry/score.ts";
+import {
+  fetchCandidates as defaultFetchCandidates,
+  type FetchCandidatesOpts,
+} from "../discovery/orchestrator.ts";
+import type { Category } from "../agent/types.ts";
+import type { DiscoveryEntry } from "../discovery/types.ts";
+
+const PRICE_CEILING_USDC = 0.10;
+const PRICE_BUMP_FACTOR = 1.20;
+const PROBE_TIMEOUT_MS = 10_000;
+const RECIPES_PATH = new URL("../../data/call_recipes.json", import.meta.url);
+const BASE_NETWORK = "eip155:8453";
+const ALL_CATEGORIES: Category[] = [
+  "sanctions",
+  "labels",
+  "onchain_history",
+  "web_sentiment",
+];
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface RegistryRow {
+  resource: string;
+  price_usdc: string | null;
+  status: string;
+  source: string | null;
+}
+
+export interface ProbePriceResult {
+  /** USDC price from the 402 response, or null if probe failed / service not 402. */
+  maxAmountRequiredUsdc: number | null;
+}
+
+export interface VetterOpts {
+  // DB seams
+  fetchActiveAndProbation?: () => Promise<RegistryRow[]>;
+  updatePrice?: (resource: string, priceUsdc: number) => Promise<void>;
+  updateStatus?: (resource: string, status: string) => Promise<void>;
+  insertCandidate?: (
+    resource: string,
+    category: string,
+    priceUsdc: number,
+    source: string | null,
+  ) => Promise<boolean>;
+  // Network seam
+  probePrice?: (resource: string) => Promise<ProbePriceResult>;
+  // File seam
+  rewriteRecipePrice?: (
+    serviceId: string | null,
+    resource: string,
+    newPrice: number,
+  ) => Promise<void>;
+  // Score seam
+  runRecomputeScores?: typeof recomputeScores;
+  // Discovery seam
+  runFetchCandidates?: (
+    categories: Category[],
+    walletNetwork: "base" | "base-sepolia",
+    opts?: FetchCandidatesOpts,
+  ) => ReturnType<typeof defaultFetchCandidates>;
+  skipDiscovery?: boolean;
+}
+
+export interface VetterResult {
+  priceBumps: Array<{
+    resource: string;
+    oldPriceUsdc: number;
+    newPriceUsdc: number;
+  }>;
+  probationMoves: Array<{ resource: string; reason: string }>;
+  newCandidates: number;
+  scoreResult: RecomputeResult;
+}
+
+// ── Default implementations ───────────────────────────────────────────────────
+
+async function defaultFetchActiveAndProbation(): Promise<RegistryRow[]> {
+  const db = getDb();
+  return await db<RegistryRow[]>`
+    SELECT resource, price_usdc::text AS price_usdc, status, source
+    FROM service_registry
+    WHERE status IN ('active', 'probation')
+  `;
+}
+
+async function defaultUpdatePrice(
+  resource: string,
+  priceUsdc: number,
+): Promise<void> {
+  const db = getDb();
+  await db`
+    UPDATE service_registry
+    SET price_usdc = ${priceUsdc},
+        last_vetted_at = now(),
+        updated_at = now()
+    WHERE resource = ${resource}
+  `;
+}
+
+async function defaultUpdateStatus(
+  resource: string,
+  status: string,
+): Promise<void> {
+  const db = getDb();
+  await db`
+    UPDATE service_registry
+    SET status = ${status},
+        last_vetted_at = now(),
+        updated_at = now()
+    WHERE resource = ${resource}
+  `;
+}
+
+async function defaultInsertCandidate(
+  resource: string,
+  category: string,
+  priceUsdc: number,
+  source: string | null,
+): Promise<boolean> {
+  const db = getDb();
+  const existing = await db<
+    Array<{ id: string }>
+  >`SELECT id FROM service_registry WHERE resource = ${resource}`;
+  if (existing.length > 0) return false;
+  await db`
+    INSERT INTO service_registry
+      (resource, category, price_usdc, status, source, score, last_vetted_at)
+    VALUES
+      (${resource}, ${category}, ${priceUsdc}, 'probation', ${source}, 1.0, now())
+  `;
+  return true;
+}
+
+/** Plain-GET probe: sends no payment header, expects a 402 with x402 body. */
+async function defaultProbePrice(
+  resource: string,
+): Promise<ProbePriceResult> {
+  try {
+    const resp = await fetch(resource, {
+      method: "GET",
+      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+    });
+    if (resp.status !== 402) {
+      await resp.body?.cancel();
+      return { maxAmountRequiredUsdc: null };
+    }
+    const json = await resp.json() as {
+      accepts?: Array<{
+        // x402 implementations vary: some use `maxAmountRequired` (spec),
+        // others use `amount` (Coinbase/CDP convention).
+        maxAmountRequired?: string;
+        amount?: string;
+        network?: string;
+      }>;
+    };
+    const accepts = json.accepts ?? [];
+    const entry = accepts.find((a) => a.network === BASE_NETWORK) ??
+      accepts[0];
+    const amountStr = entry?.maxAmountRequired ?? entry?.amount;
+    if (!amountStr) return { maxAmountRequiredUsdc: null };
+    const micro = parseInt(amountStr, 10);
+    if (isNaN(micro)) return { maxAmountRequiredUsdc: null };
+    return { maxAmountRequiredUsdc: micro / 1_000_000 };
+  } catch {
+    return { maxAmountRequiredUsdc: null };
+  }
+}
+
+async function defaultRewriteRecipePrice(
+  serviceId: string | null,
+  resource: string,
+  newPrice: number,
+): Promise<void> {
+  const raw = await Deno.readTextFile(RECIPES_PATH);
+  const all = JSON.parse(raw) as Record<
+    string,
+    { resource?: string; price_usdc?: number; [key: string]: unknown }
+  >;
+
+  let found = false;
+  if (serviceId && all[serviceId]) {
+    all[serviceId].price_usdc = newPrice;
+    found = true;
+  } else {
+    for (const entry of Object.values(all)) {
+      if (entry.resource === resource) {
+        entry.price_usdc = newPrice;
+        found = true;
+        break;
+      }
+    }
+  }
+
+  if (!found) {
+    console.warn(
+      `[vetter] no recipe entry for resource=${resource} (source=${
+        serviceId ?? "unknown"
+      }) — call_recipes.json not updated`,
+    );
+    return;
+  }
+
+  await Deno.writeTextFile(RECIPES_PATH, JSON.stringify(all, null, 2) + "\n");
+}
+
+// ── Main vetter ───────────────────────────────────────────────────────────────
+
+export async function runVetter(opts: VetterOpts = {}): Promise<VetterResult> {
+  const fetchActiveAndProbation = opts.fetchActiveAndProbation ??
+    defaultFetchActiveAndProbation;
+  const updatePrice = opts.updatePrice ?? defaultUpdatePrice;
+  const updateStatus = opts.updateStatus ?? defaultUpdateStatus;
+  const insertCandidate = opts.insertCandidate ?? defaultInsertCandidate;
+  const probePrice = opts.probePrice ?? defaultProbePrice;
+  const rewriteRecipePrice = opts.rewriteRecipePrice ??
+    defaultRewriteRecipePrice;
+  const runRecomputeScoresFn = opts.runRecomputeScores ?? recomputeScores;
+  const runFetchCandidates = opts.runFetchCandidates ?? defaultFetchCandidates;
+  const skipDiscovery = opts.skipDiscovery ?? false;
+
+  const priceBumps: VetterResult["priceBumps"] = [];
+  const probationMoves: VetterResult["probationMoves"] = [];
+  let newCandidates = 0;
+
+  // ── 1. Price-probe every active/probation service ──────────────────────────
+  const rows = await fetchActiveAndProbation();
+  for (const row of rows) {
+    const storedPrice = row.price_usdc != null ? parseFloat(row.price_usdc) : 0;
+    const probe = await probePrice(row.resource);
+    const realPrice = probe.maxAmountRequiredUsdc;
+
+    if (realPrice === null || realPrice <= storedPrice) continue;
+
+    if (realPrice > PRICE_CEILING_USDC) {
+      // Above safety ceiling — put on probation for human review, no auto-bump.
+      console.warn(
+        `[vetter] price above ceiling for ${row.resource}: real=$${
+          realPrice.toFixed(6)
+        } > ceiling=$${PRICE_CEILING_USDC} — moving to probation`,
+      );
+      if (row.status !== "probation") {
+        await updateStatus(row.resource, "probation");
+      }
+      probationMoves.push({
+        resource: row.resource,
+        reason: `real price $${
+          realPrice.toFixed(6)
+        } exceeds ceiling $${PRICE_CEILING_USDC}`,
+      });
+      continue;
+    }
+
+    // Auto-bump: new price = real × 1.20, rounded to 6 decimal places.
+    const newPrice = Math.round(realPrice * PRICE_BUMP_FACTOR * 1_000_000) /
+      1_000_000;
+    console.log(
+      `[vetter] price bump ${row.resource}: $${storedPrice} → $${newPrice} (real=$${realPrice})`,
+    );
+    await updatePrice(row.resource, newPrice);
+    await rewriteRecipePrice(row.source, row.resource, newPrice);
+    priceBumps.push({
+      resource: row.resource,
+      oldPriceUsdc: storedPrice,
+      newPriceUsdc: newPrice,
+    });
+  }
+
+  // ── 2. Discovery: insert unknown candidates as probation ───────────────────
+  if (!skipDiscovery) {
+    try {
+      const result = await runFetchCandidates(ALL_CATEGORIES, "base");
+      for (
+        const [cat, entries] of Object.entries(result.candidates) as [
+          Category,
+          DiscoveryEntry[],
+        ][]
+      ) {
+        for (const entry of entries) {
+          const accept = entry.accepts.find((a) =>
+            a.network === BASE_NETWORK
+          ) ??
+            entry.accepts[0];
+          if (!accept) continue;
+          const priceUsdc = parseInt(accept.amount, 10) / 1_000_000;
+          const added = await insertCandidate(
+            entry.resource,
+            cat,
+            priceUsdc,
+            null,
+          );
+          if (added) {
+            newCandidates++;
+            console.log(
+              `[vetter] new candidate: ${cat} ${entry.resource} @$${priceUsdc}`,
+            );
+          }
+        }
+      }
+    } catch (e) {
+      console.warn(`[vetter] discovery failed: ${(e as Error).message}`);
+    }
+  }
+
+  // ── 3. Recompute scores + status transitions ───────────────────────────────
+  const scoreResult = await runRecomputeScoresFn();
+
+  return { priceBumps, probationMoves, newCandidates, scoreResult };
+}
