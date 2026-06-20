@@ -51,6 +51,24 @@ Both platforms also build preview deployments for every PR. The Actions workflow
 
 Managed serverless Postgres. Chosen for its pooled endpoint, which fits Deno Deploy's many-short-lived-isolates connection model. No Docker anywhere — local dev uses a Neon dev branch.
 
+> **`DATABASE_URL` lives in THREE distinct places — and they must NOT all be the
+> same value.** The code reads a single `DATABASE_URL` ([src/db/client.ts](../src/db/client.ts))
+> with no notion of "dev" vs "prod"; the *environment* picks the branch:
+> 1. **Local `.env`** → the Neon **dev branch** pooled string (local only).
+> 2. **GitHub `deno-deploy` *environment* secret `DATABASE_URL`** → the Neon
+>    **main (prod) branch** pooled string. Consumed by the CI `migrate` job
+>    ([ci.yml](../.github/workflows/ci.yml)) and the vetter cron
+>    ([vetter.yml](../.github/workflows/vetter.yml)). Set it under
+>    Settings → Environments → `deno-deploy` → Secrets (NOT repo-level Actions
+>    secrets), e.g. `gh secret set DATABASE_URL --env deno-deploy --body '<prod-pooled>'`.
+> 3. **Deno Deploy dashboard env var `DATABASE_URL`** → the same **main (prod)**
+>    string. Consumed by the live API runtime.
+>
+> **Failure mode to avoid:** reusing the dev-branch string in (2) or (3). If you
+> do, CI migrations, the vetter cron, and/or the live API all write to the *dev*
+> branch and the Neon **main** branch shows zero traffic — which is exactly the
+> bug this note exists to prevent. Always confirm with the `/health` check below.
+
 1. Sign in at https://neon.tech → **Create project** (region close to the Deno Deploy region).
 2. Copy the **pooled** connection string (Dashboard → Connection Details → toggle **Pooled connection**). It looks like `postgresql://USER:PASS@ep-xxxx-pooler.REGION.aws.neon.tech/DB?sslmode=require`.
 3. In **Deno Deploy** → Project → Settings → Environment Variables, add `DATABASE_URL` = that pooled string.
@@ -60,8 +78,9 @@ Managed serverless Postgres. Chosen for its pooled endpoint, which fits Deno Dep
      DATABASE_URL='<pooled-string>' deno task db:migrate
      # → applied 0001_init.sql   (re-running prints "up to date")
      ```
-   - **CI (ongoing):** add the prod pooled string as a GitHub repo secret named
-     `DATABASE_URL` (Settings → Secrets and variables → Actions). The `migrate`
+   - **CI (ongoing):** add the prod pooled string as the `DATABASE_URL` secret in
+     the **`deno-deploy` GitHub *environment*** (Settings → Environments →
+     `deno-deploy` → Secrets — *not* repo-level Actions secrets). The `migrate`
      job in `.github/workflows/ci.yml` then runs `scripts/migrate.ts` on every
      push to `main` (after backend tests pass). It's forward-only + idempotent,
      so it applies only new migrations and no-ops once current; if the secret is
