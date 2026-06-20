@@ -61,6 +61,15 @@ When working in a worktree or targeting specific files, use the binary directly:
 
 Once a worktree's work is merged (or abandoned), clean it up — leftover worktrees under `.claude/worktrees/` accumulate as orphans. After confirming the worktree is clean and its branch is merged, run `git worktree remove <path>`, `git branch -D <branch>`, then `git worktree prune`.
 
+### Parallel agents — worktree isolation (hard rule)
+
+When more than one agent works in this repo at the same time, they must be fully isolated. There is no exception.
+
+- **One feature request = one feature branch = one worktree.** Every feature gets its own `git worktree add .claude/worktrees/<slug> -b <feature-branch>` off an up-to-date `main`. Do the work there, not in the primary checkout.
+- **Never two agents in the same worktree or on the same branch.** Do not share a working directory, do not commit to a branch another agent is using, and do not check out a branch that already has an agent on it. Concurrent writes to one worktree corrupt each other's index, history, and in-flight edits.
+- **Check before you start.** Run `git worktree list` and `git branch` first; if there's any overlap with an existing agent's branch or worktree, pick a fresh, unique slug.
+- `.claude/worktrees/` is git-ignored — never stage or commit it (it shows up as embedded gitlinks if you `git add -A` from the primary checkout; don't). Clean up per the rule above once merged or abandoned.
+
 **Env vars:** copy `.env.example` → `.env`. `AGNIC_API_KEY` (single key for both the LLM gateway and x402 service payments) is required for any LLM call. See [.env.example](.env.example) for optional overrides.
 never commit env vars.
 
