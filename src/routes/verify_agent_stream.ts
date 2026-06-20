@@ -11,6 +11,7 @@ import {
 import { SanctionsInvocationError } from "../agent/invoke_all.ts";
 import { type AgnicBudget, fetchAgnicBudget } from "../discovery/network.ts";
 import { type EventEmitter, now, type VerifyEvent } from "../agent/events.ts";
+import { type VerdictCache } from "../agent/verdict_cache.ts";
 
 const VerifyAgentStreamRequestSchema = VerifyRequestSchema.extend({
   budgetCeiling: z.number().positive().optional(),
@@ -61,6 +62,7 @@ export interface VerifyAgentStreamRouterOpts {
   budgetFetcher?: () => Promise<AgnicBudget | null>;
   /** Test seam for the underlying verifyAgent call. */
   verifyAgentFn?: typeof verifyAgent;
+  verdictCache?: VerdictCache;
 }
 
 export function createVerifyAgentStreamRouter(
@@ -69,6 +71,7 @@ export function createVerifyAgentStreamRouter(
   const router = new Hono();
   const fetchBudget = opts.budgetFetcher ?? (() => fetchAgnicBudget());
   const verifyFn = opts.verifyAgentFn ?? verifyAgent;
+  const verdictCache = opts.verdictCache;
 
   router.post(
     "/",
@@ -145,6 +148,7 @@ export function createVerifyAgentStreamRouter(
               budgetCeiling,
               onEvent: emit,
               request_id: crypto.randomUUID(),
+              verdictCache,
             });
             emit({ type: "result", payload: resultPayload(result), at: now() });
           } catch (e) {

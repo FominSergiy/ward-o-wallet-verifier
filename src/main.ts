@@ -1,21 +1,14 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { verifyAgentRouter } from "./routes/verify_agent.ts";
-import { verifyAgentStreamRouter } from "./routes/verify_agent_stream.ts";
+import { createVerifyAgentRouter } from "./routes/verify_agent.ts";
+import { createVerifyAgentStreamRouter } from "./routes/verify_agent_stream.ts";
 import { discoverRouter } from "./routes/discover.ts";
 import { discoverStreamRouter } from "./routes/discover_stream.ts";
 import { invokeRouter } from "./routes/invoke.ts";
-import { mcpRouter } from "./mcp/http.ts";
+import { createMcpRouter } from "./mcp/http.ts";
 import { dbEnabled, getDb } from "./db/client.ts";
+import { denoKvCache, type VerdictCache } from "./agent/verdict_cache.ts";
 
-const app = new Hono();
-
-/**
- * DB connectivity for /health. "disabled" when DATABASE_URL is unset (the
- * no-op client — expected offline/in tests); "ok" when a SELECT 1 round-trips;
- * "error" when a real DATABASE_URL is set but unreachable. Lets a deploy verify
- * the Postgres wiring with a single curl instead of waiting for a route to need it.
- */
 async function dbHealth(): Promise<"ok" | "disabled" | "error"> {
   if (!dbEnabled()) return "disabled";
   try {
@@ -26,38 +19,54 @@ async function dbHealth(): Promise<"ok" | "disabled" | "error"> {
   }
 }
 
-app.use(
-  "/*",
-  cors({
-    origin: Deno.env.get("ALLOWED_ORIGIN") ?? "*",
-    allowMethods: ["GET", "POST", "OPTIONS"],
-    allowHeaders: [
-      "Content-Type",
-      "Authorization",
-      "Mcp-Session-Id",
-      "Mcp-Protocol-Version",
-    ],
-  }),
-);
+export function createApp(verdictCache?: VerdictCache): Hono {
+  const app = new Hono();
 
-app.get("/health", async (c) => c.json({ status: "ok", db: await dbHealth() }));
+  app.use(
+    "/*",
+    cors({
+      origin: Deno.env.get("ALLOWED_ORIGIN") ?? "*",
+      allowMethods: ["GET", "POST", "OPTIONS"],
+      allowHeaders: [
+        "Content-Type",
+        "Authorization",
+        "Mcp-Session-Id",
+        "Mcp-Protocol-Version",
+      ],
+    }),
+  );
 
-app.route("/verify-agent", verifyAgentRouter);
-app.route("/verify-agent-stream", verifyAgentStreamRouter);
-app.route("/discover", discoverRouter);
-app.route("/discover-stream", discoverStreamRouter);
-app.route("/invoke", invokeRouter);
-app.route("/mcp", mcpRouter);
+  app.get(
+    "/health",
+    async (c) => c.json({ status: "ok", db: await dbHealth() }),
+  );
 
-app.onError((err, c) => {
-  console.error(err);
-  return c.json({ error: err.message }, 500);
-});
+  app.route("/verify-agent", createVerifyAgentRouter({ verdictCache }));
+  app.route(
+    "/verify-agent-stream",
+    createVerifyAgentStreamRouter({ verdictCache }),
+  );
+  app.route("/discover", discoverRouter);
+  app.route("/discover-stream", discoverStreamRouter);
+  app.route("/invoke", invokeRouter);
+  app.route("/mcp", createMcpRouter(verdictCache));
 
-export { app };
+  app.onError((err, c) => {
+    console.error(err);
+    return c.json({ error: err.message }, 500);
+  });
+
+  return app;
+}
+
+// No-cache instance for module imports (tests). Production entry point below
+// opens KV and passes a real cache.
+export const app = createApp();
 
 if (import.meta.main) {
+  const kv = await Deno.openKv();
+  const cache = denoKvCache(kv);
   const port = parseInt(Deno.env.get("PORT") ?? "8000");
   console.log(`Starting on :${port}`);
-  Deno.serve({ port }, app.fetch);
+  Deno.serve({ port }, createApp(cache).fetch);
 }

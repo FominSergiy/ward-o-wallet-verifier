@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { type Category, CategorySchema } from "../agent/types.ts";
 import { verifyAgent } from "../agent/verify.ts";
+import { type VerdictCache } from "../agent/verdict_cache.ts";
 
 interface VerifyWalletArgs {
   address: string;
@@ -11,7 +12,7 @@ interface VerifyWalletArgs {
 
 // Transport-agnostic factory. Both `stdio.ts` and `http.ts` mount the same
 // tool surface against different transports.
-export function buildMcpServer(): McpServer {
+export function buildMcpServer(verdictCache?: VerdictCache): McpServer {
   const server = new McpServer({
     name: "ward-o-wallet-verifier",
     version: "0.1.0",
@@ -39,7 +40,7 @@ export function buildMcpServer(): McpServer {
     ) => {
       const result = await verifyAgent(
         { address },
-        { budgetCeiling, categories },
+        { budgetCeiling, categories, verdictCache },
       );
       return {
         content: [
