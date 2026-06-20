@@ -15,6 +15,7 @@ import {
 } from "./sanctions_oracle.ts";
 import { ensSupportedFor, resolveEns } from "./ens_resolver.ts";
 import { fetchLabelsRegistry } from "./labels_registry.ts";
+import { type VerdictCache } from "./verdict_cache.ts";
 
 // The user submits a bare EVM address; we no longer ask them to pick a chain.
 // Chain-sensitive downstream paths (x402 invocation, ENS, viem fallback) use
@@ -51,6 +52,7 @@ export interface VerifyAgentOpts {
   categories?: Category[];
   onEvent?: EventEmitter;
   request_id?: string;
+  verdictCache?: VerdictCache;
   // Injection seam for unit tests — replace any of the discovery-flow
   // collaborators. Real callers leave undefined and the default
   // implementations are used.
@@ -315,7 +317,39 @@ export async function verifyAgent(
   const oracleCheckFn = hooks.checkSanctionsOracle ?? checkSanctionsOracle;
   const ensResolveFn = hooks.resolveEns ?? resolveEns;
   const labelsRegistryFn = hooks.fetchLabelsRegistry ?? fetchLabelsRegistry;
+  const cache = opts.verdictCache ?? null;
   const request_id = opts.request_id ?? crypto.randomUUID();
+
+  // Cache check before any service calls — hit returns in <100ms.
+  if (cache) {
+    const cached = await cache.get(DEFAULT_CHAIN, req.address);
+    if (cached !== null) {
+      safeEmit(emit, {
+        type: "log",
+        level: "info",
+        message:
+          `verdict_cache: hit verdict=${cached.verdict} address=${req.address}`,
+        at: now(),
+      });
+      const walletNetwork: WalletNetwork = "base";
+      return {
+        verdict: cached,
+        plan: {
+          address: req.address,
+          walletNetwork,
+          services: [],
+          alternates: {},
+          totalEstimatedCostUsdc: 0,
+          unresolvedCategories: [],
+          deterministicSources: [],
+          generatedAt: new Date().toISOString(),
+        },
+        outcomes: [],
+        walletNetwork,
+        totalSpentUsdc: 0,
+      };
+    }
+  }
 
   const notApplicable: Category[] = [];
   let categories = requestedCategories;
@@ -356,13 +390,15 @@ export async function verifyAgent(
       `[verify-agent] Chainalysis oracle flagged ${req.address} as sanctioned on ${flaggedAttempt.chain} — short-circuiting (no x402 spend)`,
     );
     const walletNetwork: WalletNetwork = "base";
+    const sanctionedVerdict = oracleSanctionedVerdict(
+      req,
+      categories,
+      notApplicable,
+      flaggedAttempt.result,
+    );
+    if (cache) await cache.set(DEFAULT_CHAIN, req.address, sanctionedVerdict);
     return {
-      verdict: oracleSanctionedVerdict(
-        req,
-        categories,
-        notApplicable,
-        flaggedAttempt.result,
-      ),
+      verdict: sanctionedVerdict,
       plan: {
         address: req.address,
         walletNetwork,
@@ -557,6 +593,8 @@ export async function verifyAgent(
     duration_ms: Date.now() - synthesizeStart,
     at: now(),
   });
+
+  if (cache) await cache.set(DEFAULT_CHAIN, req.address, verdict);
 
   return {
     verdict,
