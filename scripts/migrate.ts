@@ -19,6 +19,15 @@ const MIGRATIONS_DIR = join(
   "migrations",
 );
 
+/** Hostname of a connection string, for logging — never exposes credentials. */
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return "<unparseable DATABASE_URL>";
+  }
+}
+
 function versionOf(filename: string): string {
   const match = filename.match(/^(\d+)/);
   if (!match) {
@@ -86,6 +95,9 @@ if (import.meta.main) {
     console.error("DATABASE_URL is required to run migrations");
     Deno.exit(1);
   }
+  // Log the target host (never the credentials) so CI/Actions logs make it
+  // obvious which Neon branch was migrated — dev vs prod is the env, not the code.
+  console.log(`migrating against ${hostOf(url)}`);
   const applied = await migrate(url);
   console.log(
     applied.length === 0

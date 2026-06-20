@@ -23,6 +23,6 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           AGNIC_API_KEY: ${{ secrets.AGNIC_API_KEY }}
         run: |
-          ~/.deno/bin/deno run \
+          deno run \
             --allow-net --allow-env --allow-read --allow-write \
             scripts/vet.ts
