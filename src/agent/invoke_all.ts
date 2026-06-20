@@ -19,8 +19,13 @@ import type { Category, Chain } from "./types.ts";
 import { type EventEmitter, now, safeEmit } from "./events.ts";
 import { recordServiceObservation } from "../observability/observations.ts";
 
+// 2s was below the observed median x402 RTT (most services finish in 2–4s) and
+// produced near-100% per-call timeouts. 5s gives real services headroom while
+// still capping how long a hung host can dominate the parallel fan-out budget.
+// `INVOKE_TIMEOUT_MS` env still overrides for ops; a per-request knob is
+// deferred until W1.1 tenant auth lands so it can be gated/abuse-capped.
 const DEFAULT_INVOKE_TIMEOUT_MS = parseInt(
-  Deno.env.get("INVOKE_TIMEOUT_MS") ?? "2000",
+  Deno.env.get("INVOKE_TIMEOUT_MS") ?? "5000",
   10,
 );
 
@@ -39,6 +44,10 @@ function withInvokeTimeout(
           data: null,
           status: "error",
           error: `per-call timeout after ${timeoutMs}ms`,
+          // Matches the normalized code agnicFetch emits for transport-level
+          // timeouts so recordError() persists "timeout" in
+          // service_health_durable.last_error_code instead of undefined.
+          errorCode: "timeout",
           amountUsdc: 0,
           durationMs: timeoutMs,
           paid: false,
@@ -187,7 +196,7 @@ export interface InvokeAllOpts {
   disableViemFallback?: boolean;
   onEvent?: EventEmitter;
   request_id?: string;
-  // Per-call timeout in ms. Defaults to INVOKE_TIMEOUT_MS env (2000ms).
+  // Per-call timeout in ms. Defaults to INVOKE_TIMEOUT_MS env (5000ms).
   timeoutMs?: number;
 }
 
