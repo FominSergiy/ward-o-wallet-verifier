@@ -5,8 +5,18 @@
  * interceptor active and writes every HTTP interaction to
  * tests/cassettes/<address>.json.
  *
- * Usage: deno task cassette:record
- * Requires: AGNIC_API_KEY env var and a live network connection.
+ * ⚠️  THIS SPENDS REAL MONEY AND TAKES ~10–15 MIN. It makes real x402 paid
+ * calls (real USDC), real RPC calls, and real LLM calls. Do NOT run it to make
+ * a failing replay test pass — replay tests fail on logic regressions, which
+ * you fix in code, not by re-recording. Only re-record when the recorded HTTP
+ * traffic itself must change (a service added/removed/reordered, a changed
+ * request shape, a changed response schema, or new/changed wallet fixtures).
+ * See "Cassettes: replay vs record" in CLAUDE.md for the full cutover rule.
+ *
+ * Usage: DATABASE_URL="" deno task cassette:record
+ * Requires: AGNIC_API_KEY env var + USDC balance + a live network connection.
+ * DATABASE_URL must be unset so service selection uses the same offline
+ * fallback path as replay; otherwise the recorded set won't match replay.
  */
 
 import { join } from "@std/path";

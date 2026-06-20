@@ -33,6 +33,24 @@ all done plans are put under plans/completed
 
 `test` / `test:unit` skip the three `RUN_E2E`-gated route suites (`src/routes/{discover,invoke,verify_agent}_test.ts`) — those make real Agnic/x402 paid calls. `test:e2e` runs them and needs `AGNIC_API_KEY` + USDC balance.
 
+### Cassettes: replay (free) vs record (paid) — READ BEFORE RECORDING
+
+There are two cassette tasks and they are NOT interchangeable:
+
+| Task | What it does | Cost | When |
+|------|-------------|------|------|
+| `deno task test:replay` (also part of `deno task test`) | Replays the saved HTTP responses in `tests/cassettes/` against the full `verifyAgent` pipeline. Fully offline — the interceptor *throws* on any un-recorded URL, so no real network and no spend. ~4s. | **Free** | Every change. This is the CI gate. |
+| `deno task cassette:record` | Runs the real pipeline against all 9 wallet fixtures, making **real x402 paid calls (real USDC), real RPC calls, and real LLM calls**. Takes **~10–15 min** (60s per-call timeouts, 5s rate-limit backoffs, 3s inter-wallet sleeps, LLM-fallback double calls). | **Real money + slow** | Rarely — see rule below. |
+
+**The cutover rule — only re-record when the recorded HTTP traffic itself would change.** Ask: *"Does my change alter which URLs get called, or the method / query / path / body of those calls?"*
+
+- **YES → `cassette:record` is required.** Triggers: a service added/removed/reordered in the registry or `data/call_recipes.json`; a changed request shape (URL, method, params, body); a service's response schema changed such that you need fresh real responses; new or changed wallet fixtures (`src/fixtures/wallets.ts`).
+- **NO → just `test:replay`, never record.** Everything downstream of the HTTP calls: verdict synthesis, scoring/ranking, formatting, types, error handling, refactors, new tests, frontend, docs, CI, DB schema. Same requests → same saved responses → replay still valid.
+
+If replay fails after a logic-only change, the fix is the code or the assertion — **not** a re-record. Re-recording to make a red test green hides the regression.
+
+When you do record: it **must** run with `DATABASE_URL` unset/empty (e.g. `DATABASE_URL="" deno task cassette:record`) so service selection takes the same offline fallback path as replay — otherwise the recorded set won't match what replay calls and every replay test breaks.
+
 When working in a worktree or targeting specific files, use the binary directly:
 
 ```bash
@@ -86,64 +104,6 @@ What this repo exposes — names + one-line role + entrypoint pointer.
 
 **Frontend (`web/`):** Vite + React single-page UI. Tasks: `npm run dev` (port 5173, Vite proxies API calls to backend on `:8000`), `npm run typecheck`, `npm run build`. Components in `web/src/components/`; SSE wiring in `web/src/api.ts`; flow-state hook in `web/src/hooks/useFlowState.ts`. Cloudflare Pages auto-deploys `main`.
 
-
-### Agnic routes
-
-#### sample sdk code
-
-```python
-from openai import OpenAI
-
-client = OpenAI(
-    api_key="agnic_tok_YOUR_TOKEN",
-    base_url="https://api.agnic.ai/v1"
-)
-
-response = client.chat.completions.create(
-    model="openai/gpt-4o-mini",
-    messages=[{"role": "user", "content": "Hello!"}]
-)
-
-print(response.choices[0].message.content)
-```
-
-#### call implementation
-
-use stream for real-time updates to user
-
-```javascript
-import OpenAI from 'openai';
-const client = new OpenAI({
-  apiKey: 'agnic_tok_YOUR_TOKEN',
-  baseURL: 'https://api.agnic.ai/v1'
-});
-const stream = await client.chat.completions.create({
-  model: 'openai/gpt-4o',
-  messages: [{ role: 'user', content: 'Write a poem about JavaScript' }],
-  stream: true
-});
-for await (const chunk of stream) {
-  const content = chunk.choices[0]?.delta?.content;
-  if (content) {
-    process.stdout.write(content);
-  }
-```
-
-stream chunk structure
-```json
-{
-  "id": "chatcmpl-123",
-  "object": "chat.completion.chunk",
-  "model": "openai/gpt-4o",
-  "choices": [{
-    "index": 0,
-    "delta": {
-      "content": "Hello"
-    },
-    "finish_reason": null
-  }]
-}
-```
 
 Best Practices
 Always handle partial responses - Streams can disconnect mid-response
