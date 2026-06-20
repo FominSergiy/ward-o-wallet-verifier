@@ -1,6 +1,9 @@
 import { assertEquals } from "@std/assert";
 import { z } from "zod";
-import { synthesizeVerdict } from "./synthesize_verdict.ts";
+import {
+  selectSynthesisModel,
+  synthesizeVerdict,
+} from "./synthesize_verdict.ts";
 import type { SynthesisInput } from "./synthesize_verdict.ts";
 import type { LlmClient } from "./llm.ts";
 import type { WalletVerdict } from "./verdict.ts";
@@ -27,13 +30,20 @@ function inputWith(args: {
 
 function fixtureLlm(
   fixture: WalletVerdict,
-  captured?: { model?: string; prompt?: string; toolName?: string; hasExample?: boolean },
+  captured?: {
+    model?: string;
+    prompt?: string;
+    toolName?: string;
+    hasExample?: boolean;
+  },
 ): LlmClient {
   return {
     generateStructured<T>(
       schema: z.ZodType<T>,
       prompt: string,
-      optsOrModel?: { model?: string; toolName?: string; toolExample?: unknown } | string,
+      optsOrModel?:
+        | { model?: string; toolName?: string; toolExample?: unknown }
+        | string,
     ): Promise<T> {
       const opts = typeof optsOrModel === "string"
         ? { model: optsOrModel }
@@ -41,7 +51,8 @@ function fixtureLlm(
       if (captured) {
         captured.model = opts.model;
         captured.toolName = opts.toolName;
-        captured.hasExample = (opts as { toolExample?: unknown }).toolExample !== undefined;
+        captured.hasExample =
+          (opts as { toolExample?: unknown }).toolExample !== undefined;
         captured.prompt = prompt;
       }
       return Promise.resolve(schema.parse(fixture));
@@ -73,7 +84,11 @@ const SANCTIONED_VERDICT: WalletVerdict = {
   headline: "OFAC SDN hit.",
   reasoning: "Hard veto from sanctions match.",
   findings: [
-    { category: "sanctions", severity: "critical", finding: "Matched OFAC SDN list." },
+    {
+      category: "sanctions",
+      severity: "critical",
+      finding: "Matched OFAC SDN list.",
+    },
   ],
 };
 
@@ -88,7 +103,12 @@ const INSUFFICIENT_VERDICT: WalletVerdict = {
 };
 
 Deno.test("synthesizeVerdict passes Opus model id to llm.generateStructured", async () => {
-  const captured: { model?: string; prompt?: string; toolName?: string; hasExample?: boolean } = {};
+  const captured: {
+    model?: string;
+    prompt?: string;
+    toolName?: string;
+    hasExample?: boolean;
+  } = {};
   const llm = fixtureLlm(SAFE_VERDICT, captured);
   await synthesizeVerdict(
     inputWith({ findings: {}, resolved: [] }),
@@ -101,7 +121,12 @@ Deno.test("synthesizeVerdict passes Opus model id to llm.generateStructured", as
 });
 
 Deno.test("synthesizeVerdict honors model override via opts", async () => {
-  const captured: { model?: string; prompt?: string; toolName?: string; hasExample?: boolean } = {};
+  const captured: {
+    model?: string;
+    prompt?: string;
+    toolName?: string;
+    hasExample?: boolean;
+  } = {};
   const llm = fixtureLlm(SAFE_VERDICT, captured);
   await synthesizeVerdict(
     inputWith({ findings: {}, resolved: [] }),
@@ -159,7 +184,8 @@ Deno.test("cex_registry_attribution_serialized_into_prompt", async () => {
     labels: {
       registry: {
         source: "eth_labels_registry",
-        endpoint: "https://eth-labels.com/labels/0x71660c4005BA85c37ccec55d0C4493E66Fe775d3",
+        endpoint:
+          "https://eth-labels.com/labels/0x71660c4005BA85c37ccec55d0C4493E66Fe775d3",
         labels: [
           { label: "coinbase", nameTag: "Coinbase 1", chainId: 1 },
           { label: "fiat-gateway", nameTag: "Coinbase 1", chainId: 1 },
@@ -222,4 +248,92 @@ Deno.test("prompt_documents_registry_rules_and_shape", async () => {
   assertEquals(p.includes("ofac-sanctioned"), true);
   assertEquals(p.includes("tornado-cash"), true);
   assertEquals(p.includes("fiat-gateway"), true);
+});
+
+// W0.6 model-routing tests
+
+Deno.test("selectSynthesisModel: risk keyword in labels routes to Opus", () => {
+  const input = inputWith({
+    findings: {
+      sanctions: { chainalysis_oracle: { isSanctioned: false } },
+      labels: {
+        registry: {
+          labels: [{ label: "tornado-cash", nameTag: null, chainId: 1 }],
+        },
+      },
+    },
+    resolved: ["sanctions", "labels"],
+  });
+  assertEquals(selectSynthesisModel(input), "anthropic/claude-opus-4.7");
+});
+
+Deno.test("selectSynthesisModel: coverage below 50% routes to Opus", () => {
+  // requested=3, resolved=1 → 1 < 3/2=1.5 → Opus
+  const input = inputWith({
+    findings: { sanctions: { sanctions_match: false } },
+    resolved: ["sanctions"],
+  });
+  assertEquals(selectSynthesisModel(input), "anthropic/claude-opus-4.7");
+});
+
+Deno.test("selectSynthesisModel: clean CEX wallet uses Haiku", () => {
+  const input = inputWith({
+    findings: {
+      sanctions: { chainalysis_oracle: { isSanctioned: false } },
+      labels: {
+        registry: {
+          labels: [
+            { label: "coinbase", nameTag: "Coinbase 1", chainId: 1 },
+          ],
+        },
+      },
+      onchain_history: { txCount: 5000, balance: "1.5" },
+    },
+    resolved: ["sanctions", "labels", "onchain_history"],
+  });
+  assertEquals(selectSynthesisModel(input), "anthropic/claude-haiku-4.5");
+});
+
+Deno.test("synthesizeVerdict: ambiguous (risk keyword) fixture routes to Opus", async () => {
+  const captured: { model?: string } = {};
+  const llm = fixtureLlm(SANCTIONED_VERDICT, captured);
+  await synthesizeVerdict(
+    inputWith({
+      findings: {
+        sanctions: { chainalysis_oracle: { isSanctioned: false } },
+        labels: {
+          registry: {
+            labels: [{ label: "tornado-cash", nameTag: null, chainId: 1 }],
+          },
+        },
+        onchain_history: { txCount: 100, balance: "0.0" },
+      },
+      resolved: ["sanctions", "labels", "onchain_history"],
+    }),
+    { llm },
+  );
+  assertEquals(captured.model, "anthropic/claude-opus-4.7");
+});
+
+Deno.test("synthesizeVerdict: clean-and-clean wallet uses Haiku", async () => {
+  const captured: { model?: string } = {};
+  const llm = fixtureLlm(SAFE_VERDICT, captured);
+  await synthesizeVerdict(
+    inputWith({
+      findings: {
+        sanctions: { chainalysis_oracle: { isSanctioned: false } },
+        labels: {
+          registry: {
+            labels: [
+              { label: "coinbase", nameTag: "Coinbase 1", chainId: 1 },
+            ],
+          },
+        },
+        onchain_history: { txCount: 5000, balance: "1.5" },
+      },
+      resolved: ["sanctions", "labels", "onchain_history"],
+    }),
+    { llm },
+  );
+  assertEquals(captured.model, "anthropic/claude-haiku-4.5");
 });
