@@ -100,6 +100,7 @@ function fakeResult(): VerifyAgentResult {
     }],
     walletNetwork: "base",
     totalSpentUsdc: 0.001,
+    totalLlmCostUsd: 0.0002,
   };
 }
 
@@ -223,11 +224,16 @@ Deno.test("POST /verify-agent-stream streams phase, plan, service, result events
   const resultFrame = frames[frames.length - 1];
   const resultBody = JSON.parse(resultFrame.data) as {
     type: string;
-    payload: { walletNetwork: string; totalSpentUsdc: number };
+    payload: {
+      walletNetwork: string;
+      totalSpentUsdc: number;
+      totalLlmCostUsd: number;
+    };
   };
   assertEquals(resultBody.type, "result");
   assertEquals(resultBody.payload.walletNetwork, "base");
   assertEquals(resultBody.payload.totalSpentUsdc, 0.001);
+  assertEquals(resultBody.payload.totalLlmCostUsd, 0.0002);
 });
 
 Deno.test("POST /verify-agent-stream preflight budget exhausted emits one error event and ends", async () => {

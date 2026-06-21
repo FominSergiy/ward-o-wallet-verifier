@@ -1,5 +1,5 @@
 import type { VerifyRequest } from "./types.ts";
-import type { LlmClient } from "./llm.ts";
+import { defaultLlm, type LlmClient, withCostTracking } from "./llm.ts";
 import type { Category, Chain } from "./types.ts";
 import { selectFromRegistry } from "../registry/select.ts";
 import { invokeAll } from "./invoke_all.ts";
@@ -40,6 +40,11 @@ export interface VerifyAgentResult {
   outcomes: ServiceInvocationOutcome[];
   walletNetwork: WalletNetwork;
   totalSpentUsdc: number;
+  // Total USD spent on LLM/AI model calls for this run (synthesis + any
+  // discovery rerank / descriptor-retry calls). Separate from totalSpentUsdc,
+  // which is x402 paid-service spend only. Zero on cache hits and the
+  // oracle-sanctioned short-circuit, since neither runs an LLM call.
+  totalLlmCostUsd: number;
   // Populated when the Opus synthesis call failed; the verdict above is a
   // conservative stub ("insufficient_data" / safe=false). All paid receipts
   // are still preserved so the caller can render or re-synthesize manually.
@@ -308,7 +313,16 @@ export async function verifyAgent(
   opts: VerifyAgentOpts = {},
 ): Promise<VerifyAgentResult> {
   const requestedCategories = opts.categories ?? DEFAULT_CATEGORIES;
-  const llm = opts.llm;
+  // Wrap the LLM client once so every model call in the pipeline (descriptor
+  // retry, verdict synthesis) accrues into a single cost sink we report as
+  // totalLlmCostUsd. We wrap `opts.llm ?? defaultLlm` rather than only a
+  // caller-supplied client: in production the route passes no llm, so each
+  // component would otherwise fall back to its own unwrapped defaultLlm and the
+  // cost would never be captured. Passing the wrapped default down is
+  // behavior-neutral — those components already use defaultLlm when no client
+  // is supplied (selectFromRegistry makes no LLM calls at all).
+  const llmCostSink = { totalUsd: 0 };
+  const llm = withCostTracking(opts.llm ?? defaultLlm, llmCostSink);
   const emit = opts.onEvent;
   const hooks = opts._testHooks ?? {};
   const selectFn = hooks.selectFromRegistry ?? selectFromRegistry;
@@ -347,6 +361,7 @@ export async function verifyAgent(
         outcomes: [],
         walletNetwork,
         totalSpentUsdc: 0,
+        totalLlmCostUsd: 0,
       };
     }
   }
@@ -412,6 +427,7 @@ export async function verifyAgent(
       outcomes: [],
       walletNetwork,
       totalSpentUsdc: 0,
+      totalLlmCostUsd: 0,
     };
   }
   // Prefer the eth result for merging into findings (deepest coverage). Fall
@@ -602,6 +618,7 @@ export async function verifyAgent(
     outcomes: invocation.outcomes,
     walletNetwork: invocation.walletNetwork,
     totalSpentUsdc: invocation.totalSpentUsdc,
+    totalLlmCostUsd: llmCostSink.totalUsd,
     synthesisError,
   };
 }

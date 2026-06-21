@@ -1,5 +1,7 @@
 import { assertEquals } from "@std/assert";
+import { z } from "zod";
 import { verifyAgent } from "./verify.ts";
+import type { LlmClient } from "./llm.ts";
 import type { VerifyEvent } from "./events.ts";
 import type { Chain } from "./types.ts";
 import type { OracleResult } from "./sanctions_oracle.ts";
@@ -322,6 +324,82 @@ Deno.test("verifyAgent short-circuits when oracle flags address on any chain (et
   assertEquals(r.verdict.findings[0].severity, "critical");
   // Verdict's chain field reports which chain's oracle did the flagging.
   assertEquals(r.verdict.chain, "eth");
+  // No LLM call runs on the oracle short-circuit → zero model cost.
+  assertEquals(r.totalLlmCostUsd, 0);
+});
+
+// An LlmClient stub that emits `emitUsd` of cost on every call (via the onCost
+// hook the cost-tracking wrapper injects) and returns a trivial value.
+const _DummyLlmSchema = z.object({ ok: z.boolean() });
+function costEmittingLlm(emitUsd: number): LlmClient {
+  return {
+    generateStructured<T>(
+      _schema: z.ZodType<T>,
+      _prompt: string,
+      optsOrModel?: unknown,
+    ): Promise<T> {
+      if (
+        optsOrModel && typeof optsOrModel === "object" &&
+        "onCost" in optsOrModel &&
+        typeof (optsOrModel as { onCost?: unknown }).onCost === "function"
+      ) {
+        (optsOrModel as { onCost: (usd: number) => void }).onCost(emitUsd);
+      }
+      return Promise.resolve({ ok: true } as unknown as T);
+    },
+  };
+}
+
+Deno.test("verifyAgent sums LLM cost from pipeline calls into totalLlmCostUsd", async () => {
+  const r = await verifyAgent(
+    { address: "0xABC0000000000000000000000000000000000123" },
+    {
+      llm: costEmittingLlm(0.0007),
+      _testHooks: {
+        checkSanctionsOracle: cleanOracleFn(),
+        selectFromRegistry: () => Promise.resolve(fakePlan()),
+        // deno-lint-ignore no-explicit-any
+        invokeAll: () => Promise.resolve(fakeInvocation() as any),
+        // Drive one LLM call through the (wrapped) client the pipeline passes in.
+        synthesizeVerdict: async (_input, opts) => {
+          await opts!.llm!.generateStructured(_DummyLlmSchema, "synthesize");
+          return fakeVerdict();
+        },
+      },
+    },
+  );
+  // One synthesis call emitted 0.0007.
+  assertEquals(r.totalLlmCostUsd, 0.0007);
+  // x402 spend is reported separately and is unaffected.
+  assertEquals(r.totalSpentUsdc, 0.001);
+});
+
+Deno.test("verifyAgent hands collaborators a wrapped LLM client even when opts.llm is omitted", async () => {
+  // Regression guard: the production route passes no llm. If verifyAgent only
+  // wrapped a caller-supplied client, synthesis would fall back to an untracked
+  // defaultLlm and totalLlmCostUsd would always be 0. The pipeline must pass a
+  // (wrapped) client down so the `?? defaultLlm` fallbacks pick it up.
+  let received: unknown = "UNSET";
+  await verifyAgent(
+    { address: "0xABC0000000000000000000000000000000000123" },
+    {
+      // No `llm` provided — mimics createVerifyAgentRouter.
+      _testHooks: {
+        checkSanctionsOracle: cleanOracleFn(),
+        selectFromRegistry: () => Promise.resolve(fakePlan()),
+        // deno-lint-ignore no-explicit-any
+        invokeAll: () => Promise.resolve(fakeInvocation() as any),
+        synthesizeVerdict: (_input, opts) => {
+          received = opts?.llm;
+          return Promise.resolve(fakeVerdict());
+        },
+      },
+    },
+  );
+  assertEquals(
+    typeof (received as { generateStructured?: unknown }).generateStructured,
+    "function",
+  );
 });
 
 Deno.test("verifyAgent merges oracle-clean result into findings.sanctions for synthesis", async () => {

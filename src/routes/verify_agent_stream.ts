@@ -54,6 +54,7 @@ function resultPayload(result: VerifyAgentResult): Record<string, unknown> {
     })),
     walletNetwork: result.walletNetwork,
     totalSpentUsdc: result.totalSpentUsdc,
+    totalLlmCostUsd: result.totalLlmCostUsd,
   };
 }
 

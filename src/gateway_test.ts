@@ -12,6 +12,10 @@ function mockAgnicFetch(args: {
   toolName?: string;
   toolArgs: unknown;
   capturedBody?: { value?: Record<string, unknown> };
+  // When provided, embed an `agnic.cost_usd` field on the response so onCost
+  // tests can exercise cost extraction. A literal string (incl. malformed) is
+  // sent verbatim to mirror the real gateway shape.
+  agnicCostUsd?: string;
 }): typeof globalThis.fetch {
   return (_url, init) => {
     if (args.capturedBody) {
@@ -33,8 +37,14 @@ function mockAgnicFetch(args: {
               }],
             },
           }],
+          ...(args.agnicCostUsd !== undefined
+            ? { agnic: { cost_usd: args.agnicCostUsd } }
+            : {}),
         }),
-        { status: args.status ?? 200, headers: { "Content-Type": "application/json" } },
+        {
+          status: args.status ?? 200,
+          headers: { "Content-Type": "application/json" },
+        },
       ),
     );
   };
@@ -64,9 +74,14 @@ Deno.test("generateStructured forwards toolName and toolDescription to the agnic
       fetchFn,
     });
     const body = captured.value!;
-    const tools = body.tools as Array<{ function: { name: string; description: string } }>;
+    const tools = body.tools as Array<
+      { function: { name: string; description: string } }
+    >;
     assertEquals(tools[0].function.name, "submit_test");
-    assertEquals(tools[0].function.description.startsWith("Submit the test verdict."), true);
+    assertEquals(
+      tools[0].function.description.startsWith("Submit the test verdict."),
+      true,
+    );
     const toolChoice = body.tool_choice as { function: { name: string } };
     assertEquals(toolChoice.function.name, "submit_test");
   } finally {
@@ -93,7 +108,7 @@ Deno.test("generateStructured embeds toolExample in the tool description as JSON
     const desc = tools[0].function.description;
     assertEquals(desc.includes("Base text."), true);
     assertEquals(desc.includes("Example of a valid response"), true);
-    assertEquals(desc.includes("\"do_not_transact\""), true);
+    assertEquals(desc.includes('"do_not_transact"'), true);
   } finally {
     teardownKey();
   }
@@ -128,9 +143,68 @@ Deno.test("generateStructured accepts legacy 3-arg model string for backwards co
     capturedBody: captured,
   });
   try {
-    await generateStructured(TestSchema, "Test", "anthropic/legacy-model", fetchFn);
+    await generateStructured(
+      TestSchema,
+      "Test",
+      "anthropic/legacy-model",
+      fetchFn,
+    );
     const body = captured.value!;
     assertEquals(body.model, "anthropic/legacy-model");
+  } finally {
+    teardownKey();
+  }
+});
+
+// --- Cost extraction (onCost) -------------------------------------------------
+
+Deno.test("generateStructured calls onCost with the parsed agnic.cost_usd", async () => {
+  setupKey();
+  const fetchFn = mockAgnicFetch({
+    toolArgs: { safe: true, verdict: "ok" },
+    agnicCostUsd: "0.000123",
+  });
+  const costs: number[] = [];
+  try {
+    await generateStructured(TestSchema, "x", {
+      fetchFn,
+      onCost: (usd) => costs.push(usd),
+    });
+    assertEquals(costs, [0.000123]);
+  } finally {
+    teardownKey();
+  }
+});
+
+Deno.test("generateStructured skips onCost when agnic.cost_usd is absent", async () => {
+  setupKey();
+  const fetchFn = mockAgnicFetch({ toolArgs: { safe: true, verdict: "ok" } });
+  let called = false;
+  try {
+    await generateStructured(TestSchema, "x", {
+      fetchFn,
+      onCost: () => (called = true),
+    });
+    assertEquals(called, false);
+  } finally {
+    teardownKey();
+  }
+});
+
+Deno.test("generateStructured does not throw or fire onCost on malformed cost_usd", async () => {
+  setupKey();
+  const fetchFn = mockAgnicFetch({
+    toolArgs: { safe: true, verdict: "ok" },
+    agnicCostUsd: "not-a-number",
+  });
+  let called = false;
+  try {
+    const out = await generateStructured(TestSchema, "x", {
+      fetchFn,
+      onCost: () => (called = true),
+    });
+    assertEquals(out.safe, true);
+    assertEquals(called, false);
   } finally {
     teardownKey();
   }

@@ -264,10 +264,23 @@ body {
   text-align: right;
 }
 
+.cost-subtotal {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 13px;
+  font-family: var(--mono);
+  color: var(--muted);
+}
+
+.cost-subtotal:first-of-type {
+  margin-top: 16px;
+}
+
 .total {
   display: flex;
   justify-content: space-between;
-  margin-top: 12px;
+  margin-top: 8px;
   padding-top: 12px;
   border-top: 1px solid var(--fg);
   font-weight: 700;

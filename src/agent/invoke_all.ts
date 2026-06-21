@@ -20,12 +20,15 @@ import { type EventEmitter, now, safeEmit } from "./events.ts";
 import { recordServiceObservation } from "../observability/observations.ts";
 
 // 2s was below the observed median x402 RTT (most services finish in 2–4s) and
-// produced near-100% per-call timeouts. 5s gives real services headroom while
-// still capping how long a hung host can dominate the parallel fan-out budget.
-// `INVOKE_TIMEOUT_MS` env still overrides for ops; a per-request knob is
-// deferred until W1.1 tenant auth lands so it can be gated/abuse-capped.
+// produced near-100% per-call timeouts. 5s helped but some services still need
+// longer to return real data; we'd rather wait and get the signal than force a
+// timeout, so the default is 10s. This still caps how long a hung host can
+// dominate the parallel fan-out budget (the 60s agnicFetch gateway timeout is
+// the outer backstop). `INVOKE_TIMEOUT_MS` env still overrides for ops; a
+// per-request knob is deferred until W1.1 tenant auth lands so it can be
+// gated/abuse-capped.
 const DEFAULT_INVOKE_TIMEOUT_MS = parseInt(
-  Deno.env.get("INVOKE_TIMEOUT_MS") ?? "5000",
+  Deno.env.get("INVOKE_TIMEOUT_MS") ?? "10000",
   10,
 );
 
