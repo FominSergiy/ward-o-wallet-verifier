@@ -6,11 +6,13 @@ interface Props {
   running: boolean;
   onAddressChange: (v: string) => void;
   onPlan: () => void;
+  onFastCheck: () => void;
   onExecute: () => void;
 }
 
 export function InputForm(props: Props) {
-  const { address, busy, running, onAddressChange, onPlan, onExecute } = props;
+  const { address, busy, running, onAddressChange, onPlan, onFastCheck, onExecute } =
+    props;
   const valid = ADDR_RE.test(address.trim());
   const disabled = busy || !valid;
 
@@ -37,10 +39,21 @@ export function InputForm(props: Props) {
       <button
         type="button"
         disabled={disabled}
+        onClick={onFastCheck}
+        data-testid="fast-check-btn"
+        title="Free sanctions gate — returns in <1s with no spend"
+      >
+        Fast Check · $0
+      </button>
+      <button
+        type="button"
+        className="secondary"
+        disabled={disabled}
         onClick={onExecute}
         data-testid="execute-btn"
+        title="Full paid pipeline — risk services + AI synthesis (~$0.03)"
       >
-        Execute
+        Deep Check
       </button>
       {running && <span className="pill running" data-testid="running-pill">running…</span>}
       {!valid && address.length > 0 && (

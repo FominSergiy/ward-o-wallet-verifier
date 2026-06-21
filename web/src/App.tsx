@@ -124,7 +124,7 @@ export function App() {
     }
   }
 
-  async function handleExecute() {
+  async function runVerify(depth: "fast" | "deep") {
     const trimmed = address.trim();
     flushIfNewAddress(trimmed);
     setVerifyResult(null);
@@ -140,7 +140,7 @@ export function App() {
       await streamVerify(trimmed, (e) => {
         appendVerify(e);
         if (e.type === "result") setVerifyResult(e.payload);
-      }, ctl.signal);
+      }, ctl.signal, depth);
     } catch (e) {
       if ((e as Error).name === "AbortError") return;
       appendVerify({
@@ -156,6 +156,9 @@ export function App() {
       }
     }
   }
+
+  const handleFastCheck = () => runVerify("fast");
+  const handleExecute = () => runVerify("deep");
 
   function handleSavePlan() {
     if (!plan) return;
@@ -192,6 +195,7 @@ export function App() {
         running={planStreaming || verifyStreaming}
         onAddressChange={setAddress}
         onPlan={handlePlan}
+        onFastCheck={handleFastCheck}
         onExecute={handleExecute}
       />
 
@@ -222,7 +226,13 @@ export function App() {
         </>
       )}
 
-      {verifyResult && <VerdictCard result={verifyResult} />}
+      {verifyResult && (
+        <VerdictCard
+          result={verifyResult}
+          onDeepCheck={handleExecute}
+          deepCheckBusy={verifyStreaming}
+        />
+      )}
       <Footer />
     </div>
   );

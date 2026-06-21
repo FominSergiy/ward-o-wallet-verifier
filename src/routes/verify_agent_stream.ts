@@ -12,9 +12,12 @@ import { SanctionsInvocationError } from "../agent/invoke_all.ts";
 import { type AgnicBudget, fetchAgnicBudget } from "../discovery/network.ts";
 import { type EventEmitter, now, type VerifyEvent } from "../agent/events.ts";
 import { type VerdictCache } from "../agent/verdict_cache.ts";
+import { type SanctionedDenylist } from "../agent/sanctioned_denylist.ts";
 
 const VerifyAgentStreamRequestSchema = VerifyRequestSchema.extend({
   budgetCeiling: z.number().positive().optional(),
+  // "fast" = free sanctions gate only ($0); "deep" (default) = full pipeline.
+  depth: z.enum(["fast", "deep"]).optional(),
 });
 
 const DEFAULT_BUDGET_MIN_USD = 0.10;
@@ -55,6 +58,8 @@ function resultPayload(result: VerifyAgentResult): Record<string, unknown> {
     walletNetwork: result.walletNetwork,
     totalSpentUsdc: result.totalSpentUsdc,
     totalLlmCostUsd: result.totalLlmCostUsd,
+    tier: result.tier,
+    fastSignal: result.fastSignal,
   };
 }
 
@@ -64,6 +69,7 @@ export interface VerifyAgentStreamRouterOpts {
   /** Test seam for the underlying verifyAgent call. */
   verifyAgentFn?: typeof verifyAgent;
   verdictCache?: VerdictCache;
+  denylist?: SanctionedDenylist;
 }
 
 export function createVerifyAgentStreamRouter(
@@ -73,12 +79,13 @@ export function createVerifyAgentStreamRouter(
   const fetchBudget = opts.budgetFetcher ?? (() => fetchAgnicBudget());
   const verifyFn = opts.verifyAgentFn ?? verifyAgent;
   const verdictCache = opts.verdictCache;
+  const denylist = opts.denylist;
 
   router.post(
     "/",
     zValidator("json", VerifyAgentStreamRequestSchema),
     (c) => {
-      const { budgetCeiling, ...req } = c.req.valid("json");
+      const { budgetCeiling, depth, ...req } = c.req.valid("json");
 
       return streamSSE(c, async (stream) => {
         const queue: VerifyEvent[] = [];
@@ -147,9 +154,11 @@ export function createVerifyAgentStreamRouter(
           try {
             const result = await verifyFn(req, {
               budgetCeiling,
+              depth,
               onEvent: emit,
               request_id: crypto.randomUUID(),
               verdictCache,
+              denylist,
             });
             emit({ type: "result", payload: resultPayload(result), at: now() });
           } catch (e) {

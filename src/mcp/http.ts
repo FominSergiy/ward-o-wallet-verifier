@@ -2,8 +2,12 @@ import { Hono } from "hono";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { buildMcpServer } from "./server.ts";
 import { type VerdictCache } from "../agent/verdict_cache.ts";
+import { type SanctionedDenylist } from "../agent/sanctioned_denylist.ts";
 
-export function createMcpRouter(verdictCache?: VerdictCache): Hono {
+export function createMcpRouter(
+  verdictCache?: VerdictCache,
+  denylist?: SanctionedDenylist,
+): Hono {
   // One transport per MCP session. The SDK manages the `Mcp-Session-Id` header
   // and the in-memory SSE streams; we just map session id -> transport so
   // follow-up requests resume against the right state. In-memory per-isolate
@@ -23,7 +27,7 @@ export function createMcpRouter(verdictCache?: VerdictCache): Hono {
         sessions.delete(id);
       },
     });
-    await buildMcpServer(verdictCache).connect(transport);
+    await buildMcpServer(verdictCache, denylist).connect(transport);
     return transport;
   }
 

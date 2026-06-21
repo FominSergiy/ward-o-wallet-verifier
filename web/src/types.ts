@@ -124,6 +124,11 @@ export type VerdictLabel =
   | "safe_to_transact"
   | "do_not_transact"
   | "insufficient_data";
+
+// Two-tier depth + agent-actionable fast-tier signal. Mirrors
+// src/agent/verify.ts (VerifyDepth / FastSignal).
+export type VerifyTier = "fast" | "deep";
+export type FastSignal = "block" | "proceed" | "needs_deep_check";
 export type Confidence = "low" | "medium" | "high";
 export type Severity = "info" | "low" | "medium" | "high" | "critical";
 
@@ -172,6 +177,11 @@ export interface VerifyResultPayload {
   // calls). x402 paid-service spend lives in totalSpentUsdc; the card shows
   // both plus their sum. Zero on cache hits (no model call ran).
   totalLlmCostUsd: number;
+  // Which tier produced this result, and the agent-actionable signal. "fast"
+  // results always have totalSpentUsdc === 0; fastSignal "needs_deep_check"
+  // means the UI should offer the opt-in paid deep check.
+  tier?: VerifyTier;
+  fastSignal?: FastSignal;
 }
 
 export interface ResultEvent {

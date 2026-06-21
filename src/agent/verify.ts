@@ -16,6 +16,29 @@ import {
 import { ensSupportedFor, resolveEns } from "./ens_resolver.ts";
 import { fetchLabelsRegistry } from "./labels_registry.ts";
 import { type VerdictCache } from "./verdict_cache.ts";
+import {
+  type DenylistEntry,
+  type SanctionedDenylist,
+} from "./sanctioned_denylist.ts";
+
+// Two-tier depth selector. "deep" (default) runs the full pipeline:
+// denylist + oracle → discovery → paid x402 fanout → LLM synthesis. "fast"
+// runs only the free, sub-second sanctions gate (denylist + Chainalysis oracle)
+// and returns a machine-readable signal WITHOUT any x402 spend, so an agent can
+// act on a binding block/proceed in <1s and opt into the paid deep check only
+// when needed.
+export type VerifyDepth = "fast" | "deep";
+
+// Agent-actionable fast-tier outcome. `block` = sanctioned (do_not_transact);
+// `proceed` = a previously cached safe verdict; `needs_deep_check` = no blocking
+// signal, but a full verdict requires the paid deep tier.
+export type FastSignal = "block" | "proceed" | "needs_deep_check";
+
+function fastSignalForVerdict(v: WalletVerdict["verdict"]): FastSignal {
+  if (v === "do_not_transact") return "block";
+  if (v === "safe_to_transact") return "proceed";
+  return "needs_deep_check";
+}
 
 // The user submits a bare EVM address; we no longer ask them to pick a chain.
 // Chain-sensitive downstream paths (x402 invocation, ENS, viem fallback) use
@@ -49,6 +72,10 @@ export interface VerifyAgentResult {
   // conservative stub ("insufficient_data" / safe=false). All paid receipts
   // are still preserved so the caller can render or re-synthesize manually.
   synthesisError?: string;
+  // Which tier produced this result. "fast" results never incur x402 spend.
+  tier?: VerifyDepth;
+  // Agent-actionable signal derived from the verdict. Always set by verifyAgent.
+  fastSignal?: FastSignal;
 }
 
 export interface VerifyAgentOpts {
@@ -58,6 +85,14 @@ export interface VerifyAgentOpts {
   onEvent?: EventEmitter;
   request_id?: string;
   verdictCache?: VerdictCache;
+  // Long-TTL sanctions denylist (warmed by the vetter cron). Checked at the top
+  // of the pipeline before the oracle fan-out; a hit short-circuits to a
+  // deterministic do_not_transact with zero spend. Optional — a miss falls
+  // through to the live oracle path, so correctness never depends on it.
+  denylist?: SanctionedDenylist;
+  // "fast" = free sanctions gate only (no x402 spend); "deep" (default) = full
+  // pipeline. See VerifyDepth.
+  depth?: VerifyDepth;
   // Injection seam for unit tests — replace any of the discovery-flow
   // collaborators. Real callers leave undefined and the default
   // implementations are used.
@@ -140,6 +175,87 @@ function oracleSanctionedVerdict(
       requested: categories,
       resolved: ["sanctions"],
       unresolved: categories.filter((c) => c !== "sanctions"),
+      ...(notApplicable.length > 0 ? { not_applicable: notApplicable } : {}),
+    },
+    totalSpentUsdc: 0,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+// DENYLIST FAST-PATH: deterministic verdict produced when the warmed sanctions
+// denylist (OFAC SDN, warmed by the vetter cron) contains the address. Returned
+// in <100ms from a single KV read, before the oracle fan-out — zero spend.
+function denylistVerdict(
+  req: VerifyRequest,
+  categories: Category[],
+  notApplicable: Category[],
+  entry: DenylistEntry,
+): WalletVerdict {
+  return {
+    address: req.address,
+    chain: DEFAULT_CHAIN,
+    safe: false,
+    verdict: "do_not_transact",
+    confidence: "high",
+    headline: "Do not transact — address is on the sanctions denylist.",
+    reasoning: `This address is present on the warmed sanctions denylist ` +
+      `(reason: ${entry.reason}, source: ${entry.source}, warmed ${entry.warmedAt}). ` +
+      `The denylist is built from the OFAC SDN list and is deterministic; ` +
+      `downstream oracle and x402 service calls were skipped to avoid ` +
+      `unnecessary latency and spend.`,
+    findings: [{
+      category: "sanctions",
+      severity: "critical",
+      finding: `Address present on sanctions denylist (${entry.reason}).`,
+    }],
+    coverage: {
+      requested: categories,
+      resolved: ["sanctions"],
+      unresolved: categories.filter((c) => c !== "sanctions"),
+      ...(notApplicable.length > 0 ? { not_applicable: notApplicable } : {}),
+    },
+    totalSpentUsdc: 0,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+// FAST-TIER INCONCLUSIVE: returned by the "fast" depth when the free sanctions
+// gate (denylist + Chainalysis oracle) finds no blocking signal. It is NOT a
+// safety determination — it tells the caller the paid deep check is needed.
+// Zero spend.
+function fastNeedsDeepVerdict(
+  req: VerifyRequest,
+  categories: Category[],
+  notApplicable: Category[],
+  oracleResult: OracleResult | null,
+): WalletVerdict {
+  const sanctionsResolved = oracleResult !== null;
+  return {
+    address: req.address,
+    chain: DEFAULT_CHAIN,
+    safe: false,
+    verdict: "insufficient_data",
+    confidence: "low",
+    headline:
+      "Fast check cleared the sanctions gate — run a deep check for a full risk verdict.",
+    reasoning:
+      "The fast tier (sanctions denylist + Chainalysis on-chain oracle) found " +
+      "no blocking signal, but a final safe/unsafe determination requires the " +
+      "paid deep analysis (labels, on-chain history, sentiment, synthesis). " +
+      "No spend was incurred. Re-run with depth=deep for a final verdict.",
+    findings: sanctionsResolved
+      ? [{
+        category: "sanctions",
+        severity: "info",
+        finding: "Chainalysis sanctions oracle returned isSanctioned=false.",
+      }]
+      : [],
+    coverage: {
+      requested: categories,
+      resolved: sanctionsResolved ? ["sanctions"] : [],
+      unresolved: categories.filter((c) =>
+        !sanctionsResolved || c !== "sanctions"
+      ),
       ...(notApplicable.length > 0 ? { not_applicable: notApplicable } : {}),
     },
     totalSpentUsdc: 0,
@@ -332,6 +448,8 @@ export async function verifyAgent(
   const ensResolveFn = hooks.resolveEns ?? resolveEns;
   const labelsRegistryFn = hooks.fetchLabelsRegistry ?? fetchLabelsRegistry;
   const cache = opts.verdictCache ?? null;
+  const denylist = opts.denylist ?? null;
+  const depth: VerifyDepth = opts.depth ?? "deep";
   const request_id = opts.request_id ?? crypto.randomUUID();
 
   // Cache check before any service calls — hit returns in <100ms.
@@ -362,6 +480,8 @@ export async function verifyAgent(
         walletNetwork,
         totalSpentUsdc: 0,
         totalLlmCostUsd: 0,
+        tier: depth,
+        fastSignal: fastSignalForVerdict(cached.verdict),
       };
     }
   }
@@ -382,6 +502,44 @@ export async function verifyAgent(
         `category_skipped: ens reason=chain_not_supported (${DEFAULT_CHAIN})`,
       at: now(),
     });
+  }
+
+  // DENYLIST FAST-PATH: a warmed OFAC SDN hit returns a deterministic verdict
+  // from a single KV read — before the oracle fan-out — at zero spend and no
+  // RPC. A miss falls through to the live oracle path below, so correctness
+  // never depends on the denylist being warm.
+  if (denylist) {
+    const entry = await denylist.has(DEFAULT_CHAIN, req.address);
+    if (entry !== null) {
+      safeEmit(emit, {
+        type: "log",
+        level: "info",
+        message:
+          `sanctioned_denylist: hit address=${req.address} source=${entry.source}`,
+        at: now(),
+      });
+      const walletNetwork: WalletNetwork = "base";
+      const verdict = denylistVerdict(req, categories, notApplicable, entry);
+      return {
+        verdict,
+        plan: {
+          address: req.address,
+          walletNetwork,
+          services: [],
+          alternates: {},
+          totalEstimatedCostUsdc: 0,
+          unresolvedCategories: [],
+          deterministicSources: [],
+          generatedAt: new Date().toISOString(),
+        },
+        outcomes: [],
+        walletNetwork,
+        totalSpentUsdc: 0,
+        totalLlmCostUsd: 0,
+        tier: depth,
+        fastSignal: "block",
+      };
+    }
   }
 
   // CHAIN-PRIMITIVE FALLBACK: hit the Chainalysis sanctions oracle on every
@@ -428,6 +586,8 @@ export async function verifyAgent(
       walletNetwork,
       totalSpentUsdc: 0,
       totalLlmCostUsd: 0,
+      tier: depth,
+      fastSignal: "block",
     };
   }
   // Prefer the eth result for merging into findings (deepest coverage). Fall
@@ -435,6 +595,46 @@ export async function verifyAgent(
   const oracleResult: OracleResult | null =
     oracleAttempts.find((a) => a.chain === "eth" && a.result)?.result ??
       oracleAttempts.find((a) => a.result)?.result ?? null;
+
+  // FAST TIER: the free sanctions gate (denylist + oracle) cleared the address
+  // and no x402 spend has occurred. Return a machine-readable
+  // "needs_deep_check" signal instead of running discovery + the paid fanout +
+  // synthesis. The caller opts into the deep tier (depth="deep") when it wants a
+  // final safe/unsafe verdict.
+  if (depth === "fast") {
+    safeEmit(emit, {
+      type: "log",
+      level: "info",
+      message:
+        `fast_tier: sanctions gate cleared, returning needs_deep_check (no spend) address=${req.address}`,
+      at: now(),
+    });
+    const walletNetwork: WalletNetwork = "base";
+    return {
+      verdict: fastNeedsDeepVerdict(
+        req,
+        categories,
+        notApplicable,
+        oracleResult,
+      ),
+      plan: {
+        address: req.address,
+        walletNetwork,
+        services: [],
+        alternates: {},
+        totalEstimatedCostUsdc: 0,
+        unresolvedCategories: [],
+        deterministicSources: [],
+        generatedAt: new Date().toISOString(),
+      },
+      outcomes: [],
+      walletNetwork,
+      totalSpentUsdc: 0,
+      totalLlmCostUsd: 0,
+      tier: "fast",
+      fastSignal: "needs_deep_check",
+    };
+  }
 
   const discoverStart = Date.now();
   safeEmit(emit, {
@@ -620,5 +820,7 @@ export async function verifyAgent(
     totalSpentUsdc: invocation.totalSpentUsdc,
     totalLlmCostUsd: llmCostSink.totalUsd,
     synthesisError,
+    tier: "deep",
+    fastSignal: fastSignalForVerdict(verdict.verdict),
   };
 }

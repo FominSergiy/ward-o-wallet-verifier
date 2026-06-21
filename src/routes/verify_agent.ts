@@ -10,9 +10,13 @@ import {
 import { SanctionsInvocationError } from "../agent/invoke_all.ts";
 import { type AgnicBudget, fetchAgnicBudget } from "../discovery/network.ts";
 import { type VerdictCache } from "../agent/verdict_cache.ts";
+import { type SanctionedDenylist } from "../agent/sanctioned_denylist.ts";
 
 const VerifyAgentRequestSchema = VerifyRequestSchema.extend({
   budgetCeiling: z.number().positive().optional(),
+  // "fast" = free sanctions gate only ($0, no x402); "deep" (default) = full
+  // pipeline. Omitted → deep, preserving the historical single-tier contract.
+  depth: z.enum(["fast", "deep"]).optional(),
 });
 
 const DEFAULT_BUDGET_MIN_USD = 0.10;
@@ -36,6 +40,7 @@ export interface VerifyAgentRouterOpts {
    */
   verify?: typeof verifyAgent;
   verdictCache?: VerdictCache;
+  denylist?: SanctionedDenylist;
 }
 
 export function createVerifyAgentRouter(
@@ -45,9 +50,10 @@ export function createVerifyAgentRouter(
   const fetchBudget = opts.budgetFetcher ?? (() => fetchAgnicBudget());
   const runVerify = opts.verify ?? verifyAgent;
   const verdictCache = opts.verdictCache;
+  const denylist = opts.denylist;
 
   router.post("/", zValidator("json", VerifyAgentRequestSchema), async (c) => {
-    const { budgetCeiling, ...req } = c.req.valid("json");
+    const { budgetCeiling, depth, ...req } = c.req.valid("json");
 
     // Pre-flight budget guard. A null result (no key, fetch failure) means
     // we couldn't determine — proceed normally rather than block live traffic
@@ -78,11 +84,15 @@ export function createVerifyAgentRouter(
     try {
       const result = await runVerify(req, {
         budgetCeiling,
+        depth,
         request_id: crypto.randomUUID(),
         verdictCache,
+        denylist,
       });
       return c.json({
         verdict: result.verdict,
+        tier: result.tier,
+        fastSignal: result.fastSignal,
         synthesisError: result.synthesisError,
         plan: {
           services: result.plan.services.map((s) => ({

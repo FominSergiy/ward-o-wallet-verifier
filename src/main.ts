@@ -8,6 +8,10 @@ import { invokeRouter } from "./routes/invoke.ts";
 import { createMcpRouter } from "./mcp/http.ts";
 import { dbEnabled, getDb } from "./db/client.ts";
 import { denoKvCache, type VerdictCache } from "./agent/verdict_cache.ts";
+import {
+  denoKvDenylist,
+  type SanctionedDenylist,
+} from "./agent/sanctioned_denylist.ts";
 
 async function dbHealth(): Promise<"ok" | "disabled" | "error"> {
   if (!dbEnabled()) return "disabled";
@@ -19,7 +23,10 @@ async function dbHealth(): Promise<"ok" | "disabled" | "error"> {
   }
 }
 
-export function createApp(verdictCache?: VerdictCache): Hono {
+export function createApp(
+  verdictCache?: VerdictCache,
+  denylist?: SanctionedDenylist,
+): Hono {
   const app = new Hono();
 
   app.use(
@@ -41,15 +48,18 @@ export function createApp(verdictCache?: VerdictCache): Hono {
     async (c) => c.json({ status: "ok", db: await dbHealth() }),
   );
 
-  app.route("/verify-agent", createVerifyAgentRouter({ verdictCache }));
+  app.route(
+    "/verify-agent",
+    createVerifyAgentRouter({ verdictCache, denylist }),
+  );
   app.route(
     "/verify-agent-stream",
-    createVerifyAgentStreamRouter({ verdictCache }),
+    createVerifyAgentStreamRouter({ verdictCache, denylist }),
   );
   app.route("/discover", discoverRouter);
   app.route("/discover-stream", discoverStreamRouter);
   app.route("/invoke", invokeRouter);
-  app.route("/mcp", createMcpRouter(verdictCache));
+  app.route("/mcp", createMcpRouter(verdictCache, denylist));
 
   app.onError((err, c) => {
     console.error(err);
@@ -66,7 +76,8 @@ export const app = createApp();
 if (import.meta.main) {
   const kv = await Deno.openKv();
   const cache = denoKvCache(kv);
+  const denylist = denoKvDenylist(kv);
   const port = parseInt(Deno.env.get("PORT") ?? "8000");
   console.log(`Starting on :${port}`);
-  Deno.serve({ port }, createApp(cache).fetch);
+  Deno.serve({ port }, createApp(cache, denylist).fetch);
 }
