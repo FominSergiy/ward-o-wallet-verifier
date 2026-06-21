@@ -44,6 +44,14 @@ export interface GenerateStructuredOpts {
    */
   toolExample?: unknown;
   fetchFn?: typeof globalThis.fetch;
+  /**
+   * Invoked with the LLM call's USD cost (parsed from the gateway's
+   * `agnic.cost_usd` field) after a successful response. Lets callers
+   * accumulate model spend for cost reporting. Cost-telemetry only — a
+   * missing/malformed cost field is swallowed and the callback is skipped,
+   * never throwing into the synthesis path.
+   */
+  onCost?: (usd: number) => void;
 }
 
 const NO_ENVELOPE_SYSTEM_MESSAGE =
@@ -84,7 +92,10 @@ export async function generateStructured<T>(
   const toolName = opts.toolName ?? "respond";
   const baseDescription = opts.toolDescription ??
     "Return the structured response.";
-  const toolDescription = buildToolDescription(baseDescription, opts.toolExample);
+  const toolDescription = buildToolDescription(
+    baseDescription,
+    opts.toolExample,
+  );
   const fetchFn = opts.fetchFn ?? globalThis.fetch;
 
   const jsonSchema = z.toJSONSchema(schema, { target: "draft-7" });
@@ -123,7 +134,9 @@ export async function generateStructured<T>(
   if (!toolCall) {
     const fallbackContent = data.choices?.[0]?.message?.content ?? "(empty)";
     throw new Error(
-      `agnic gateway returned no tool call. Content: ${fallbackContent.slice(0, 200)}`,
+      `agnic gateway returned no tool call. Content: ${
+        fallbackContent.slice(0, 200)
+      }`,
     );
   }
 
@@ -132,7 +145,9 @@ export async function generateStructured<T>(
     parsedArgs = JSON.parse(toolCall.function.arguments);
   } catch (e) {
     throw new Error(
-      `agnic gateway tool arguments were not valid JSON: ${(e as Error).message}`,
+      `agnic gateway tool arguments were not valid JSON: ${
+        (e as Error).message
+      }`,
     );
   }
 
@@ -152,7 +167,16 @@ export async function generateStructured<T>(
     const keys = Object.keys(parsedArgs);
     const candidates: string[] = [];
     if (keys.length === 1) candidates.push(keys[0]);
-    for (const k of ["$PARAMETER_VALUE", "value", "data", "result", "output", "payload"]) {
+    for (
+      const k of [
+        "$PARAMETER_VALUE",
+        "value",
+        "data",
+        "result",
+        "output",
+        "payload",
+      ]
+    ) {
       if (k in parsedArgs && !candidates.includes(k)) candidates.push(k);
     }
     for (const k of candidates) {
@@ -178,5 +202,12 @@ export async function generateStructured<T>(
       }`,
     );
   }
+  // Surface the LLM call's USD cost for accumulation by the caller. Best-effort:
+  // a missing or non-numeric `agnic.cost_usd` must never break synthesis.
+  if (opts.onCost) {
+    const cost = parseFloat(data.agnic?.cost_usd ?? "");
+    if (Number.isFinite(cost)) opts.onCost(cost);
+  }
+
   return firstAttempt.data;
 }

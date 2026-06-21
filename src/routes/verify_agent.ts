@@ -105,6 +105,7 @@ export function createVerifyAgentRouter(
         })),
         walletNetwork: result.walletNetwork,
         totalSpentUsdc: result.totalSpentUsdc,
+        totalLlmCostUsd: result.totalLlmCostUsd,
       });
     } catch (e) {
       if (e instanceof WalletUnfundedError) {

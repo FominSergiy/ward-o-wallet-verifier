@@ -21,6 +21,36 @@ export const defaultLlm: LlmClient = {
     generateStructured(schema, prompt, optsOrModel),
 };
 
+/** Mutable accumulator for total LLM spend across a pipeline run. */
+export interface LlmCostSink {
+  totalUsd: number;
+}
+
+/**
+ * Wrap an LlmClient so every call's USD cost is accumulated into `sink`.
+ * Injects an `onCost` hook into each call's opts (chaining any caller-supplied
+ * one), so callers don't have to thread cost tracking through individual call
+ * sites — wrap the client once and read `sink.totalUsd` at the end.
+ */
+export function withCostTracking(
+  inner: LlmClient,
+  sink: LlmCostSink,
+): LlmClient {
+  return {
+    generateStructured(schema, prompt, optsOrModel) {
+      const opts: GenerateStructuredOpts = typeof optsOrModel === "string"
+        ? { model: optsOrModel }
+        : { ...(optsOrModel ?? {}) };
+      const prevOnCost = opts.onCost;
+      opts.onCost = (usd) => {
+        sink.totalUsd += usd;
+        prevOnCost?.(usd);
+      };
+      return inner.generateStructured(schema, prompt, opts);
+    },
+  };
+}
+
 export function mockLlm(fixtures: Record<string, unknown>): LlmClient {
   return {
     generateStructured<T>(
@@ -35,7 +65,9 @@ export function mockLlm(fixtures: Record<string, unknown>): LlmClient {
         : Object.values(fixtures)[0];
       if (fixture === undefined) {
         return Promise.reject(
-          new Error(`mockLlm: no fixture for schema "${key ?? "(no description)"}"`),
+          new Error(
+            `mockLlm: no fixture for schema "${key ?? "(no description)"}"`,
+          ),
         );
       }
       try {

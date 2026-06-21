@@ -57,7 +57,9 @@ const sectionHeaderStyle: CSSProperties = {
 };
 
 export function VerdictCard({ result }: Props) {
-  const { verdict, receipts, totalSpentUsdc, walletNetwork, synthesisError } = result;
+  const { verdict, receipts, totalSpentUsdc, totalLlmCostUsd, walletNetwork, synthesisError } =
+    result;
+  const grandTotalUsdc = totalSpentUsdc + (totalLlmCostUsd ?? 0);
   const cls = labelClass(verdict.verdict);
   return (
     <div className="card verdict-card" data-testid="verdict-card">
@@ -127,9 +129,18 @@ export function VerdictCard({ result }: Props) {
         ))}
       </div>
 
+      <div className="cost-subtotal" data-testid="cost-x402">
+        <span>x402 services</span>
+        <span>{fmtUsd(totalSpentUsdc)}</span>
+      </div>
+      <div className="cost-subtotal" data-testid="cost-llm">
+        <span>AI model calls</span>
+        <span>{fmtUsd(totalLlmCostUsd)}</span>
+      </div>
+
       <div className="total">
         <span>Total spent</span>
-        <span>{fmtUsd(totalSpentUsdc)}</span>
+        <span>{fmtUsd(grandTotalUsdc)}</span>
       </div>
     </div>
   );

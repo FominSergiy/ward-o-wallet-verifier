@@ -90,7 +90,12 @@ export interface ServiceEvent {
 
 export interface PlanEvent {
   type: "plan";
-  services: { category: Category; resource: string; priceUsdc: number; rationale: string }[];
+  services: {
+    category: Category;
+    resource: string;
+    priceUsdc: number;
+    rationale: string;
+  }[];
   totalEstimatedCostUsdc: number;
   walletNetwork: WalletNetwork;
   unresolvedCategories?: Category[];
@@ -115,7 +120,10 @@ export interface VerifyReceipt {
   errorCode?: string;
 }
 
-export type VerdictLabel = "safe_to_transact" | "do_not_transact" | "insufficient_data";
+export type VerdictLabel =
+  | "safe_to_transact"
+  | "do_not_transact"
+  | "insufficient_data";
 export type Confidence = "low" | "medium" | "high";
 export type Severity = "info" | "low" | "medium" | "high" | "critical";
 
@@ -149,10 +157,21 @@ export interface VerifyVerdict {
 export interface VerifyResultPayload {
   verdict: VerifyVerdict;
   synthesisError?: string | null;
-  plan: { services: { category: Category; resource: string; priceUsdc: number; rationale: string }[] };
+  plan: {
+    services: {
+      category: Category;
+      resource: string;
+      priceUsdc: number;
+      rationale: string;
+    }[];
+  };
   receipts: VerifyReceipt[];
   walletNetwork: WalletNetwork;
   totalSpentUsdc: number;
+  // Total USD spent on AI model calls this run (synthesis + discovery LLM
+  // calls). x402 paid-service spend lives in totalSpentUsdc; the card shows
+  // both plus their sum. Zero on cache hits (no model call ran).
+  totalLlmCostUsd: number;
 }
 
 export interface ResultEvent {
