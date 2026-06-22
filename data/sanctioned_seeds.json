@@ -1,0 +1,9 @@
+{
+  "source": "fixtures",
+  "note": "Offline fallback seed for the sanctioned denylist warm step. Primary source is the live OFAC SDN ETH list (see src/agent/ofac_list.ts). These three anchor addresses come from src/fixtures/wallets.ts.",
+  "addresses": [
+    "0x098B716B8Aaf21512996dC57EB0615e2383E2f96",
+    "0xd90e2f925da726b50c4ed8d0fb90ad053324f31b",
+    "0x7F367cC41522cE07553e823bf3be79A889DEbe1B"
+  ]
+}

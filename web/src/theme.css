@@ -293,6 +293,50 @@ body {
   margin-left: 8px;
 }
 
+/* Tier indicator — plain inline text, not a chip. */
+.tier-tag {
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 10px;
+}
+
+/* Opt-in deep-check, rendered as a footer under the fast-tier total. */
+.deep-check-cta {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--faint);
+  text-align: right;
+}
+
+.deep-check-btn {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border: 1px solid var(--fg);
+  background: var(--bg);
+  color: var(--fg);
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  font-family: var(--mono);
+}
+
+.deep-check-btn:hover:not(:disabled) {
+  background: var(--fg);
+  color: var(--bg);
+}
+
+.deep-check-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.deep-check-note {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
 .terminal-tabs {
   margin-bottom: 20px;
 }

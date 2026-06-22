@@ -1,7 +1,7 @@
 import { assertEquals } from "@std/assert";
 import { z } from "zod";
 import { appendSubPath, invokeRankedService } from "./invoke_service.ts";
-import { mockLlm, type LlmClient } from "./llm.ts";
+import { type LlmClient, mockLlm } from "./llm.ts";
 import type { RankedService } from "../discovery/types.ts";
 
 const ADDR = "0x9dd5e3a608Ba321C5205688d66E11e81B67e08c2";
@@ -17,7 +17,8 @@ function svc(args: Partial<RankedService> = {}): RankedService {
     scheme: "exact",
     qualityScore: null,
     rationale: "r",
-    inputInfo: args.inputInfo ?? { method: "GET", queryParams: { wallet: "0xexample" } },
+    inputInfo: args.inputInfo ??
+      { method: "GET", queryParams: { wallet: "0xexample" } },
   };
 }
 
@@ -47,7 +48,11 @@ function teardownAgnic() {
   Deno.env.delete("AGNIC_API_KEY");
 }
 
-function jsonResp(status: number, body: unknown, headers: Record<string, string> = {}) {
+function jsonResp(
+  status: number,
+  body: unknown,
+  headers: Record<string, string> = {},
+) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json", ...headers },
@@ -97,7 +102,10 @@ Deno.test("invokeRankedService falls back to LLM on bad upstream response", asyn
     call++;
     if (call === 1) {
       return Promise.resolve(
-        jsonResp(400, { error: "upstream_4xx", error_description: "missing wallet param" }),
+        jsonResp(400, {
+          error: "upstream_4xx",
+          error_description: "missing wallet param",
+        }),
       );
     }
     return Promise.resolve(jsonResp(200, { sanctions_match: false }, {
@@ -110,7 +118,10 @@ Deno.test("invokeRankedService falls back to LLM on bad upstream response", asyn
     generateStructured<T>(schema: z.ZodType<T>, _p: string): Promise<T> {
       llmCalls++;
       return Promise.resolve(
-        schema.parse({ url: "https://svc.example/v1/screen?wallet=" + ADDR, method: "GET" }),
+        schema.parse({
+          url: "https://svc.example/v1/screen?wallet=" + ADDR,
+          method: "GET",
+        }),
       );
     },
   };
@@ -135,7 +146,10 @@ Deno.test("invokeRankedService surfaces error when both adapters fail", async ()
   const cap = captureConsole();
   globalThis.fetch = (_url, _init) =>
     Promise.resolve(
-      jsonResp(400, { error: "upstream_4xx", error_description: "bad request" }),
+      jsonResp(400, {
+        error: "upstream_4xx",
+        error_description: "bad request",
+      }),
     );
   const llm: LlmClient = {
     generateStructured<T>(schema: z.ZodType<T>, _p: string): Promise<T> {
@@ -222,7 +236,10 @@ Deno.test("invokeRankedService tries the single POST fallback shape before LLM a
   // A POST service so the fallback shape applies.
   const postService = svc({
     resource: "https://post.example/v1/check",
-    inputInfo: { method: "POST", body: { address: "0xexample", chain: "base" } },
+    inputInfo: {
+      method: "POST",
+      body: { address: "0xexample", chain: "base" },
+    },
   });
   let llmCalls = 0;
   const llm: LlmClient = {
@@ -233,7 +250,11 @@ Deno.test("invokeRankedService tries the single POST fallback shape before LLM a
   };
   try {
     const out = await invokeRankedService(postService, ADDR, "base", { llm });
-    assertEquals(out.status, "ok", `expected ok, got ${out.status}: ${out.error}`);
+    assertEquals(
+      out.status,
+      "ok",
+      `expected ok, got ${out.status}: ${out.error}`,
+    );
     assertEquals(out.adapterPath, "pattern");
     // 2 calls = primary + 1 fallback shape. LLM never invoked.
     assertEquals(calls, 2);
@@ -261,7 +282,8 @@ Deno.test("invokeRankedService retries once on Too Many Requests rate limit", as
       return Promise.resolve(
         jsonResp(429, {
           error: "rate_limited",
-          error_description: "Too many requests from this IP, please try again later.",
+          error_description:
+            "Too many requests from this IP, please try again later.",
         }),
       );
     }
@@ -274,16 +296,53 @@ Deno.test("invokeRankedService retries once on Too Many Requests rate limit", as
   // Approach: stub setTimeout to fire immediately for any duration in this test.
   const origSetTimeout = globalThis.setTimeout;
   // deno-lint-ignore no-explicit-any
-  globalThis.setTimeout = ((fn: () => void, _ms?: number) => origSetTimeout(fn, 0)) as any;
+  globalThis.setTimeout =
+    ((fn: () => void, _ms?: number) => origSetTimeout(fn, 0)) as any;
   const llm = mockLlm({});
   try {
     const out = await invokeRankedService(svc(), ADDR, "base", { llm });
-    assertEquals(out.status, "ok", `expected ok, got ${out.status}: ${out.error}`);
+    assertEquals(
+      out.status,
+      "ok",
+      `expected ok, got ${out.status}: ${out.error}`,
+    );
     assertEquals(calls, 2);
     assertEquals(
-      cap.warn.some((l) => l.includes("rate-limited") && l.includes("backing off")),
+      cap.warn.some((l) =>
+        l.includes("rate-limited") && l.includes("backing off")
+      ),
       true,
     );
+  } finally {
+    globalThis.setTimeout = origSetTimeout;
+    cap.restore();
+    globalThis.fetch = orig;
+    teardownAgnic();
+  }
+});
+
+Deno.test("invokeRankedService surfaces errorCode rate_limited when still rate-limited after retry", async () => {
+  setupAgnic();
+  const orig = globalThis.fetch;
+  const cap = captureConsole();
+  // Always 429 — both the initial attempt and the post-backoff retry. The
+  // outcome must classify as "rate_limited", NOT a misleading "timeout".
+  globalThis.fetch = (_url, _init) =>
+    Promise.resolve(
+      jsonResp(429, {
+        error: "rate_limited",
+        error_description: "Too many requests from this IP.",
+      }),
+    );
+  const origSetTimeout = globalThis.setTimeout;
+  // deno-lint-ignore no-explicit-any
+  globalThis.setTimeout =
+    ((fn: () => void, _ms?: number) => origSetTimeout(fn, 0)) as any;
+  const llm = mockLlm({});
+  try {
+    const out = await invokeRankedService(svc(), ADDR, "base", { llm });
+    assertEquals(out.status, "error");
+    assertEquals(out.errorCode, "rate_limited");
   } finally {
     globalThis.setTimeout = origSetTimeout;
     cap.restore();
@@ -356,7 +415,10 @@ Deno.test("invokeRankedService surfaces adapter_llm_build_failed when LLM throws
   // Pattern call returns an upstream_4xx so we fall through to the LLM layer.
   globalThis.fetch = (_url, _init) =>
     Promise.resolve(
-      jsonResp(400, { error: "upstream_4xx", error_description: "wrong shape" }),
+      jsonResp(400, {
+        error: "upstream_4xx",
+        error_description: "wrong shape",
+      }),
     );
   const llm: LlmClient = {
     generateStructured<T>(_schema: z.ZodType<T>, _p: string): Promise<T> {
@@ -385,7 +447,10 @@ Deno.test("invokeRankedService surfaces adapter_call_failed on non-Agnic exec th
     if (calls === 1) {
       // Pattern primary — upstream_4xx forces LLM fallback.
       return Promise.resolve(
-        jsonResp(400, { error: "upstream_4xx", error_description: "bad shape" }),
+        jsonResp(400, {
+          error: "upstream_4xx",
+          error_description: "bad shape",
+        }),
       );
     }
     // LLM call: simulate a transport-level failure (non-AgnicFetchError).
@@ -394,7 +459,10 @@ Deno.test("invokeRankedService surfaces adapter_call_failed on non-Agnic exec th
   const llm: LlmClient = {
     generateStructured<T>(schema: z.ZodType<T>, _p: string): Promise<T> {
       return Promise.resolve(
-        schema.parse({ url: "https://svc.example/v1/screen?wallet=" + ADDR, method: "GET" }),
+        schema.parse({
+          url: "https://svc.example/v1/screen?wallet=" + ADDR,
+          method: "GET",
+        }),
       );
     },
   };
@@ -448,11 +516,18 @@ Deno.test("invokeRankedService skips pattern adapter when FORCE_LLM_ADAPTER=true
     assertEquals(out.status, "fallback_ok");
     assertEquals(out.adapterPath, "llm");
     assertEquals(llmCalls, 1, "LLM must be invoked exactly once");
-    assertEquals(fetchCalls, 1, "only the LLM-built call should hit the network");
     assertEquals(
-      seenTargets[0].includes("?wallet=") || seenTargets[0].includes("?address="),
+      fetchCalls,
+      1,
+      "only the LLM-built call should hit the network",
+    );
+    assertEquals(
+      seenTargets[0].includes("?wallet=") ||
+        seenTargets[0].includes("?address="),
       true,
-      `first fetch target should be the LLM-built URL with substituted address, got: ${seenTargets[0]}`,
+      `first fetch target should be the LLM-built URL with substituted address, got: ${
+        seenTargets[0]
+      }`,
     );
     assertEquals(
       cap.warn.some((l) => l.includes("FORCE_LLM_ADAPTER=true")),
@@ -546,19 +621,28 @@ Deno.test("invokeRankedService retries against sub-path on descriptor response",
       "base",
       { llm },
     );
-    assertEquals(out.status, "ok", `expected ok, got ${out.status}: ${out.error}`);
+    assertEquals(
+      out.status,
+      "ok",
+      `expected ok, got ${out.status}: ${out.error}`,
+    );
     assertEquals(out.adapterPath, "pattern+subpath");
     assertEquals((out.data as Record<string, unknown>).known_label, "Vitalik");
     assertEquals(calls, 2);
     // First call hits the base URL; second includes the /label sub-path.
-    assertEquals(seenTargets[0], `${ORBIS_LABELS_URL}?address=${encodeURIComponent(ADDR)}`);
+    assertEquals(
+      seenTargets[0],
+      `${ORBIS_LABELS_URL}?address=${encodeURIComponent(ADDR)}`,
+    );
     assertEquals(
       seenTargets[1].startsWith(`${ORBIS_LABELS_URL}/label`),
       true,
       `expected second call to hit /label, got: ${seenTargets[1]}`,
     );
     assertEquals(
-      cap.warn.some((l) => l.includes("returned descriptor") && l.includes("/label")),
+      cap.warn.some((l) =>
+        l.includes("returned descriptor") && l.includes("/label")
+      ),
       true,
     );
   } finally {
@@ -586,7 +670,11 @@ Deno.test("invokeRankedService returns descriptor_only_response when only info e
   const llm = mockLlm({});
   try {
     const out = await invokeRankedService(
-      svc({ category: "labels", resource: "https://x.example/svc", inputInfo: { method: "GET" } }),
+      svc({
+        category: "labels",
+        resource: "https://x.example/svc",
+        inputInfo: { method: "GET" },
+      }),
       ADDR,
       "base",
       { llm },
@@ -594,9 +682,15 @@ Deno.test("invokeRankedService returns descriptor_only_response when only info e
     assertEquals(out.status, "error");
     assertEquals(out.errorCode, "descriptor_only_response");
     assertEquals(out.adapterPath, "pattern+subpath");
-    assertEquals(calls, 1, "no retry should be attempted when no action endpoint exists");
     assertEquals(
-      cap.warn.some((l) => l.includes("no action endpoint") && l.includes("/openapi")),
+      calls,
+      1,
+      "no retry should be attempted when no action endpoint exists",
+    );
+    assertEquals(
+      cap.warn.some((l) =>
+        l.includes("no action endpoint") && l.includes("/openapi")
+      ),
       true,
       "warn log should include the endpoints array verbatim",
     );
@@ -625,7 +719,11 @@ Deno.test("invokeRankedService surfaces descriptor_only_response when retry also
   const llm = mockLlm({});
   try {
     const out = await invokeRankedService(
-      svc({ category: "labels", resource: "https://x.example/svc", inputInfo: { method: "GET" } }),
+      svc({
+        category: "labels",
+        resource: "https://x.example/svc",
+        inputInfo: { method: "GET" },
+      }),
       ADDR,
       "base",
       { llm },
@@ -670,7 +768,11 @@ Deno.test("invokeRankedService propagates sub-path retry failure code", async ()
   const llm = mockLlm({});
   try {
     const out = await invokeRankedService(
-      svc({ category: "labels", resource: "https://x.example/svc", inputInfo: { method: "GET" } }),
+      svc({
+        category: "labels",
+        resource: "https://x.example/svc",
+        inputInfo: { method: "GET" },
+      }),
       ADDR,
       "base",
       { llm },
@@ -680,7 +782,9 @@ Deno.test("invokeRankedService propagates sub-path retry failure code", async ()
     assertEquals(out.errorCode, "upstream_4xx");
     assertEquals(calls, 2);
     assertEquals(
-      cap.warn.some((l) => l.includes("sub-path retry") && l.includes("failed")),
+      cap.warn.some((l) =>
+        l.includes("sub-path retry") && l.includes("failed")
+      ),
       true,
     );
   } finally {
@@ -731,7 +835,10 @@ Deno.test("invokeRankedService descriptor retry preserves POST body and appends 
       svc({
         category: "labels",
         resource: "https://post.example/v1",
-        inputInfo: { method: "POST", body: { address: "0xexample", chain: "base" } },
+        inputInfo: {
+          method: "POST",
+          body: { address: "0xexample", chain: "base" },
+        },
       }),
       ADDR,
       "base",

@@ -10,7 +10,10 @@ async function consumeSSE(
 ): Promise<void> {
   const res = await fetch(`${BASE}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+    },
     body: JSON.stringify(body),
     signal,
   });
@@ -80,6 +83,8 @@ export function streamVerify(
   address: string,
   onEvent: (e: VerifyEvent) => void,
   signal: AbortSignal,
+  depth?: "fast" | "deep",
 ): Promise<void> {
-  return consumeSSE("/verify-agent-stream", { address }, onEvent, signal);
+  const body = depth ? { address, depth } : { address };
+  return consumeSSE("/verify-agent-stream", body, onEvent, signal);
 }

@@ -5,10 +5,31 @@ import { CATEGORY_HINTS } from "../categoryLabels";
 
 interface Props {
   result: VerifyResultPayload;
+  // When the fast tier returns needs_deep_check, the card renders an opt-in CTA
+  // that calls this to run the paid deep check.
+  onDeepCheck?: () => void;
+  deepCheckBusy?: boolean;
 }
 
 function fmtUsd(v?: number): string {
   return v == null ? "—" : `$${v.toFixed(4)}`;
+}
+
+// Human label for a receipt's outcome. A best-effort category (e.g.
+// web_sentiment) that failed reads as a non-blocking skip, not an error; a
+// rate-limited call reads honestly instead of as a misleading "timeout".
+function receiptStatusLabel(r: VerifyReceipt): string {
+  if (r.status === "ok") return `${fmtUsd(r.amountUsdc)} · ${r.durationMs ?? "?"}ms`;
+  if (r.bestEffort) return "skipped · best-effort";
+  if (r.errorCode === "rate_limited") return "rate-limited";
+  return r.status;
+}
+
+function receiptErrorText(r: VerifyReceipt): string | null {
+  if (r.status === "ok") return null;
+  if (r.bestEffort) return "best-effort · non-blocking";
+  if (r.errorCode === "rate_limited") return "rate-limited";
+  return r.error ?? null;
 }
 
 function labelClass(v: VerdictLabel): string {
@@ -56,11 +77,22 @@ const sectionHeaderStyle: CSSProperties = {
   marginBottom: 6,
 };
 
-export function VerdictCard({ result }: Props) {
-  const { verdict, receipts, totalSpentUsdc, totalLlmCostUsd, walletNetwork, synthesisError } =
-    result;
+export function VerdictCard({ result, onDeepCheck, deepCheckBusy }: Props) {
+  const {
+    verdict,
+    receipts,
+    totalSpentUsdc,
+    totalLlmCostUsd,
+    walletNetwork,
+    synthesisError,
+    tier,
+    fastSignal,
+    fromCache,
+  } = result;
   const grandTotalUsdc = totalSpentUsdc + (totalLlmCostUsd ?? 0);
   const cls = labelClass(verdict.verdict);
+  const isFast = tier === "fast";
+  const needsDeep = fastSignal === "needs_deep_check";
   return (
     <div className="card verdict-card" data-testid="verdict-card">
       <div className="card-header verdict-card-header">
@@ -68,6 +100,16 @@ export function VerdictCard({ result }: Props) {
           <h3>Verdict</h3>
           <span className="muted">
             {walletNetwork} · confidence {verdict.confidence}
+            {" · "}
+            <span
+              className="tier-tag"
+              data-testid="tier-badge"
+              title={isFast
+                ? "Free sanctions gate — no spend"
+                : "Full paid pipeline"}
+            >
+              {isFast ? "fast tier" : "deep tier"}
+            </span>
           </span>
         </div>
         <WardoMascot variant={mascotVariant(cls)} size={64} className="verdict-mascot" />
@@ -101,6 +143,37 @@ export function VerdictCard({ result }: Props) {
         </div>
       )}
 
+      {isFast
+        ? (
+          <>
+            <div className="total" data-testid="fast-no-spend">
+              <span>Total spent</span>
+              <span>{fmtUsd(0)} · fast tier</span>
+            </div>
+            {needsDeep && onDeepCheck && (
+              <div className="deep-check-cta" data-testid="deep-check-cta">
+                <button
+                  type="button"
+                  className="deep-check-btn"
+                  onClick={onDeepCheck}
+                  disabled={deepCheckBusy}
+                  data-testid="deep-check-btn"
+                >
+                  {deepCheckBusy
+                    ? "running deep check…"
+                    : "Run deep check · ~$0.03"}
+                </button>
+                <p className="deep-check-note">
+                  Fast tier found no blocking signal. The paid deep check adds
+                  labels, on-chain history, sentiment &amp; AI synthesis for a
+                  final verdict.
+                </p>
+              </div>
+            )}
+          </>
+        )
+        : (
+          <>
       <div style={{ marginTop: 22 }}>
         <div className="muted" style={sectionHeaderStyle}>Paid services breakdown</div>
         {receipts.map((r) => (
@@ -118,13 +191,16 @@ export function VerdictCard({ result }: Props) {
                   {r.adapterPath}
                 </span>
               )}
-              {r.error && <span style={{ color: "var(--risk)" }}> · {r.error}</span>}
+              {receiptErrorText(r) && (
+                <span
+                  style={{ color: r.bestEffort ? "var(--muted, #888)" : "var(--risk)" }}
+                >
+                  {" · "}
+                  {receiptErrorText(r)}
+                </span>
+              )}
             </span>
-            <span className="price">
-              {r.status === "ok"
-                ? `${fmtUsd(r.amountUsdc)} · ${r.durationMs ?? "?"}ms`
-                : r.status}
-            </span>
+            <span className="price">{receiptStatusLabel(r)}</span>
           </div>
         ))}
       </div>
@@ -139,9 +215,20 @@ export function VerdictCard({ result }: Props) {
       </div>
 
       <div className="total">
-        <span>Total spent</span>
+        <span>{fromCache ? "Original cost" : "Total spent"}</span>
         <span>{fmtUsd(grandTotalUsdc)}</span>
       </div>
+      {fromCache && (
+        <div
+          className="muted cache-note"
+          data-testid="cache-note"
+          style={{ fontSize: 11, marginTop: 4 }}
+        >
+          served from cache · $0 charged this run
+        </div>
+      )}
+          </>
+        )}
     </div>
   );
 }

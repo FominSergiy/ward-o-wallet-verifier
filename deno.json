@@ -19,7 +19,8 @@
     "cassette:record": "HEALTH_TRACKING=false deno run --allow-net --allow-env --allow-read --allow-write --env-file=.env scripts/record-cassettes.ts",
     "test:replay": "HEALTH_TRACKING=false deno test --allow-read --allow-env tests/replay_test.ts",
     "db:migrate": "deno run --allow-net --allow-env --allow-read --env-file=.env scripts/migrate.ts",
-    "vet": "deno run --allow-net --allow-env --allow-read --allow-write --env-file=.env scripts/vet.ts"
+    "vet": "deno run --allow-net --allow-env --allow-read --allow-write --env-file=.env scripts/vet.ts",
+    "warm:denylist": "deno run --unstable-kv --allow-net --allow-env --allow-read --allow-write --env-file=.env scripts/warm-denylist.ts"
   },
   "imports": {
     "hono": "jsr:@hono/hono@^4.7.11",

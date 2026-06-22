@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: deno-deploy
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: denoland/setup-deno@v2
         with:
@@ -26,3 +26,16 @@ jobs:
           deno run \
             --allow-net --allow-env --allow-read --allow-write \
             scripts/vet.ts
+
+      # $0 step: pull the OFAC SDN ETH list and warm the sanctioned denylist.
+      # Requires DENO_KV_CONNECT_URL + DENO_KV_ACCESS_TOKEN secrets to populate
+      # the production (Deno Deploy) KV via KV Connect — without them this warms
+      # a throwaway local KV and prod is NOT updated.
+      - name: Warm sanctioned denylist
+        env:
+          DENO_KV_CONNECT_URL: ${{ secrets.DENO_KV_CONNECT_URL }}
+          DENO_KV_ACCESS_TOKEN: ${{ secrets.DENO_KV_ACCESS_TOKEN }}
+        run: |
+          deno run --unstable-kv \
+            --allow-net --allow-env --allow-read --allow-write \
+            scripts/warm-denylist.ts

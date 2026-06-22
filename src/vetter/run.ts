@@ -4,8 +4,18 @@ import {
   fetchCandidates as defaultFetchCandidates,
   type FetchCandidatesOpts,
 } from "../discovery/orchestrator.ts";
-import type { Category } from "../agent/types.ts";
+import type { Category, Chain } from "../agent/types.ts";
 import type { DiscoveryEntry } from "../discovery/types.ts";
+import {
+  DEFAULT_DENYLIST_TTL_MS,
+  type DenylistEntry,
+  type SanctionedDenylist,
+} from "../agent/sanctioned_denylist.ts";
+import {
+  fetchOfacEthAddresses,
+  type SanctionedAddressSource,
+} from "../agent/ofac_list.ts";
+import { checkSanctionsOracle } from "../agent/sanctions_oracle.ts";
 
 const PRICE_CEILING_USDC = 0.10;
 const PRICE_BUMP_FACTOR = 1.20;
@@ -307,4 +317,77 @@ export async function runVetter(opts: VetterOpts = {}): Promise<VetterResult> {
   const scoreResult = await runRecomputeScoresFn();
 
   return { priceBumps, probationMoves, newCandidates, scoreResult };
+}
+
+// ── Sanctioned denylist warm ($0) ───────────────────────────────────────────
+//
+// Pull the OFAC SDN ETH address list and write each entry to the long-TTL
+// sanctioned denylist KV. Zero USDC, zero LLM, and (by default) zero RPC: OFAC
+// is the source of truth, so addresses are denylisted directly. The optional
+// crossCheck flag confirms each via the Chainalysis oracle before writing —
+// off by default, since fanning out over hundreds of addresses risks public-RPC
+// rate limits. The denylist self-bounds to |OFAC list|; TTL is the GC (each run
+// re-asserts the current set, de-listed addresses age out). See
+// src/agent/sanctioned_denylist.ts.
+
+export interface WarmDenylistOpts {
+  denylist: SanctionedDenylist;
+  /** Test/override seam for the candidate source. Defaults to fetchOfacEthAddresses. */
+  fetchAddresses?: () => Promise<SanctionedAddressSource>;
+  /** Chain the verify pipeline reads the denylist under. Defaults to "eth". */
+  chain?: Chain;
+  ttlMs?: number;
+  /** Confirm each address via the on-chain oracle before writing (off by default). */
+  crossCheck?: boolean;
+  /** Test seam for the oracle cross-check. Defaults to checkSanctionsOracle. */
+  oracleCheckFn?: typeof checkSanctionsOracle;
+}
+
+export interface WarmDenylistResult {
+  source: string;
+  fetched: number;
+  written: number;
+  /** Addresses skipped because the oracle cross-check returned not-sanctioned. */
+  skipped: number;
+}
+
+export async function warmSanctionedDenylist(
+  opts: WarmDenylistOpts,
+): Promise<WarmDenylistResult> {
+  const chain = opts.chain ?? "eth";
+  const fetchAddresses = opts.fetchAddresses ?? fetchOfacEthAddresses;
+  const ttlMs = opts.ttlMs ?? DEFAULT_DENYLIST_TTL_MS;
+  const oracleCheckFn = opts.oracleCheckFn ?? checkSanctionsOracle;
+
+  const { addresses, source } = await fetchAddresses();
+  const warmedAt = new Date().toISOString();
+  let written = 0;
+  let skipped = 0;
+
+  for (const address of addresses) {
+    if (opts.crossCheck) {
+      try {
+        const res = await oracleCheckFn(address, chain);
+        if (!res.isSanctioned) {
+          skipped++;
+          continue;
+        }
+      } catch (e) {
+        // RPC failure → trust the OFAC list rather than dropping the address.
+        console.warn(
+          `[vetter] denylist cross-check RPC failed for ${address} (writing anyway): ${
+            (e as Error).message
+          }`,
+        );
+      }
+    }
+    const entry: DenylistEntry = { reason: "OFAC SDN", source, warmedAt };
+    await opts.denylist.set(chain, address, entry, ttlMs);
+    written++;
+  }
+
+  console.log(
+    `[vetter] denylist warm: source=${source} fetched=${addresses.length} written=${written} skipped=${skipped}`,
+  );
+  return { source, fetched: addresses.length, written, skipped };
 }
