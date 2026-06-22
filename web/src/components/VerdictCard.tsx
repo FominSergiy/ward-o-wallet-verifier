@@ -15,6 +15,23 @@ function fmtUsd(v?: number): string {
   return v == null ? "—" : `$${v.toFixed(4)}`;
 }
 
+// Human label for a receipt's outcome. A best-effort category (e.g.
+// web_sentiment) that failed reads as a non-blocking skip, not an error; a
+// rate-limited call reads honestly instead of as a misleading "timeout".
+function receiptStatusLabel(r: VerifyReceipt): string {
+  if (r.status === "ok") return `${fmtUsd(r.amountUsdc)} · ${r.durationMs ?? "?"}ms`;
+  if (r.bestEffort) return "skipped · best-effort";
+  if (r.errorCode === "rate_limited") return "rate-limited";
+  return r.status;
+}
+
+function receiptErrorText(r: VerifyReceipt): string | null {
+  if (r.status === "ok") return null;
+  if (r.bestEffort) return "best-effort · non-blocking";
+  if (r.errorCode === "rate_limited") return "rate-limited";
+  return r.error ?? null;
+}
+
 function labelClass(v: VerdictLabel): string {
   if (v === "safe_to_transact") return "safe";
   if (v === "do_not_transact") return "risky";
@@ -70,6 +87,7 @@ export function VerdictCard({ result, onDeepCheck, deepCheckBusy }: Props) {
     synthesisError,
     tier,
     fastSignal,
+    fromCache,
   } = result;
   const grandTotalUsdc = totalSpentUsdc + (totalLlmCostUsd ?? 0);
   const cls = labelClass(verdict.verdict);
@@ -173,13 +191,16 @@ export function VerdictCard({ result, onDeepCheck, deepCheckBusy }: Props) {
                   {r.adapterPath}
                 </span>
               )}
-              {r.error && <span style={{ color: "var(--risk)" }}> · {r.error}</span>}
+              {receiptErrorText(r) && (
+                <span
+                  style={{ color: r.bestEffort ? "var(--muted, #888)" : "var(--risk)" }}
+                >
+                  {" · "}
+                  {receiptErrorText(r)}
+                </span>
+              )}
             </span>
-            <span className="price">
-              {r.status === "ok"
-                ? `${fmtUsd(r.amountUsdc)} · ${r.durationMs ?? "?"}ms`
-                : r.status}
-            </span>
+            <span className="price">{receiptStatusLabel(r)}</span>
           </div>
         ))}
       </div>
@@ -194,9 +215,18 @@ export function VerdictCard({ result, onDeepCheck, deepCheckBusy }: Props) {
       </div>
 
       <div className="total">
-        <span>Total spent</span>
+        <span>{fromCache ? "Original cost" : "Total spent"}</span>
         <span>{fmtUsd(grandTotalUsdc)}</span>
       </div>
+      {fromCache && (
+        <div
+          className="muted cache-note"
+          data-testid="cache-note"
+          style={{ fontSize: 11, marginTop: 4 }}
+        >
+          served from cache · $0 charged this run
+        </div>
+      )}
           </>
         )}
     </div>

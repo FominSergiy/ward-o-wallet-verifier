@@ -8,7 +8,10 @@ import {
   DiscoveryFetchError,
   WalletUnfundedError,
 } from "../discovery/types.ts";
-import { SanctionsInvocationError } from "../agent/invoke_all.ts";
+import {
+  BEST_EFFORT_CATEGORIES,
+  SanctionsInvocationError,
+} from "../agent/invoke_all.ts";
 import { type AgnicBudget, fetchAgnicBudget } from "../discovery/network.ts";
 import { type EventEmitter, now, type VerifyEvent } from "../agent/events.ts";
 import { type VerdictCache } from "../agent/verdict_cache.ts";
@@ -54,10 +57,12 @@ function resultPayload(result: VerifyAgentResult): Record<string, unknown> {
       paid: o.paid,
       error: o.error,
       errorCode: o.errorCode,
+      bestEffort: BEST_EFFORT_CATEGORIES.has(o.category),
     })),
     walletNetwork: result.walletNetwork,
     totalSpentUsdc: result.totalSpentUsdc,
     totalLlmCostUsd: result.totalLlmCostUsd,
+    fromCache: result.fromCache ?? false,
     tier: result.tier,
     fastSignal: result.fastSignal,
   };

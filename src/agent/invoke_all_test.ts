@@ -1,5 +1,9 @@
 import { assertEquals, assertRejects } from "@std/assert";
-import { invokeAll, SanctionsInvocationError } from "./invoke_all.ts";
+import {
+  BEST_EFFORT_CATEGORIES,
+  invokeAll,
+  SanctionsInvocationError,
+} from "./invoke_all.ts";
 import type { ServiceInvocationOutcome } from "./invoke_service.ts";
 import type { DiscoveryPlan, RankedService } from "../discovery/types.ts";
 import type { Category } from "./types.ts";
@@ -115,6 +119,81 @@ Deno.test("invokeAll runs services concurrently", async () => {
     true,
     `expected parallel ~50ms, got ${elapsed}ms`,
   );
+});
+
+Deno.test("invokeAll caps concurrency per host at 2", async () => {
+  // Four services on the SAME host. With the per-host cap, no more than 2 may
+  // be in flight at once — this is what stops orbisapi from 429-ing itself.
+  const services = [
+    svc("sanctions", "https://orbisapi.com/a"),
+    svc("labels", "https://orbisapi.com/b"),
+    svc("onchain_history", "https://orbisapi.com/c"),
+    svc("web_sentiment", "https://orbisapi.com/d"),
+  ];
+  let active = 0;
+  let peak = 0;
+  const invoker = (s: RankedService) =>
+    new Promise<ServiceInvocationOutcome>((resolve) => {
+      active++;
+      peak = Math.max(peak, active);
+      setTimeout(() => {
+        active--;
+        resolve(okOutcome(s.category, { ok: true }));
+      }, 20);
+    });
+  await invokeAll(plan(services), "base", {
+    invoker,
+    disableViemFallback: true,
+  });
+  assertEquals(peak <= 2, true, `peak same-host concurrency ${peak} exceeds 2`);
+});
+
+Deno.test("invokeAll does not cap concurrency across different hosts", async () => {
+  // Distinct hosts must still fan out fully in parallel (the cap is per-host).
+  const services = [
+    svc("sanctions", "https://a.example/x"),
+    svc("labels", "https://b.example/x"),
+    svc("onchain_history", "https://c.example/x"),
+    svc("web_sentiment", "https://d.example/x"),
+  ];
+  let active = 0;
+  let peak = 0;
+  const invoker = (s: RankedService) =>
+    new Promise<ServiceInvocationOutcome>((resolve) => {
+      active++;
+      peak = Math.max(peak, active);
+      setTimeout(() => {
+        active--;
+        resolve(okOutcome(s.category, { ok: true }));
+      }, 20);
+    });
+  await invokeAll(plan(services), "base", {
+    invoker,
+    disableViemFallback: true,
+  });
+  assertEquals(peak, 4, `expected 4 cross-host calls in parallel, got ${peak}`);
+});
+
+Deno.test("invokeAll: best-effort web_sentiment failure is non-blocking", async () => {
+  // web_sentiment is a registered best-effort category; its failure must not
+  // throw or block — it lands in unresolved while other categories resolve.
+  assertEquals(BEST_EFFORT_CATEGORIES.has("web_sentiment"), true);
+  const services = [
+    svc("sanctions", "https://s"),
+    svc("web_sentiment", "https://orbisapi.com/sentiment"),
+  ];
+  const invoker = (s: RankedService) =>
+    Promise.resolve(
+      s.category === "web_sentiment"
+        ? errorOutcome("web_sentiment", "per-call timeout after 6000ms")
+        : okOutcome(s.category, { ok: true }),
+    );
+  const r = await invokeAll(plan(services), "base", {
+    invoker,
+    disableViemFallback: true,
+  });
+  assertEquals("sanctions" in r.findings, true);
+  assertEquals(r.unresolved.includes("web_sentiment"), true);
 });
 
 Deno.test("invokeAll throws SanctionsInvocationError when sanctions fails", async () => {

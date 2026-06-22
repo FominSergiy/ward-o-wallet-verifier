@@ -1,6 +1,7 @@
 import { assertEquals } from "@std/assert";
-import { memoryCache } from "./verdict_cache.ts";
+import { type CachedVerdict, memoryCache } from "./verdict_cache.ts";
 import type { WalletVerdict } from "./verdict.ts";
+import type { ServiceInvocationOutcome } from "./invoke_service.ts";
 import { verifyAgent } from "./verify.ts";
 import type { Chain } from "./types.ts";
 import type { OracleResult } from "./sanctions_oracle.ts";
@@ -25,6 +26,34 @@ function makeVerdict(
   };
 }
 
+// Wraps a verdict into the full cache envelope (receipts + cost totals) the
+// cache now stores so a hit can re-render the paid-services breakdown.
+function makeEntry(
+  verdict: WalletVerdict["verdict"],
+  address = "0xABC0000000000000000000000000000000000123",
+  overrides: Partial<CachedVerdict> = {},
+): CachedVerdict {
+  const outcome: ServiceInvocationOutcome = {
+    category: "sanctions",
+    resource: "https://sanc.example",
+    data: { sanctions_match: false },
+    status: "ok",
+    amountUsdc: 0.001,
+    durationMs: 5,
+    paid: true,
+    network: "base",
+    adapterPath: "pattern",
+  };
+  return {
+    verdict: makeVerdict(verdict, address),
+    outcomes: [outcome],
+    totalSpentUsdc: 0.001,
+    totalLlmCostUsd: 0.002,
+    walletNetwork: "base",
+    ...overrides,
+  };
+}
+
 // --- memoryCache unit tests ---
 
 Deno.test("memoryCache: get returns null when empty", async () => {
@@ -34,49 +63,62 @@ Deno.test("memoryCache: get returns null when empty", async () => {
 
 Deno.test("memoryCache: set then get returns cached verdict", async () => {
   const c = memoryCache();
-  const v = makeVerdict("safe_to_transact");
-  await c.set("eth", v.address, v);
-  const hit = await c.get("eth", v.address);
-  assertEquals(hit?.verdict, "safe_to_transact");
+  const e = makeEntry("safe_to_transact");
+  await c.set("eth", e.verdict.address, e);
+  const hit = await c.get("eth", e.verdict.address);
+  assertEquals(hit?.verdict.verdict, "safe_to_transact");
+});
+
+Deno.test("memoryCache: round-trips the full envelope (receipts + costs)", async () => {
+  const c = memoryCache();
+  const e = makeEntry("safe_to_transact");
+  await c.set("eth", e.verdict.address, e);
+  const hit = await c.get("eth", e.verdict.address);
+  // The per-service receipts and the cost totals must survive the round-trip
+  // so a cache hit can render the same breakdown a fresh deep run would.
+  assertEquals(hit?.outcomes.length, 1);
+  assertEquals(hit?.outcomes[0].category, "sanctions");
+  assertEquals(hit?.outcomes[0].amountUsdc, 0.001);
+  assertEquals(hit?.totalSpentUsdc, 0.001);
+  assertEquals(hit?.totalLlmCostUsd, 0.002);
+  assertEquals(hit?.walletNetwork, "base");
 });
 
 Deno.test("memoryCache: address lookup is case-insensitive", async () => {
   const c = memoryCache();
-  const v = makeVerdict(
+  const e = makeEntry(
     "safe_to_transact",
     "0xABC000000000000000000000000000000000CAFE",
   );
-  await c.set("eth", v.address, v);
-  const hit = await c.get("eth", v.address.toLowerCase());
-  assertEquals(hit?.verdict, "safe_to_transact");
+  await c.set("eth", e.verdict.address, e);
+  const hit = await c.get("eth", e.verdict.address.toLowerCase());
+  assertEquals(hit?.verdict.verdict, "safe_to_transact");
 });
 
 Deno.test("memoryCache: do_not_transact is cached", async () => {
   const c = memoryCache();
-  const v = makeVerdict("do_not_transact");
-  await c.set("eth", v.address, v);
-  assertEquals((await c.get("eth", v.address))?.verdict, "do_not_transact");
+  const e = makeEntry("do_not_transact");
+  await c.set("eth", e.verdict.address, e);
+  assertEquals(
+    (await c.get("eth", e.verdict.address))?.verdict.verdict,
+    "do_not_transact",
+  );
 });
 
 Deno.test("memoryCache: insufficient_data is never cached", async () => {
   const c = memoryCache();
-  const v = makeVerdict("insufficient_data");
-  await c.set("eth", v.address, v);
-  assertEquals(await c.get("eth", v.address), null);
+  const e = makeEntry("insufficient_data");
+  await c.set("eth", e.verdict.address, e);
+  assertEquals(await c.get("eth", e.verdict.address), null);
 });
 
 Deno.test("memoryCache: different chains are independent keys", async () => {
   const c = memoryCache();
   const addr = "0xABC0000000000000000000000000000000000123";
-  const vEth = makeVerdict("safe_to_transact", addr);
-  const vBase = {
-    ...makeVerdict("do_not_transact", addr),
-    chain: "base" as Chain,
-  };
-  await c.set("eth", addr, vEth);
-  await c.set("base", addr, vBase);
-  assertEquals((await c.get("eth", addr))?.verdict, "safe_to_transact");
-  assertEquals((await c.get("base", addr))?.verdict, "do_not_transact");
+  await c.set("eth", addr, makeEntry("safe_to_transact", addr));
+  await c.set("base", addr, makeEntry("do_not_transact", addr));
+  assertEquals((await c.get("eth", addr))?.verdict.verdict, "safe_to_transact");
+  assertEquals((await c.get("base", addr))?.verdict.verdict, "do_not_transact");
 });
 
 // --- verifyAgent integration tests ---
@@ -191,14 +233,22 @@ Deno.test("verdict_cache: second call returns cached verdict without service cal
     1,
     "synthesizeVerdict must not be called on cache hit",
   );
+  // The cache hit is flagged and carries the original run's receipts + cost
+  // totals so the UI can render the same paid-services breakdown ($0 charged
+  // this run is conveyed via fromCache, not by zeroing the receipts).
+  assertEquals(r2.fromCache, true);
+  assertEquals(r2.outcomes.length, 1, "cached receipts must be preserved");
+  assertEquals(r2.outcomes[0].category, "sanctions");
+  assertEquals(r2.totalSpentUsdc, 0.001, "original x402 spend preserved");
+  // First (fresh) call is not flagged as cached.
+  assertEquals(r1.fromCache ?? false, false);
 });
 
 Deno.test("verdict_cache: do_not_transact TTL is distinct from safe_to_transact (both cached)", async () => {
   const cache = memoryCache();
 
   // Prime with do_not_transact.
-  const dnt = makeVerdict("do_not_transact", ADDR);
-  await cache.set("eth", ADDR, dnt);
+  await cache.set("eth", ADDR, makeEntry("do_not_transact", ADDR));
 
   let synthesizeCalls = 0;
   const opts = {

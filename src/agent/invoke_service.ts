@@ -62,11 +62,57 @@ function isRateLimitError(err: AgnicFetchError): boolean {
   return false;
 }
 
+// Canonical receipt error code for a failed call. Rate-limit failures (which
+// agnicFetch may surface as "upstream_429" etc.) collapse to "rate_limited" so
+// the UI can render them honestly instead of as a misleading "timeout".
+function callErrorCode(e: unknown, fallback: string): string {
+  if (e instanceof AgnicFetchError) {
+    return isRateLimitError(e) ? "rate_limited" : e.code;
+  }
+  return fallback;
+}
+
 const RATE_LIMIT_BACKOFF_MS = 5_000;
+
+// Per-call controls threaded from the fan-out: `signal` lets the per-call
+// timeout actually abort the in-flight fetch (instead of leaving it running),
+// and `timeoutMs` bounds each individual attempt at the agnicFetch layer so a
+// slow call surfaces a real "timeout" error code rather than relying solely on
+// the outer race.
+export interface CallOpts {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+}
+
+export function isAbortError(e: unknown): boolean {
+  return e instanceof Error && e.name === "AbortError";
+}
+
+// setTimeout that rejects early if the signal aborts, so a per-call timeout
+// firing during the rate-limit backoff unwinds immediately instead of sleeping
+// out the full 5s after the work has already been abandoned.
+function abortableSleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException("aborted", "AbortError"));
+      return;
+    }
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(new DOMException("aborted", "AbortError"));
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
 
 async function performCall(
   built: BuiltCall,
   priceUsdc: number,
+  callOpts: CallOpts = {},
 ): Promise<{
   data: unknown;
   amountUsdc: number;
@@ -77,6 +123,8 @@ async function performCall(
     method: built.method,
     body: built.method === "POST" ? built.body : undefined,
     maxValueUsd: priceUsdc,
+    signal: callOpts.signal,
+    timeoutMs: callOpts.timeoutMs,
   });
   return {
     data: result.data,
@@ -94,16 +142,17 @@ async function performCallWithRateLimitRetry(
   built: BuiltCall,
   priceUsdc: number,
   resource: string,
+  callOpts: CallOpts = {},
 ): Promise<Awaited<ReturnType<typeof performCall>>> {
   try {
-    return await performCall(built, priceUsdc);
+    return await performCall(built, priceUsdc, callOpts);
   } catch (e) {
     if (e instanceof AgnicFetchError && isRateLimitError(e)) {
       console.warn(
         `[invoke] ${resource} rate-limited; backing off ${RATE_LIMIT_BACKOFF_MS}ms before retry`,
       );
-      await new Promise((res) => setTimeout(res, RATE_LIMIT_BACKOFF_MS));
-      return await performCall(built, priceUsdc);
+      await abortableSleep(RATE_LIMIT_BACKOFF_MS, callOpts.signal);
+      return await performCall(built, priceUsdc, callOpts);
     }
     throw e;
   }
@@ -155,9 +204,10 @@ export async function invokeRankedService(
   service: RankedService,
   address: string,
   chain: Chain,
-  opts: { llm?: LlmClient } = {},
+  opts: { llm?: LlmClient; signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<ServiceInvocationOutcome> {
   const llm = opts.llm ?? defaultLlm;
+  const callOpts: CallOpts = { signal: opts.signal, timeoutMs: opts.timeoutMs };
   const start = Date.now();
 
   // DEV-ONLY stress hook: when FORCE_LLM_ADAPTER=true, skip Layer 1 entirely
@@ -167,7 +217,14 @@ export async function invokeRankedService(
     console.warn(
       `[invoke] FORCE_LLM_ADAPTER=true — skipping pattern adapter for ${service.resource}`,
     );
-    return await invokeViaLlmOnly(service, address, chain, llm, start);
+    return await invokeViaLlmOnly(
+      service,
+      address,
+      chain,
+      llm,
+      start,
+      callOpts,
+    );
   }
 
   // Layer 1: pattern-match adapter — try the primary shape, then any
@@ -194,10 +251,17 @@ export async function invokeRankedService(
   for (let i = 0; i < patternShapes.length; i++) {
     const built = patternShapes[i];
     try {
-      const r = await performCallWithRateLimitRetry(built, service.priceUsdc, service.resource);
+      const r = await performCallWithRateLimitRetry(
+        built,
+        service.priceUsdc,
+        service.resource,
+        callOpts,
+      );
       if (i > 0) {
         console.warn(
-          `[invoke] ${service.resource} succeeded with fallback POST shape ${i} (body=${JSON.stringify(built.body).slice(0, 80)})`,
+          `[invoke] ${service.resource} succeeded with fallback POST shape ${i} (body=${
+            JSON.stringify(built.body).slice(0, 80)
+          })`,
         );
       }
       // Service-descriptor detection: some catalogs publish only the base URL
@@ -206,24 +270,59 @@ export async function invokeRankedService(
       // Detect that and retry once against the first action sub-endpoint.
       const descriptor = isServiceDescriptor(r.data);
       if (descriptor) {
-        return await handleDescriptorResponse(service, built, descriptor.endpoints, start);
+        return await handleDescriptorResponse(
+          service,
+          built,
+          descriptor.endpoints,
+          start,
+          callOpts,
+        );
       }
       return okOutcome(service, r, start, "ok", "pattern");
     } catch (e) {
       lastError = e;
+      // The per-call timeout aborted this attempt — don't burn an LLM-fallback
+      // call (and its spend) on work we've already abandoned. Surface a timeout
+      // outcome; the outer race has already settled this service anyway.
+      if (isAbortError(e)) {
+        return errorOutcome(
+          service,
+          "per-call timeout aborted the request",
+          start,
+          "pattern",
+          "timeout",
+        );
+      }
       // Hard errors short-circuit — no point trying more pattern shapes.
       if (e instanceof AgnicFetchError && !isUpstreamInputError(e)) {
-        return errorOutcome(service, e.message, start, "pattern", e.code);
+        return errorOutcome(
+          service,
+          e.message,
+          start,
+          "pattern",
+          callErrorCode(e, e.code),
+        );
       }
       // Otherwise continue to next shape (if any).
     }
   }
 
-  // Layer 2: LLM-built call.
+  // Layer 2: LLM-built call. Skip if the per-call budget already elapsed.
+  if (callOpts.signal?.aborted) {
+    return errorOutcome(
+      service,
+      "per-call timeout aborted before LLM fallback",
+      start,
+      "pattern",
+      "timeout",
+    );
+  }
   console.warn(
-    `[invoke] pattern-match failed for ${service.resource} (${patternShapes.length} shape(s) tried) — trying LLM fallback (${(lastError as Error)?.message})`,
+    `[invoke] pattern-match failed for ${service.resource} (${patternShapes.length} shape(s) tried) — trying LLM fallback (${
+      (lastError as Error)?.message
+    })`,
   );
-  return await invokeViaLlmOnly(service, address, chain, llm, start);
+  return await invokeViaLlmOnly(service, address, chain, llm, start, callOpts);
 }
 
 async function invokeViaLlmOnly(
@@ -232,6 +331,7 @@ async function invokeViaLlmOnly(
   chain: Chain,
   llm: LlmClient,
   start: number,
+  callOpts: CallOpts = {},
 ): Promise<ServiceInvocationOutcome> {
   let llmBuilt: BuiltCall;
   try {
@@ -251,12 +351,19 @@ async function invokeViaLlmOnly(
   }
 
   try {
-    const r = await performCallWithRateLimitRetry(llmBuilt, service.priceUsdc, service.resource);
+    const r = await performCallWithRateLimitRetry(
+      llmBuilt,
+      service.priceUsdc,
+      service.resource,
+      callOpts,
+    );
     return okOutcome(service, r, start, "fallback_ok", "llm");
   } catch (e2) {
     const msg = (e2 as Error).message;
-    const code = e2 instanceof AgnicFetchError ? e2.code : "adapter_call_failed";
-    console.error(`[invoke] both adapters failed for ${service.resource}: ${msg}`);
+    const code = callErrorCode(e2, "adapter_call_failed");
+    console.error(
+      `[invoke] both adapters failed for ${service.resource}: ${msg}`,
+    );
     return errorOutcome(service, msg, start, "llm", code);
   }
 }
@@ -272,15 +379,20 @@ async function handleDescriptorResponse(
   built: BuiltCall,
   endpoints: string[],
   start: number,
+  callOpts: CallOpts = {},
 ): Promise<ServiceInvocationOutcome> {
   const action = pickActionEndpoint(endpoints, service.category);
   if (!action) {
     console.warn(
-      `[invoke] ${service.resource} returned descriptor with no action endpoint; endpoints=${JSON.stringify(endpoints)}`,
+      `[invoke] ${service.resource} returned descriptor with no action endpoint; endpoints=${
+        JSON.stringify(endpoints)
+      }`,
     );
     return errorOutcome(
       service,
-      `service returned descriptor with no action endpoint (endpoints=${JSON.stringify(endpoints)})`,
+      `service returned descriptor with no action endpoint (endpoints=${
+        JSON.stringify(endpoints)
+      })`,
       start,
       "pattern+subpath",
       "descriptor_only_response",
@@ -313,10 +425,15 @@ async function handleDescriptorResponse(
 
   let r: Awaited<ReturnType<typeof performCall>>;
   try {
-    r = await performCallWithRateLimitRetry(retryCall, service.priceUsdc, service.resource);
+    r = await performCallWithRateLimitRetry(
+      retryCall,
+      service.priceUsdc,
+      service.resource,
+      callOpts,
+    );
   } catch (e) {
     const msg = (e as Error).message;
-    const code = e instanceof AgnicFetchError ? e.code : "descriptor_retry_failed";
+    const code = callErrorCode(e, "descriptor_retry_failed");
     console.warn(
       `[invoke] ${service.resource} descriptor sub-path retry (${action}) failed: ${msg}`,
     );
@@ -326,7 +443,9 @@ async function handleDescriptorResponse(
   const stillDescriptor = isServiceDescriptor(r.data);
   if (stillDescriptor) {
     console.warn(
-      `[invoke] ${service.resource} sub-path ${action} also returned descriptor; endpoints=${JSON.stringify(stillDescriptor.endpoints)}`,
+      `[invoke] ${service.resource} sub-path ${action} also returned descriptor; endpoints=${
+        JSON.stringify(stillDescriptor.endpoints)
+      }`,
     );
     return errorOutcome(
       service,

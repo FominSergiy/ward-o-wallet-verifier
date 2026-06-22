@@ -1,5 +1,10 @@
 import { useMemo } from "react";
-import type { Category, ServiceKind, VerifyEvent, VerdictLabel } from "../types";
+import type {
+  Category,
+  ServiceKind,
+  VerdictLabel,
+  VerifyEvent,
+} from "../types";
 
 export type NodeStatus = "idle" | "active" | "ok" | "error" | "fallback";
 
@@ -75,7 +80,10 @@ function ensureCategory(state: FlowState, cat: Category): CategoryNode {
 // Direct paths are tagged by the backend with kind="direct"; the resource-
 // prefix check is a fallback for older event streams (or future direct
 // providers) that didn't set the flag.
-function isDirectKind(kind: ServiceKind | undefined, resource: string): boolean {
+function isDirectKind(
+  kind: ServiceKind | undefined,
+  resource: string,
+): boolean {
   if (kind === "direct") return true;
   return (
     resource.startsWith("chainalysis_oracle://") ||
@@ -117,7 +125,9 @@ export function deriveFlowState(events: VerifyEvent[]): FlowState {
           if (ev.phase === "synthesize") s.synthesize = "active";
         } else {
           if (ev.phase === "discover" && s.origin !== "error") s.origin = "ok";
-          if (ev.phase === "synthesize" && s.synthesize === "active") s.synthesize = "ok";
+          if (ev.phase === "synthesize" && s.synthesize === "active") {
+            s.synthesize = "ok";
+          }
           if (ev.phase === "invoke") {
             // Cascade any leftover idle categories — they were skipped silently.
             // Any sub-node still "active" at invoke-end means the attempt
@@ -126,8 +136,12 @@ export function deriveFlowState(events: VerifyEvent[]): FlowState {
               const node = s.categories[cat];
               if (!node) continue;
               if (node.status === "idle") node.status = "ok";
-              if (node.primary.status === "active") node.primary.status = "error";
-              if (node.fallback?.status === "active") node.fallback.status = "error";
+              if (node.primary.status === "active") {
+                node.primary.status = "error";
+              }
+              if (node.fallback?.status === "active") {
+                node.fallback.status = "error";
+              }
               for (const d of node.direct) {
                 if (d.status === "active") d.status = "error";
               }
@@ -137,7 +151,9 @@ export function deriveFlowState(events: VerifyEvent[]): FlowState {
                 // rather than "error", and only error if every direct failed.
                 const hasX402 = node.primary.resource !== "";
                 const directOk = node.direct.some((d) => d.status === "ok");
-                const directError = node.direct.some((d) => d.status === "error");
+                const directError = node.direct.some((d) =>
+                  d.status === "error"
+                );
                 if (!hasX402 && directOk && !directError) {
                   node.status = "ok";
                 } else {
@@ -203,8 +219,8 @@ export function deriveFlowState(events: VerifyEvent[]): FlowState {
           break;
         }
 
-        const isFallbackAttempt =
-          node.primary.resource !== "" && node.primary.resource !== ev.resource;
+        const isFallbackAttempt = node.primary.resource !== "" &&
+          node.primary.resource !== ev.resource;
 
         if (ev.status === "start") {
           node.status = "active";
@@ -255,7 +271,15 @@ export function deriveFlowState(events: VerifyEvent[]): FlowState {
       case "result":
         s.verdict.status = "ok";
         s.verdict.label = ev.payload.verdict.verdict;
-        if (ev.payload.totalSpentUsdc != null) s.spentUsdc = ev.payload.totalSpentUsdc;
+        // Reconcile the live meter to the final grand total so the header
+        // matches the card's "Total spent" (x402 + AI model calls). A cache
+        // hit spent nothing this run, so the meter reads $0.
+        if (ev.payload.fromCache) {
+          s.spentUsdc = 0;
+        } else if (ev.payload.totalSpentUsdc != null) {
+          s.spentUsdc = ev.payload.totalSpentUsdc +
+            (ev.payload.totalLlmCostUsd ?? 0);
+        }
         if (s.synthesize === "active") s.synthesize = "ok";
         break;
 

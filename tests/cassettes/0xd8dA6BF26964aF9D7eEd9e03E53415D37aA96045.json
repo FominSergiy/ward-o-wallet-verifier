@@ -203,9 +203,9 @@
       }
     },
     {
-      "key": "POST:https://api.agnic.ai/api/x402/fetch?url=https%3A%2F%2Forbisapi.com%2Fproxy%2Fcrypto-news-sentiment-api-628b81%2Fnews%2Fsentiment%3Faddress%3D0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045&method=GET&maxValue=5000",
+      "key": "POST:https://api.agnic.ai/api/x402/fetch?url=https%3A%2F%2Forbisapi.com%2Fproxy%2Fcrypto-news-sentiment-api-628b81%2Fnews%2Fsentiment%3Faddress%3D0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045&method=GET&maxValue=12000",
       "request": {
-        "url": "https://api.agnic.ai/api/x402/fetch?url=https%3A%2F%2Forbisapi.com%2Fproxy%2Fcrypto-news-sentiment-api-628b81%2Fnews%2Fsentiment%3Faddress%3D0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045&method=GET&maxValue=5000",
+        "url": "https://api.agnic.ai/api/x402/fetch?url=https%3A%2F%2Forbisapi.com%2Fproxy%2Fcrypto-news-sentiment-api-628b81%2Fnews%2Fsentiment%3Faddress%3D0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045&method=GET&maxValue=12000",
         "method": "POST",
         "body": null
       },
@@ -378,9 +378,9 @@
       }
     },
     {
-      "key": "POST:https://api.agnic.ai/api/x402/fetch?url=https%3A%2F%2Forbisapi.com%2Fproxy%2Fcrypto-news-sentiment-api-628b81%2Fnews%2Fsentiment%3Faddress%3D0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045%26chain%3Deth&method=GET&maxValue=5000",
+      "key": "POST:https://api.agnic.ai/api/x402/fetch?url=https%3A%2F%2Forbisapi.com%2Fproxy%2Fcrypto-news-sentiment-api-628b81%2Fnews%2Fsentiment%3Faddress%3D0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045%26chain%3Deth&method=GET&maxValue=12000",
       "request": {
-        "url": "https://api.agnic.ai/api/x402/fetch?url=https%3A%2F%2Forbisapi.com%2Fproxy%2Fcrypto-news-sentiment-api-628b81%2Fnews%2Fsentiment%3Faddress%3D0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045%26chain%3Deth&method=GET&maxValue=5000",
+        "url": "https://api.agnic.ai/api/x402/fetch?url=https%3A%2F%2Forbisapi.com%2Fproxy%2Fcrypto-news-sentiment-api-628b81%2Fnews%2Fsentiment%3Faddress%3D0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045%26chain%3Deth&method=GET&maxValue=12000",
         "method": "POST",
         "body": null
       },

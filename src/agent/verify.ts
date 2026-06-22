@@ -72,6 +72,10 @@ export interface VerifyAgentResult {
   // conservative stub ("insufficient_data" / safe=false). All paid receipts
   // are still preserved so the caller can render or re-synthesize manually.
   synthesisError?: string;
+  // True when this result was served from the verdict cache. The outcomes and
+  // cost totals reflect the ORIGINAL deep run (so the breakdown still renders);
+  // callers should report $0 spent for this run and label it as cached.
+  fromCache?: boolean;
   // Which tier produced this result. "fast" results never incur x402 spend.
   tier?: VerifyDepth;
   // Agent-actionable signal derived from the verdict. Always set by verifyAgent.
@@ -460,15 +464,14 @@ export async function verifyAgent(
         type: "log",
         level: "info",
         message:
-          `verdict_cache: hit verdict=${cached.verdict} address=${req.address}`,
+          `verdict_cache: hit verdict=${cached.verdict.verdict} address=${req.address}`,
         at: now(),
       });
-      const walletNetwork: WalletNetwork = "base";
       return {
-        verdict: cached,
+        verdict: cached.verdict,
         plan: {
           address: req.address,
-          walletNetwork,
+          walletNetwork: cached.walletNetwork,
           services: [],
           alternates: {},
           totalEstimatedCostUsdc: 0,
@@ -476,12 +479,16 @@ export async function verifyAgent(
           deterministicSources: [],
           generatedAt: new Date().toISOString(),
         },
-        outcomes: [],
-        walletNetwork,
-        totalSpentUsdc: 0,
-        totalLlmCostUsd: 0,
+        // Preserve the original receipts + cost totals so the cached card
+        // renders the same paid-services breakdown a fresh run would. The
+        // caller reports $0 spent for THIS run via the fromCache flag.
+        outcomes: cached.outcomes,
+        walletNetwork: cached.walletNetwork,
+        totalSpentUsdc: cached.totalSpentUsdc,
+        totalLlmCostUsd: cached.totalLlmCostUsd,
+        fromCache: true,
         tier: depth,
-        fastSignal: fastSignalForVerdict(cached.verdict),
+        fastSignal: fastSignalForVerdict(cached.verdict.verdict),
       };
     }
   }
@@ -569,7 +576,15 @@ export async function verifyAgent(
       notApplicable,
       flaggedAttempt.result,
     );
-    if (cache) await cache.set(DEFAULT_CHAIN, req.address, sanctionedVerdict);
+    if (cache) {
+      await cache.set(DEFAULT_CHAIN, req.address, {
+        verdict: sanctionedVerdict,
+        outcomes: [],
+        totalSpentUsdc: 0,
+        totalLlmCostUsd: 0,
+        walletNetwork,
+      });
+    }
     return {
       verdict: sanctionedVerdict,
       plan: {
@@ -810,7 +825,15 @@ export async function verifyAgent(
     at: now(),
   });
 
-  if (cache) await cache.set(DEFAULT_CHAIN, req.address, verdict);
+  if (cache) {
+    await cache.set(DEFAULT_CHAIN, req.address, {
+      verdict,
+      outcomes: invocation.outcomes,
+      totalSpentUsdc: invocation.totalSpentUsdc,
+      totalLlmCostUsd: llmCostSink.totalUsd,
+      walletNetwork: invocation.walletNetwork,
+    });
+  }
 
   return {
     verdict,

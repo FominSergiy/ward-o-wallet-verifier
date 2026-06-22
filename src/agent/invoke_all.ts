@@ -32,15 +32,79 @@ const DEFAULT_INVOKE_TIMEOUT_MS = parseInt(
   10,
 );
 
+// Low-signal categories whose failure is expected and must never block a
+// verdict. They run on a shorter per-call budget and surface as a non-blocking
+// "skipped · best-effort" rather than a hard error. web_sentiment is general
+// crypto-news sentiment that doesn't even take the wallet address, so a slow
+// upstream there shouldn't cost the deep path its full per-call budget.
+export const BEST_EFFORT_CATEGORIES: ReadonlySet<Category> = new Set<Category>([
+  "web_sentiment",
+]);
+const BEST_EFFORT_TIMEOUT_MS = 6_000;
+
+// Cap concurrent calls to the same host. orbisapi serves labels +
+// onchain_history + web_sentiment; firing all three at once self-inflicts 429s
+// (and the resulting backoff masquerades as a timeout). A cap of 2 (not 1)
+// stops the rate-limiting while keeping two of the three overlapping, so the
+// fan-out does NOT serialize into a slow chain.
+const PER_HOST_CONCURRENCY = 2;
+
+// The per-call budget (above) bounds a SINGLE agnicFetch attempt. The outer
+// race in withInvokeTimeout is only a backstop for a fully hung invoker (e.g.
+// the LLM-fallback build call, which has no timeout of its own); size it to
+// cover one rate-limit backoff + retry so a legitimately retried call settles
+// with its real error code instead of a misleading "timeout".
+const RATE_LIMIT_BACKOFF_MS = 5_000;
+function backstopMs(perAttemptMs: number): number {
+  return perAttemptMs * 2 + RATE_LIMIT_BACKOFF_MS + 1_000;
+}
+
+// Per-host counting semaphore. acquire() resolves when a slot is free; release()
+// hands a freed slot directly to the next waiter (FIFO) or returns it to the
+// pool. Scoped per invokeAll call so it never leaks across requests.
+function createHostLimiter(limit: number) {
+  const available = new Map<string, number>();
+  const waiters = new Map<string, Array<() => void>>();
+  const slotsFor = (host: string) =>
+    available.has(host) ? available.get(host)! : limit;
+  return {
+    acquire(host: string): Promise<void> {
+      const free = slotsFor(host);
+      if (free > 0) {
+        available.set(host, free - 1);
+        return Promise.resolve();
+      }
+      return new Promise<void>((resolve) => {
+        const q = waiters.get(host) ?? [];
+        q.push(resolve);
+        waiters.set(host, q);
+      });
+    },
+    release(host: string): void {
+      const q = waiters.get(host);
+      if (q && q.length > 0) {
+        q.shift()!();
+        return;
+      }
+      available.set(host, Math.min(limit, slotsFor(host) + 1));
+    },
+  };
+}
+type HostLimiter = ReturnType<typeof createHostLimiter>;
+
 function withInvokeTimeout(
   promise: Promise<ServiceInvocationOutcome>,
   timeoutMs: number,
   svc: RankedService,
+  onTimeout?: () => void,
 ): Promise<ServiceInvocationOutcome> {
   let timerId: ReturnType<typeof setTimeout>;
   const timeoutP = new Promise<ServiceInvocationOutcome>((resolve) => {
     timerId = setTimeout(
-      () =>
+      () => {
+        // Abort the in-flight fetch so a hung host doesn't keep a connection
+        // (and event-loop work) alive after we've stopped waiting on it.
+        onTimeout?.();
         resolve({
           category: svc.category,
           resource: svc.resource,
@@ -56,7 +120,8 @@ function withInvokeTimeout(
           paid: false,
           network: null,
           adapterPath: "pattern",
-        }),
+        });
+      },
       timeoutMs,
     );
   });
@@ -191,7 +256,7 @@ export interface InvokeAllOpts {
     service: DiscoveryPlan["services"][number],
     address: string,
     chain: Chain,
-    opts: { llm?: LlmClient },
+    opts: { llm?: LlmClient; signal?: AbortSignal; timeoutMs?: number },
   ) => Promise<ServiceInvocationOutcome>;
   // Optional viem-onchain override for tests. Default: real fetchOnchainHistory.
   onchainViemFetcher?: typeof fetchOnchainHistory;
@@ -209,6 +274,7 @@ async function invokeWithAlternates(
   address: string,
   chain: Chain,
   invoker: NonNullable<InvokeAllOpts["invoker"]>,
+  hostLimiter: HostLimiter,
   llm?: LlmClient,
   emit?: EventEmitter,
   request_id = "",
@@ -218,6 +284,11 @@ async function invokeWithAlternates(
     primary,
     ...alternates.slice(0, MAX_ALTERNATES_PER_CATEGORY),
   ];
+  // Best-effort categories get a shorter per-call budget so a slow upstream
+  // there can't dominate the deep-path fan-out; their failure is non-blocking.
+  const perAttemptMs = BEST_EFFORT_CATEGORIES.has(primary.category)
+    ? Math.min(timeoutMs, BEST_EFFORT_TIMEOUT_MS)
+    : timeoutMs;
   const failedHosts = new Set<string>();
   let lastOutcome: ServiceInvocationOutcome | null = null;
   for (let i = 0; i < candidates.length; i++) {
@@ -241,11 +312,26 @@ async function invokeWithAlternates(
       cost_usd: null,
       at: now(),
     });
-    const outcome = await withInvokeTimeout(
-      invoker(svc, address, chain, { llm }),
-      timeoutMs,
-      svc,
-    );
+    // Cap concurrency to this candidate's host so same-host siblings don't
+    // 429 each other. Released in finally so a thrown/timed-out call can't
+    // leak the slot.
+    await hostLimiter.acquire(host);
+    let outcome: ServiceInvocationOutcome;
+    try {
+      const controller = new AbortController();
+      outcome = await withInvokeTimeout(
+        invoker(svc, address, chain, {
+          llm,
+          signal: controller.signal,
+          timeoutMs: perAttemptMs,
+        }),
+        backstopMs(perAttemptMs),
+        svc,
+        () => controller.abort(),
+      );
+    } finally {
+      hostLimiter.release(host);
+    }
     // Update health stats so future rerank calls can weight this service.
     if (outcome.status === "ok" || outcome.status === "fallback_ok") {
       await recordOk(svc.resource);
@@ -314,6 +400,9 @@ export async function invokeAll(
   const emit = opts.onEvent;
   const request_id = opts.request_id ?? "";
   const timeoutMs = opts.timeoutMs ?? DEFAULT_INVOKE_TIMEOUT_MS;
+  // Shared across the whole fan-out so same-host calls (e.g. orbisapi labels +
+  // onchain_history + web_sentiment) cap at PER_HOST_CONCURRENCY together.
+  const hostLimiter = createHostLimiter(PER_HOST_CONCURRENCY);
 
   const outcomes = await Promise.all(
     plan.services.map((s) =>
@@ -323,6 +412,7 @@ export async function invokeAll(
         plan.address,
         chain,
         invoker,
+        hostLimiter,
         opts.llm,
         emit,
         request_id,

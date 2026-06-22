@@ -122,7 +122,13 @@ Deno.test("fast tier: sanctioned oracle → block (do_not_transact), $0", async 
 
 Deno.test("fast tier: cache-hit safe → proceed", async () => {
   const cache = memoryCache();
-  cache.store.set(`eth:${ADDR.toLowerCase()}`, makeVerdict("safe_to_transact"));
+  cache.store.set(`eth:${ADDR.toLowerCase()}`, {
+    verdict: makeVerdict("safe_to_transact"),
+    outcomes: [],
+    totalSpentUsdc: 0,
+    totalLlmCostUsd: 0,
+    walletNetwork: "base",
+  });
 
   const result = await verifyAgent({ address: ADDR }, {
     depth: "fast",

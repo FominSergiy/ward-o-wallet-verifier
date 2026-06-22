@@ -118,6 +118,10 @@ export interface VerifyReceipt {
   // Machine code for the error (e.g. "descriptor_only_response"); kept in
   // sync with the backend payload at src/routes/verify_agent_stream.ts.
   errorCode?: string;
+  // True for low-signal categories (e.g. web_sentiment) whose failure is
+  // expected and non-blocking — rendered as "skipped · best-effort" rather
+  // than a hard error.
+  bestEffort?: boolean;
 }
 
 export type VerdictLabel =
@@ -177,6 +181,10 @@ export interface VerifyResultPayload {
   // calls). x402 paid-service spend lives in totalSpentUsdc; the card shows
   // both plus their sum. Zero on cache hits (no model call ran).
   totalLlmCostUsd: number;
+  // True when served from the verdict cache: the receipts + cost totals reflect
+  // the original deep run (so the breakdown still renders), but THIS run spent
+  // $0. The card shows a "served from cache · $0 this run" note.
+  fromCache?: boolean;
   // Which tier produced this result, and the agent-actionable signal. "fast"
   // results always have totalSpentUsdc === 0; fastSignal "needs_deep_check"
   // means the UI should offer the opt-in paid deep check.
