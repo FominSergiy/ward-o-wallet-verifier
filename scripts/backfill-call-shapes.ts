@@ -18,6 +18,7 @@
 // Add --dry-run to print the planned UPDATEs without writing.
 
 import { getDb } from "../src/db/client.ts";
+import { ServiceStatus } from "../src/db/enums.ts";
 import { fetchCandidates } from "../src/discovery/orchestrator.ts";
 import {
   callShapeFromBazaarInfo,
@@ -68,9 +69,9 @@ for (const [cat, entries] of Object.entries(candidates)) {
     const shape = callShapeFromBazaarInfo(extractBazaarInfo(entry));
     // Only touch existing, non-blocked rows — discovery surfaces services we may
     // not have a registry row for, and we must never resurrect a blocked one.
-    const rows = await db<Array<{ resource: string; status: string }>>`
+    const rows = await db<Array<{ resource: string; status: ServiceStatus }>>`
       SELECT resource, status FROM service_registry
-      WHERE resource = ${entry.resource} AND status <> 'blocked'
+      WHERE resource = ${entry.resource} AND status <> ${ServiceStatus.BLOCKED}
     `;
     if (rows.length === 0) continue;
     matched++;
@@ -95,7 +96,7 @@ for (const [cat, entries] of Object.entries(candidates)) {
         body_schema  = ${jsonbParam(shape.body_schema)}::jsonb,
         body_type    = ${shape.body_type},
         updated_at   = now()
-      WHERE resource = ${entry.resource} AND status <> 'blocked'
+      WHERE resource = ${entry.resource} AND status <> ${ServiceStatus.BLOCKED}
     `;
     updated++;
     console.log(
@@ -106,9 +107,11 @@ for (const [cat, entries] of Object.entries(candidates)) {
 
 // Report rows that still lack a method so the coverage gap is visible (e.g. a
 // candidate that no longer appears in discovery).
-const stillMissing = await db<Array<{ resource: string; status: string }>>`
+const stillMissing = await db<
+  Array<{ resource: string; status: ServiceStatus }>
+>`
   SELECT resource, status FROM service_registry
-  WHERE status <> 'blocked' AND method IS NULL
+  WHERE status <> ${ServiceStatus.BLOCKED} AND method IS NULL
 `;
 
 console.log(

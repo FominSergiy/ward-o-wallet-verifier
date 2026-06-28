@@ -1,4 +1,5 @@
 export type { CallRecipe } from "../discovery/recipe.ts";
+import type { ServiceStatus } from "../db/enums.ts";
 
 /** A row from service_registry with numeric types resolved. */
 export interface RegistryEntry {
@@ -8,7 +9,7 @@ export interface RegistryEntry {
   resource: string;
   category: string;
   price_usdc: number;
-  status: string;
+  status: ServiceStatus;
   score: number;
   last_vetted_at: Date | null;
   // Call shape (W0.11) — how to invoke this service. The DB is the single

@@ -5,6 +5,7 @@
 //   DATABASE_URL=<neon-url> ~/.deno/bin/deno run --allow-net --allow-env --allow-read scripts/seed-registry.ts
 
 import { getDb } from "../src/db/client.ts";
+import { ServiceStatus } from "../src/db/enums.ts";
 import { CallRecipeSchema } from "../src/discovery/recipe.ts";
 
 const RECIPES_PATH = new URL("../data/call_recipes.json", import.meta.url);
@@ -28,7 +29,7 @@ for (const [service_id, entry] of Object.entries(all)) {
       ${recipe.resource},
       ${recipe.category},
       ${recipe.price_usdc},
-      'active',
+      ${ServiceStatus.ACTIVE},
       ${service_id},
       1.0,
       now()
@@ -36,7 +37,7 @@ for (const [service_id, entry] of Object.entries(all)) {
     ON CONFLICT (resource) DO UPDATE SET
       category       = EXCLUDED.category,
       price_usdc     = EXCLUDED.price_usdc,
-      status         = 'active',
+      status         = ${ServiceStatus.ACTIVE},
       source         = EXCLUDED.source,
       score          = EXCLUDED.score,
       last_vetted_at = now(),

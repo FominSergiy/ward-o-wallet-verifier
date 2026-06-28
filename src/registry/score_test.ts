@@ -1,4 +1,5 @@
 import { assertEquals } from "@std/assert";
+import { ServiceStatus } from "../db/enums.ts";
 import {
   computeScore,
   nextStatus,
@@ -64,38 +65,77 @@ Deno.test("computeScore: null latency treated as perfect latency", () => {
 // ── nextStatus ────────────────────────────────────────────────────────────────
 
 Deno.test("nextStatus: blocked stays blocked regardless of reliability", () => {
-  assertEquals(nextStatus("blocked", 1.0, 100), "blocked");
-  assertEquals(nextStatus("blocked", 0.0, 100), "blocked");
+  assertEquals(
+    nextStatus(ServiceStatus.BLOCKED, 1.0, 100),
+    ServiceStatus.BLOCKED,
+  );
+  assertEquals(
+    nextStatus(ServiceStatus.BLOCKED, 0.0, 100),
+    ServiceStatus.BLOCKED,
+  );
 });
 
 Deno.test("nextStatus: no data leaves status unchanged", () => {
-  assertEquals(nextStatus("active", 1.0, 0), "active");
-  assertEquals(nextStatus("probation", 1.0, 0), "probation");
+  assertEquals(nextStatus(ServiceStatus.ACTIVE, 1.0, 0), ServiceStatus.ACTIVE);
+  assertEquals(
+    nextStatus(ServiceStatus.PROBATION, 1.0, 0),
+    ServiceStatus.PROBATION,
+  );
 });
 
 Deno.test("nextStatus: active → probation when reliability < 0.50", () => {
-  assertEquals(nextStatus("active", 0.49, 100), "probation");
-  assertEquals(nextStatus("active", 0.2, 100), "probation");
+  assertEquals(
+    nextStatus(ServiceStatus.ACTIVE, 0.49, 100),
+    ServiceStatus.PROBATION,
+  );
+  assertEquals(
+    nextStatus(ServiceStatus.ACTIVE, 0.2, 100),
+    ServiceStatus.PROBATION,
+  );
 });
 
 Deno.test("nextStatus: active stays active when reliability ≥ 0.50", () => {
-  assertEquals(nextStatus("active", 0.5, 100), "active");
-  assertEquals(nextStatus("active", 1.0, 100), "active");
+  assertEquals(
+    nextStatus(ServiceStatus.ACTIVE, 0.5, 100),
+    ServiceStatus.ACTIVE,
+  );
+  assertEquals(
+    nextStatus(ServiceStatus.ACTIVE, 1.0, 100),
+    ServiceStatus.ACTIVE,
+  );
 });
 
 Deno.test("nextStatus: probation → active when reliability ≥ 0.80", () => {
-  assertEquals(nextStatus("probation", 0.8, 100), "active");
-  assertEquals(nextStatus("probation", 1.0, 100), "active");
+  assertEquals(
+    nextStatus(ServiceStatus.PROBATION, 0.8, 100),
+    ServiceStatus.ACTIVE,
+  );
+  assertEquals(
+    nextStatus(ServiceStatus.PROBATION, 1.0, 100),
+    ServiceStatus.ACTIVE,
+  );
 });
 
 Deno.test("nextStatus: probation stays probation in the middle band", () => {
-  assertEquals(nextStatus("probation", 0.5, 100), "probation");
-  assertEquals(nextStatus("probation", 0.79, 100), "probation");
+  assertEquals(
+    nextStatus(ServiceStatus.PROBATION, 0.5, 100),
+    ServiceStatus.PROBATION,
+  );
+  assertEquals(
+    nextStatus(ServiceStatus.PROBATION, 0.79, 100),
+    ServiceStatus.PROBATION,
+  );
 });
 
 Deno.test("nextStatus: probation → blocked when reliability < 0.20", () => {
-  assertEquals(nextStatus("probation", 0.19, 100), "blocked");
-  assertEquals(nextStatus("probation", 0.0, 100), "blocked");
+  assertEquals(
+    nextStatus(ServiceStatus.PROBATION, 0.19, 100),
+    ServiceStatus.BLOCKED,
+  );
+  assertEquals(
+    nextStatus(ServiceStatus.PROBATION, 0.0, 100),
+    ServiceStatus.BLOCKED,
+  );
 });
 
 // ── recomputeScores ───────────────────────────────────────────────────────────
@@ -121,7 +161,11 @@ Deno.test(
         Promise.resolve([metrics("https://flaky.example", 100, 20)]),
       fetchRegistry: () =>
         Promise.resolve([
-          { resource: "https://flaky.example", status: "active", score: "1.0" },
+          {
+            resource: "https://flaky.example",
+            status: ServiceStatus.ACTIVE,
+            score: "1.0",
+          },
         ]),
       applyUpdate: (resource, score, status) => {
         applied.push({ resource, score, status });
@@ -132,10 +176,10 @@ Deno.test(
     assertEquals(result.transitions.length, 1);
     assertEquals(result.transitions[0], {
       resource: "https://flaky.example",
-      from: "active",
-      to: "probation",
+      from: ServiceStatus.ACTIVE,
+      to: ServiceStatus.PROBATION,
     });
-    assertEquals(applied[0].status, "probation");
+    assertEquals(applied[0].status, ServiceStatus.PROBATION);
   },
 );
 
@@ -152,7 +196,7 @@ Deno.test(
         Promise.resolve([
           {
             resource: "https://perfect.example",
-            status: "active",
+            status: ServiceStatus.ACTIVE,
             score: "0.5",
           },
         ]),
@@ -163,7 +207,7 @@ Deno.test(
     });
 
     assertEquals(applied.length, 1);
-    assertEquals(applied[0].status, "active");
+    assertEquals(applied[0].status, ServiceStatus.ACTIVE);
     // Score must be near the top (≥ 0.99)
     assertEquals(applied[0].score > 0.99, true);
     // No status transition — it was already active and stays active.
@@ -184,7 +228,7 @@ Deno.test(
         Promise.resolve([
           {
             resource: "https://stable.example",
-            status: "active",
+            status: ServiceStatus.ACTIVE,
             score: "1.0000",
           },
         ]),
@@ -211,7 +255,7 @@ Deno.test(
         Promise.resolve([
           {
             resource: "https://blocked.example",
-            status: "blocked",
+            status: ServiceStatus.BLOCKED,
             score: "0.1",
           },
         ]),
@@ -223,7 +267,7 @@ Deno.test(
 
     // Score changes (0.1 → high), so applyUpdate is called — but status must stay blocked.
     if (applied.length > 0) {
-      assertEquals(applied[0].status, "blocked");
+      assertEquals(applied[0].status, ServiceStatus.BLOCKED);
     }
   },
 );

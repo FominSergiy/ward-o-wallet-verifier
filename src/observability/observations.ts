@@ -4,6 +4,7 @@
 // the verify pipeline.
 
 import { getDb } from "../db/client.ts";
+import { ObservationStatus } from "../db/enums.ts";
 import { log } from "./log.ts";
 import type { ServiceEvent } from "../agent/events.ts";
 
@@ -13,7 +14,11 @@ export function recordServiceObservation(event: ServiceEvent): void {
 
   const db = getDb();
 
-  const status = event.status === "fallback" ? "error" : event.status;
+  // The transient ServiceEvent statuses collapse to the two persisted values:
+  // "fallback" → error, everything else terminal ("ok"/"error") maps 1:1.
+  const status: ObservationStatus = event.status === "ok"
+    ? ObservationStatus.OK
+    : ObservationStatus.ERROR;
   const cost_usd = event.cost_usd != null ? String(event.cost_usd) : null;
 
   Promise.resolve(

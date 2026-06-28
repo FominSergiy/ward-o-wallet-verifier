@@ -2,6 +2,8 @@
 // match the SQL column-for-column. postgres.js returns numeric columns as
 // strings by default, so cost/price fields are typed `string | null`.
 
+import type { ObservationStatus, ServiceStatus } from "./enums.ts";
+
 /** tenants — billable account (W1.1). */
 export interface TenantRow {
   id: string;
@@ -48,7 +50,7 @@ export interface ServiceRegistryRow {
   category: string;
   price_usdc: string | null;
   rationale: string | null;
-  status: string;
+  status: ServiceStatus;
   source: string | null;
   score: string;
   last_vetted_at: Date | null;
@@ -67,7 +69,7 @@ export interface ServiceObservationRow {
   id: string;
   resource: string;
   request_id: string;
-  status: string;
+  status: ObservationStatus;
   duration_ms: number | null;
   cost_usd: string | null;
   error_code: string | null;

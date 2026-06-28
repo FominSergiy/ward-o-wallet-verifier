@@ -1,4 +1,5 @@
 import { getDb } from "../db/client.ts";
+import { ObservationStatus, ServiceStatus } from "../db/enums.ts";
 
 // ── Scoring weights ───────────────────────────────────────────────────────────
 // Must sum to 1.0.
@@ -29,7 +30,7 @@ export interface WindowMetrics {
 
 interface RegistrySummary {
   resource: string;
-  status: string;
+  status: ServiceStatus;
   score: string;
 }
 
@@ -45,7 +46,7 @@ export interface RecomputeOpts {
   applyUpdate?: (
     resource: string,
     score: number,
-    status: string,
+    status: ServiceStatus,
   ) => Promise<void>;
 }
 
@@ -74,20 +75,22 @@ export function computeScore(m: WindowMetrics): number {
  * function never transitions away from `blocked`.
  */
 export function nextStatus(
-  current: string,
+  current: ServiceStatus,
   reliability: number,
   total: number,
-): string {
-  if (current === "blocked") return "blocked";
+): ServiceStatus {
+  if (current === ServiceStatus.BLOCKED) return ServiceStatus.BLOCKED;
   if (total === 0) return current;
 
-  if (current === "active") {
-    return reliability < DEMOTION_THRESHOLD ? "probation" : "active";
+  if (current === ServiceStatus.ACTIVE) {
+    return reliability < DEMOTION_THRESHOLD
+      ? ServiceStatus.PROBATION
+      : ServiceStatus.ACTIVE;
   }
-  if (current === "probation") {
-    if (reliability >= PROMOTION_THRESHOLD) return "active";
-    if (reliability < BLOCK_THRESHOLD) return "blocked";
-    return "probation";
+  if (current === ServiceStatus.PROBATION) {
+    if (reliability >= PROMOTION_THRESHOLD) return ServiceStatus.ACTIVE;
+    if (reliability < BLOCK_THRESHOLD) return ServiceStatus.BLOCKED;
+    return ServiceStatus.PROBATION;
   }
   return current;
 }
@@ -113,7 +116,7 @@ async function defaultFetchMetrics(): Promise<WindowMetrics[]> {
       -- invoke_all.ts). The previous 'success' literal matched nothing, so EVERY
       -- service computed 0 reliability and got demoted active→probation→blocked
       -- — the real driver of the W0.11 "0 active services" deadlock.
-      COUNT(*) FILTER (WHERE status = 'ok')::text                          AS successes,
+      COUNT(*) FILTER (WHERE status = ${ObservationStatus.OK})::text       AS successes,
       percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms)::text      AS p95_latency_ms,
       COALESCE(SUM(CASE WHEN empty_on_rich THEN 1 ELSE 0 END), 0)::text   AS empty_on_rich
     FROM service_observations

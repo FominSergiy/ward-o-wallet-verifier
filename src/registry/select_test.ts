@@ -2,6 +2,7 @@ import { assertEquals, assertRejects } from "@std/assert";
 import { RegistryUnavailableError, selectFromRegistry } from "./select.ts";
 import type { CallRecipe, RegistryEntry } from "./types.ts";
 import type { Category } from "../agent/types.ts";
+import { ServiceStatus } from "../db/enums.ts";
 
 const CATEGORIES: Category[] = [
   "sanctions",
@@ -64,7 +65,7 @@ function entry(
   category: string,
   resource: string,
   score: number,
-  status = "active",
+  status: ServiceStatus = ServiceStatus.ACTIVE,
 ): RegistryEntry {
   return {
     id: crypto.randomUUID(),
@@ -171,7 +172,7 @@ Deno.test("selectFromRegistry: active ranks above probation; probation is a fall
             "sanctions",
             "https://probation.example/screen",
             0.9,
-            "probation",
+            ServiceStatus.PROBATION,
           ),
         ]),
     });
@@ -255,7 +256,7 @@ Deno.test("selectFromRegistry: blocked service never appears regardless of score
             "sanctions",
             "https://sanc-b.example/screen",
             0.95,
-            "blocked",
+            ServiceStatus.BLOCKED,
           ),
           entry("sanc1", "sanctions", "https://sanc-a.example/screen", 0.42),
         ]),

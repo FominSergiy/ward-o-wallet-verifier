@@ -1,4 +1,5 @@
 import { getDb } from "../db/client.ts";
+import { ServiceStatus } from "../db/enums.ts";
 import type { ServiceRegistryRow } from "../db/types.ts";
 import { CallRecipeSchema } from "../discovery/recipe.ts";
 import type { Category } from "../agent/types.ts";
@@ -76,15 +77,16 @@ export async function getActiveServices(
   category?: string,
 ): Promise<RegistryEntry[]> {
   const db = getDb();
+  const selectable = [ServiceStatus.ACTIVE, ServiceStatus.PROBATION];
   const rows = category != null
     ? await db<ServiceRegistryRow[]>`
         SELECT * FROM service_registry
-        WHERE status IN ('active', 'probation') AND category = ${category}
-        ORDER BY (status = 'active') DESC, score DESC, created_at ASC`
+        WHERE status = ANY(${selectable}) AND category = ${category}
+        ORDER BY (status = ${ServiceStatus.ACTIVE}) DESC, score DESC, created_at ASC`
     : await db<ServiceRegistryRow[]>`
         SELECT * FROM service_registry
-        WHERE status IN ('active', 'probation')
-        ORDER BY (status = 'active') DESC, score DESC, created_at ASC`;
+        WHERE status = ANY(${selectable})
+        ORDER BY (status = ${ServiceStatus.ACTIVE}) DESC, score DESC, created_at ASC`;
   return rows.map(rowToEntry);
 }
 
