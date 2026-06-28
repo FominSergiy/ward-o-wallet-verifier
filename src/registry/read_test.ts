@@ -1,5 +1,6 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import { closeDb, dbEnabled, getDb } from "../db/client.ts";
+import { ServiceStatus } from "../db/enums.ts";
 import { getActiveServices, getRecipe } from "./read.ts";
 
 const HAS_DB = dbEnabled();
@@ -32,10 +33,10 @@ Deno.test({
     await db`
       INSERT INTO service_registry (resource, category, price_usdc, status, source, score, last_vetted_at)
       VALUES
-        ('https://test.example/sanctions', 'sanctions', 0.001, 'active', 'test-sanct', 1.0, now()),
-        ('https://test.example/labels',    'labels',    0.005, 'active', 'test-label', 0.9, now())
+        ('https://test.example/sanctions', 'sanctions', 0.001, ${ServiceStatus.ACTIVE}, 'test-sanct', 1.0, now()),
+        ('https://test.example/labels',    'labels',    0.005, ${ServiceStatus.ACTIVE}, 'test-label', 0.9, now())
       ON CONFLICT (resource) DO UPDATE SET
-        status         = 'active',
+        status         = ${ServiceStatus.ACTIVE},
         source         = EXCLUDED.source,
         score          = EXCLUDED.score,
         last_vetted_at = now(),
@@ -47,7 +48,7 @@ Deno.test({
       assertEquals(testRow?.resource, "https://test.example/sanctions");
       assertEquals(testRow?.price_usdc, 0.001);
       assertEquals(testRow?.score, 1.0);
-      assertEquals(testRow?.status, "active");
+      assertEquals(testRow?.status, ServiceStatus.ACTIVE);
 
       // The labels row must not appear in a sanctions-filtered query.
       const labelIds = sanctions.map((e) => e.service_id);
@@ -67,8 +68,8 @@ Deno.test({
     await db`
       INSERT INTO service_registry (resource, category, price_usdc, status, source, score, last_vetted_at)
       VALUES
-        ('https://test.example/s1', 'sanctions', 0.001, 'active',  'ts1', 1.0, now()),
-        ('https://test.example/s2', 'labels',    0.005, 'blocked', 'ts2', 0.5, now())
+        ('https://test.example/s1', 'sanctions', 0.001, ${ServiceStatus.ACTIVE},  'ts1', 1.0, now()),
+        ('https://test.example/s2', 'labels',    0.005, ${ServiceStatus.BLOCKED}, 'ts2', 0.5, now())
       ON CONFLICT (resource) DO UPDATE SET
         status         = EXCLUDED.status,
         source         = EXCLUDED.source,

@@ -1,5 +1,6 @@
 import { assertEquals } from "@std/assert";
 import { runVetter } from "./run.ts";
+import type { CallShape } from "../discovery/types.ts";
 
 // Shared no-op stubs for seams not under test.
 const noopUpdatePrice = () => Promise.resolve();
@@ -14,6 +15,73 @@ const noopFetchCandidates = () =>
     candidates: {},
     errors: {},
   });
+
+// ── Test 0: discovered candidate is inserted WITH its call shape (W0.11) ──────
+// The call shape must be snapshotted from the provider's bazaar input hints so
+// the row is immediately invokable — no more "registry row with no recipe".
+
+Deno.test(
+  "runVetter: new candidate is inserted with the call shape from bazaar info",
+  async () => {
+    let captured: CallShape | null = null;
+
+    await runVetter({
+      fetchActiveAndProbation: () => Promise.resolve([]),
+      probePrice: () => Promise.resolve({ maxAmountRequiredUsdc: null }),
+      updatePrice: noopUpdatePrice,
+      updateStatus: noopUpdateStatus,
+      rewriteRecipePrice: noopRewriteRecipe,
+      runRecomputeScores: noopRecompute,
+      insertCandidate: (_resource, _category, _priceUsdc, _source, shape) => {
+        captured = shape;
+        return Promise.resolve(true);
+      },
+      runFetchCandidates: () =>
+        Promise.resolve({
+          walletNetwork: "base" as const,
+          candidates: {
+            onchain_history: [
+              {
+                resource:
+                  "https://orbis.example/proxy/wallet-api/balance/:address",
+                description: "Wallet balance",
+                accepts: [
+                  {
+                    scheme: "exact" as const,
+                    network: "eip155:8453",
+                    amount: "5000",
+                    asset: "0xUSDC",
+                    payTo: "0xABC",
+                    maxTimeoutSeconds: 300,
+                  },
+                ],
+                extensions: {
+                  bazaar: {
+                    info: {
+                      input: {
+                        method: "GET",
+                        pathParams: { address: "EVM wallet address" },
+                        queryParams: {},
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          },
+          errors: {},
+        }),
+    });
+
+    assertEquals(captured !== null, true);
+    const shape = captured as unknown as CallShape;
+    assertEquals(shape.method, "GET");
+    assertEquals(shape.path_params, { address: "EVM wallet address" });
+    assertEquals(shape.query_params, {});
+    assertEquals(shape.body_schema, null);
+    assertEquals(shape.body_type, null);
+  },
+);
 
 // ── Test 1: new candidate from discovery is inserted as probation ─────────────
 

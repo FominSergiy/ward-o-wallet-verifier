@@ -1,5 +1,4 @@
 import type { Category } from "../agent/types.ts";
-import { log } from "../observability/log.ts";
 import type { LlmClient } from "../agent/llm.ts";
 import { type EventEmitter, now, safeEmit } from "../agent/events.ts";
 import type {
@@ -8,8 +7,23 @@ import type {
   WalletNetwork,
 } from "../discovery/types.ts";
 import { buildDeterministicSources } from "../discovery/deterministic_sources.ts";
-import { getActiveServices, loadAllRecipes } from "./read.ts";
-import type { CallRecipe, RegistryEntry } from "./types.ts";
+import { dbEnabled } from "../db/client.ts";
+import { getActiveServices, loadAllRecipes, rowToRanked } from "./read.ts";
+import type { CallRecipe } from "./types.ts";
+
+/**
+ * Thrown when production selection cannot read the service registry (the DB is
+ * unreachable / the read errors). In production the active set MUST come from
+ * the DB — we deliberately do NOT fall back to the checked-in recipe sample, so
+ * the request fails loudly (mapped to a 503 `registry_unavailable`) instead of
+ * silently serving a stale 4-service catalog.
+ */
+export class RegistryUnavailableError extends Error {
+  constructor(cause: string) {
+    super(`service registry unavailable: ${cause}`);
+    this.name = "RegistryUnavailableError";
+  }
+}
 
 // Recipes are snapshotted against Base mainnet (eip155:8453). The registry hot
 // path is a pure read — we don't hit the Agnic /api/balance endpoint to detect
@@ -30,15 +44,12 @@ export interface SelectFromRegistryOpts {
   loadRecipes?: typeof loadAllRecipes;
 }
 
-interface SelectedCandidate {
-  recipe: CallRecipe;
-  score: number;
-}
-
 // Translate a frozen call recipe into the RankedService shape the invocation
 // phase consumes. This is the inverse of scripts/snapshot-recipes.ts, which
 // built recipes FROM RankedService.inputInfo — so the round-trip reconstructs
-// a call shape the pattern/LLM adapters already know how to drive.
+// a call shape the pattern/LLM adapters already know how to drive. Used ONLY by
+// the offline path (DATABASE_URL unset); production builds RankedServices from
+// DB rows via rowToRanked().
 function recipeToRanked(recipe: CallRecipe, score: number): RankedService {
   return {
     category: recipe.category,
@@ -64,15 +75,19 @@ function recipeToRanked(recipe: CallRecipe, score: number): RankedService {
  * The hot-path replacement for discover(): builds a DiscoveryPlan by reading
  * the curated service_registry instead of fanning out to Bazaar + LLM rerank.
  *
- * For each requested category it takes the active registry entries ordered by
- * score (descending), uses the top one as the primary service and the rest as
- * runtime fallback alternates. The full call shape comes from
- * data/call_recipes.json, joined to the registry row by service_id.
+ * For each requested category it takes the selectable registry entries ordered
+ * with `active` ahead of `probation`, then by score (descending), uses the top
+ * one as the primary service and the rest as runtime fallback alternates. The
+ * full call shape comes from the DB row's own columns (W0.11) — the DB is the
+ * single source of truth.
  *
- * Offline-safe: when the DB is unset/unreachable (e.g. replay tests, local dev
- * without DATABASE_URL) getActiveServices() returns [], and we fall back to
- * treating every recipe in call_recipes.json as active at score 1.0 — the same
- * thing seed-registry.ts writes into the table.
+ * Branching (W0.11):
+ *  - **DB enabled (production):** the active set comes ONLY from the DB. A read
+ *    failure PROPAGATES as RegistryUnavailableError (→ 503) — we never silently
+ *    serve the checked-in recipe sample as if it were live.
+ *  - **DB disabled (offline / replay tests, DATABASE_URL unset):** every recipe
+ *    in call_recipes.json is treated as active@1.0, so the offline gate works
+ *    with no DB or network.
  */
 export async function selectFromRegistry(
   address: string,
@@ -84,54 +99,37 @@ export async function selectFromRegistry(
   const getActive = opts.getActive ?? getActiveServices;
   const loadRecipes = opts.loadRecipes ?? loadAllRecipes;
 
-  const recipesById = await loadRecipes();
-
-  // Active registry rows give us the score ordering + which service_ids are
-  // live. If the DB is down or empty, fall back to the recipe file as the
-  // active set (score 1.0) so the hot path still works offline.
-  let active: RegistryEntry[];
-  try {
-    active = await getActive();
-  } catch (e) {
-    log.warn(
-      `[select] registry read failed (${
-        (e as Error).message
-      }) — falling back to call_recipes.json`,
-    );
-    active = [];
-  }
-
-  // Build a per-category, score-ordered list of selectable candidates.
-  const byCategory = new Map<Category, SelectedCandidate[]>();
-  const push = (cat: Category, recipe: CallRecipe, score: number) => {
+  // Build a per-category, rank-ordered list of selectable candidate services.
+  const byCategory = new Map<Category, RankedService[]>();
+  const push = (cat: Category, svc: RankedService) => {
     const list = byCategory.get(cat) ?? [];
-    list.push({ recipe, score });
+    list.push(svc);
     byCategory.set(cat, list);
   };
 
-  if (active.length > 0) {
-    // getActiveServices() already returns rows ordered by score DESC, so
-    // iterating in order preserves the ranking within each category.
+  if (dbEnabled()) {
+    // PRODUCTION: the DB is the single source of truth. Do NOT swallow a read
+    // failure — let it surface as RegistryUnavailableError so the request fails
+    // loudly (503) instead of degrading to the 4-entry recipe sample.
+    let active;
+    try {
+      active = await getActive();
+    } catch (e) {
+      throw new RegistryUnavailableError((e as Error).message);
+    }
+    // getActiveServices() already orders rows (active before probation, then
+    // score desc), so iterating in order preserves ranking within a category.
     for (const entry of active) {
-      // Explicit guard: blocked services must never be selected regardless of
-      // what the caller's getActive seam returns or how the DB query is shaped.
+      // Defense-in-depth: blocked services must never be selected regardless of
+      // what the getActive seam returns or how the DB query is shaped.
       if (entry.status === "blocked") continue;
-      const recipe = recipesById[entry.service_id];
-      if (!recipe) {
-        // Registry row references a service_id we have no call recipe for —
-        // we can't invoke it, so skip. (W0.10's vetter is responsible for
-        // keeping recipes and registry rows in sync.)
-        log.warn(
-          `[select] active registry entry ${entry.resource} (service_id=${entry.service_id}) has no call recipe — skipping`,
-        );
-        continue;
-      }
-      push(recipe.category as Category, recipe, entry.score);
+      push(entry.category as Category, rowToRanked(entry));
     }
   } else {
-    // Offline fallback: every recipe is treated as active@1.0.
+    // OFFLINE/TEST (DATABASE_URL unset): every recipe is treated as active@1.0.
+    const recipesById = await loadRecipes();
     for (const recipe of Object.values(recipesById)) {
-      push(recipe.category as Category, recipe, 1.0);
+      push(recipe.category as Category, recipeToRanked(recipe, 1.0));
     }
   }
 
@@ -157,15 +155,15 @@ export async function selectFromRegistry(
     }
 
     const [primary, ...rest] = candidates;
-    services.push(recipeToRanked(primary.recipe, primary.score));
+    services.push(primary);
     if (rest.length > 0) {
-      alternates[cat] = rest.map((c) => recipeToRanked(c.recipe, c.score));
+      alternates[cat] = rest;
     }
     safeEmit(emit, {
       type: "log",
       level: "info",
       message:
-        `registry_select: ${cat} → ${primary.recipe.resource} (${candidates.length} candidate${
+        `registry_select: ${cat} → ${primary.resource} (${candidates.length} candidate${
           candidates.length === 1 ? "" : "s"
         })`,
       at: now(),

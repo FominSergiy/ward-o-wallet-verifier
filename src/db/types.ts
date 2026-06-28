@@ -2,6 +2,8 @@
 // match the SQL column-for-column. postgres.js returns numeric columns as
 // strings by default, so cost/price fields are typed `string | null`.
 
+import type { ObservationStatus, ServiceStatus } from "./enums.ts";
+
 /** tenants — billable account (W1.1). */
 export interface TenantRow {
   id: string;
@@ -37,17 +39,26 @@ export interface UsageEventRow {
 }
 
 /** service_registry — curated x402 catalog (W0.2). score and last_vetted_at
- * added in 0002_service_registry_score.sql. */
+ * added in 0002_service_registry_score.sql; the call-shape columns (method,
+ * query_params, path_params, body_schema, body_type) added in
+ * 0003_service_registry_call_shapes.sql — all nullable, the DB-as-single-source
+ * -of-truth for HOW to invoke each service (W0.11). postgres.js returns jsonb
+ * columns as already-parsed JS values. */
 export interface ServiceRegistryRow {
   id: string;
   resource: string;
   category: string;
   price_usdc: string | null;
   rationale: string | null;
-  status: string;
+  status: ServiceStatus;
   source: string | null;
   score: string;
   last_vetted_at: Date | null;
+  method: string | null;
+  query_params: Record<string, unknown> | null;
+  path_params: Record<string, unknown> | null;
+  body_schema: unknown | null;
+  body_type: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -58,7 +69,7 @@ export interface ServiceObservationRow {
   id: string;
   resource: string;
   request_id: string;
-  status: string;
+  status: ObservationStatus;
   duration_ms: number | null;
   cost_usd: string | null;
   error_code: string | null;

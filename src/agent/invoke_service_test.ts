@@ -1,6 +1,10 @@
 import { assertEquals } from "@std/assert";
 import { z } from "zod";
-import { appendSubPath, invokeRankedService } from "./invoke_service.ts";
+import {
+  appendSubPath,
+  invokeRankedService,
+  maxValueForPrice,
+} from "./invoke_service.ts";
 import { type LlmClient, mockLlm } from "./llm.ts";
 import type { RankedService } from "../discovery/types.ts";
 
@@ -856,6 +860,104 @@ Deno.test("invokeRankedService descriptor retry preserves POST body and appends 
     );
   } finally {
     cap.restore();
+    globalThis.fetch = orig;
+    teardownAgnic();
+  }
+});
+
+// --- maxValue headroom (W0.11) -------------------------------------------
+
+function withBufferEnv<T>(value: string | null, fn: () => T): T {
+  const prev = Deno.env.get("INVOKE_MAXVALUE_BUFFER");
+  if (value === null) Deno.env.delete("INVOKE_MAXVALUE_BUFFER");
+  else Deno.env.set("INVOKE_MAXVALUE_BUFFER", value);
+  try {
+    return fn();
+  } finally {
+    if (prev === undefined) Deno.env.delete("INVOKE_MAXVALUE_BUFFER");
+    else Deno.env.set("INVOKE_MAXVALUE_BUFFER", prev);
+  }
+}
+
+Deno.test("maxValueForPrice: applies default 1.5× buffer below the ceiling", () => {
+  withBufferEnv(null, () => {
+    // 0.001 × 1.5 = 0.0015, well under the $0.10 ceiling.
+    assertEquals(maxValueForPrice(0.001), 0.0015);
+  });
+});
+
+Deno.test("maxValueForPrice: clamps to the $0.10 ceiling above it", () => {
+  withBufferEnv(null, () => {
+    // 0.08 × 1.5 = 0.12 → clamped to the 0.10 ceiling.
+    assertEquals(maxValueForPrice(0.08), 0.1);
+    // Exactly at the ceiling input also stays bounded.
+    assertEquals(maxValueForPrice(0.1), 0.1);
+  });
+});
+
+Deno.test("maxValueForPrice: honors INVOKE_MAXVALUE_BUFFER override", () => {
+  withBufferEnv("2", () => {
+    assertEquals(maxValueForPrice(0.001), 0.002);
+  });
+  // Non-numeric / empty falls back to the 1.5 default.
+  withBufferEnv("", () => assertEquals(maxValueForPrice(0.001), 0.0015));
+  withBufferEnv(
+    "not-a-number",
+    () => assertEquals(maxValueForPrice(0.001), 0.0015),
+  );
+});
+
+// Reads the maxValue micro-USDC the agnic client put on its outgoing request
+// (agnicFetch encodes it as ?maxValue=<ceil(usd*1e6)>).
+function maxValueMicroOf(fetchInput: string | URL | Request): string | null {
+  return new URL(fetchInput.toString()).searchParams.get("maxValue");
+}
+
+Deno.test("invokeRankedService sends min(price×buffer, ceiling) as maxValue — below ceiling", async () => {
+  setupAgnic();
+  const orig = globalThis.fetch;
+  const seen: Array<string | null> = [];
+  globalThis.fetch = (url, _init) => {
+    seen.push(maxValueMicroOf(url));
+    return Promise.resolve(jsonResp(200, { ok: true }, {
+      "X-Agnic-Paid": "true",
+      "X-Agnic-Amount": "0.001",
+    }));
+  };
+  try {
+    await withBufferEnv(null, async () => {
+      await invokeRankedService(svc({ priceUsdc: 0.001 }), ADDR, "base", {
+        llm: mockLlm({}),
+      });
+    });
+    // 0.001 × 1.5 = 0.0015 USDC → ceil(0.0015 × 1e6) = 1500 micro-USDC.
+    assertEquals(seen[0], "1500");
+  } finally {
+    globalThis.fetch = orig;
+    teardownAgnic();
+  }
+});
+
+Deno.test("invokeRankedService clamps maxValue to the ceiling — above ceiling", async () => {
+  setupAgnic();
+  const orig = globalThis.fetch;
+  const seen: Array<string | null> = [];
+  globalThis.fetch = (url, _init) => {
+    seen.push(maxValueMicroOf(url));
+    return Promise.resolve(jsonResp(200, { ok: true }, {
+      "X-Agnic-Paid": "true",
+      "X-Agnic-Amount": "0.08",
+    }));
+  };
+  try {
+    await withBufferEnv(null, async () => {
+      await invokeRankedService(svc({ priceUsdc: 0.08 }), ADDR, "base", {
+        llm: mockLlm({}),
+      });
+    });
+    // 0.08 × 1.5 = 0.12 → clamped to 0.10 USDC → 100000 micro-USDC.
+    assertEquals(seen[0], "100000");
+  } finally {
     globalThis.fetch = orig;
     teardownAgnic();
   }

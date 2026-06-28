@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CategorySchema, type Category } from "../agent/types.ts";
+import { type Category, CategorySchema } from "../agent/types.ts";
 import type { DeterministicSource } from "./deterministic_sources.ts";
 
 export type { DeterministicSource };
@@ -52,8 +52,40 @@ export interface DiscoveryEntry {
   };
 }
 
-export function extractBazaarInfo(entry: DiscoveryEntry): BazaarInfo | undefined {
+export function extractBazaarInfo(
+  entry: DiscoveryEntry,
+): BazaarInfo | undefined {
   return entry.extensions?.bazaar?.info?.input;
+}
+
+/** The persistable call shape — mirrors the service_registry shape columns
+ * (W0.11). Nullable fields use null (the DB representation) rather than the
+ * undefined that CallRecipe / BazaarInfo use. */
+export interface CallShape {
+  method: "GET" | "POST";
+  query_params: Record<string, unknown> | null;
+  path_params: Record<string, unknown> | null;
+  body_schema: unknown | null;
+  body_type: string | null;
+}
+
+/**
+ * Derives the persistable call shape from a provider's Bazaar input hints —
+ * the same mapping scripts/snapshot-recipes.ts uses to build a CallRecipe
+ * (method defaults to POST unless explicitly GET), but shaped as nullable DB
+ * columns. Used by the vetter (new candidates) and the backfill so a discovered
+ * service is written invokable, closing the W0.11 "row with no recipe" deadlock.
+ */
+export function callShapeFromBazaarInfo(
+  info: BazaarInfo | undefined,
+): CallShape {
+  return {
+    method: info?.method?.toUpperCase() === "GET" ? "GET" : "POST",
+    query_params: info?.queryParams ?? null,
+    path_params: info?.pathParams ?? null,
+    body_schema: info?.body ?? null,
+    body_type: info?.bodyType ?? null,
+  };
 }
 
 export interface SearchParams {
@@ -80,7 +112,11 @@ export class WalletUnfundedError extends Error {
     public readonly baseSepoliaAddress: string | null,
   ) {
     super(
-      `No USDC balance on either network. base=${baseAddress ?? "(unknown)"}, base-sepolia=${baseSepoliaAddress ?? "(unknown)"}. Top up either wallet with USDC before discovering services.`,
+      `No USDC balance on either network. base=${
+        baseAddress ?? "(unknown)"
+      }, base-sepolia=${
+        baseSepoliaAddress ?? "(unknown)"
+      }. Top up either wallet with USDC before discovering services.`,
     );
     this.name = "WalletUnfundedError";
   }
