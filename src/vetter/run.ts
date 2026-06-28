@@ -27,6 +27,14 @@ import { checkSanctionsOracle } from "../agent/sanctions_oracle.ts";
 const PRICE_CEILING_USDC = 0.10;
 const PRICE_BUMP_FACTOR = 1.20;
 const PROBE_TIMEOUT_MS = 10_000;
+
+// Freshly discovered candidates are UNTESTED. Insert them at a low score (not
+// the old 1.0) so they don't tie/outrank a proven service and steal the primary
+// slot on the hot path. Selection orders by score DESC, so a low insert keeps a
+// new candidate in the alternate/exploration tier until its own observations
+// (via the scorer's smoothed reliability) earn it a higher rank. Mirrors the
+// pessimistic prior in registry/score.ts (1/4 = 0.25).
+const UNPROVEN_INSERT_SCORE = 0.25;
 const RECIPES_PATH = new URL("../../data/call_recipes.json", import.meta.url);
 const BASE_NETWORK = "eip155:8453";
 const ALL_CATEGORIES: Category[] = [
@@ -35,6 +43,21 @@ const ALL_CATEGORIES: Category[] = [
   "onchain_history",
   "web_sentiment",
 ];
+
+// Discovery routinely surfaces provider-catalog meta-URLs that are not
+// invokable data endpoints — OpenAPI/info descriptor pages and catch-all route
+// templates with an unsubstituted `:endpoint` placeholder. Inserting these as
+// probation candidates pollutes the registry with rows that can only ever fail
+// (404 / non-JSON / "Target API is not X402 enabled"). Drop them before insert.
+// NOTE: legitimate path params like `/balance/:address` are substituted at call
+// time and must NOT be rejected — only the meta `:endpoint` template is.
+export function isLikelyInvokableEndpoint(resource: string): boolean {
+  const url = resource.toLowerCase();
+  if (url.includes("openapi")) return false; // .../openapi.json, .../openapi
+  if (url.includes(":endpoint")) return false; // catch-all route template
+  if (/\/info\/?$/.test(url)) return false; // descriptor "info" page
+  return true;
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -155,7 +178,7 @@ async function defaultInsertCandidate(
       (resource, category, price_usdc, status, source, score, last_vetted_at,
        method, query_params, path_params, body_schema, body_type)
     VALUES
-      (${resource}, ${category}, ${priceUsdc}, ${ServiceStatus.PROBATION}, ${source}, 1.0, now(),
+      (${resource}, ${category}, ${priceUsdc}, ${ServiceStatus.PROBATION}, ${source}, ${UNPROVEN_INSERT_SCORE}, now(),
        ${shape.method},
        ${jsonbParam(shape.query_params)}::jsonb,
        ${jsonbParam(shape.path_params)}::jsonb,
@@ -310,6 +333,14 @@ export async function runVetter(opts: VetterOpts = {}): Promise<VetterResult> {
         ][]
       ) {
         for (const entry of entries) {
+          // Skip provider-catalog meta-URLs (OpenAPI/info/:endpoint) that can
+          // never serve real data — they'd just become dead probation rows.
+          if (!isLikelyInvokableEndpoint(entry.resource)) {
+            log.info(
+              `[vetter] skipping non-invokable candidate: ${cat} ${entry.resource}`,
+            );
+            continue;
+          }
           const accept = entry.accepts.find((a) =>
             a.network === BASE_NETWORK
           ) ??

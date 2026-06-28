@@ -42,6 +42,14 @@ export function appendSubPath(builtUrl: string, subPath: string): string {
 
 // Error codes from agnicFetch that should NEVER trigger an LLM fallback —
 // they're payment/transport problems, not input-shape problems.
+// KNOWN GAP (deferred — needs a cassette re-record): agnicFetch normalizes
+// upstream messages via rawCode.toLowerCase().replace(/[\s-]+/g, "_"), so
+// "Payment exceeds maximum allowed value" becomes
+// `payment_exceeds_maximum_allowed_value` — this `payment_exceeds_max` entry
+// never matches it, so a cap error wastefully falls through to an LLM-fallback
+// call. The fix is a one-line add, but it changes the replay call sequence
+// (a recorded cap error currently triggers that fallback), so landing it
+// requires `cassette:record`. Tracked as a follow-up.
 const HARD_ERROR_CODES = new Set([
   "insufficient_balance",
   "payment_exceeds_max",

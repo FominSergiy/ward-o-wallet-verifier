@@ -10,6 +10,17 @@ const W_COVERAGE = 0.15;
 // P95 latency at or above this ceiling contributes 0 to the latency component.
 const LATENCY_CEILING_MS = 30_000;
 
+// ── Reliability smoothing (pessimistic Bayesian prior) ───────────────────────
+// A freshly discovered service used to score 1.0 with ZERO observations
+// (total===0 → 1.0), so an untested — often dead — probation candidate tied or
+// outranked a proven one and won the primary slot on the hot path. We instead
+// smooth reliability toward a pessimistic prior: PRIOR_SUCCESSES "virtual"
+// successes out of PRIOR_TOTAL "virtual" observations. A zero-observation
+// service therefore starts at PRIOR_SUCCESSES/PRIOR_TOTAL (0.25), well below any
+// service that has actually demonstrated success, and must earn its way up.
+const PRIOR_SUCCESSES = 1;
+const PRIOR_TOTAL = 4;
+
 // ── Status-transition thresholds ─────────────────────────────────────────────
 // active → probation when reliability drops below this
 const DEMOTION_THRESHOLD = 0.5;
@@ -17,6 +28,12 @@ const DEMOTION_THRESHOLD = 0.5;
 const PROMOTION_THRESHOLD = 0.8;
 // probation → blocked when reliability falls below this (persistent failure)
 const BLOCK_THRESHOLD = 0.2;
+// Don't permanently block on a tiny sample — a single early failure shouldn't
+// hard-block a service forever (blocked is only lifted by an operator). True
+// structural deadness (non-x402 endpoints, 404s) is caught immediately and
+// independently by the registry persist-block in the invocation path; this
+// scoring-driven block is the slower reliability backstop.
+const MIN_BLOCK_OBSERVATIONS = 3;
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,6 +43,27 @@ export interface WindowMetrics {
   successes: number;
   p95LatencyMs: number | null;
   emptyOnRich: number;
+  // Observations excluded from the reliability denominator because they reflect
+  // a payer-side / config condition (our max-value cap, insufficient balance, no
+  // wallet) rather than the upstream being down. Counting these as failures used
+  // to permanently block genuinely-working services (e.g. a 53%-ok labeler whose
+  // price drifted above our cap). Defaults to 0 for callers/tests that omit it.
+  excluded?: number;
+}
+
+/** Observations counted toward reliability (total minus payer-side excludes). */
+function effectiveTotal(m: WindowMetrics): number {
+  return Math.max(0, m.total - (m.excluded ?? 0));
+}
+
+/**
+ * Smoothed reliability in [0,1]: observed successes blended with a pessimistic
+ * prior so low-sample services can't sit at a perfect score. Excludes
+ * payer-side/config observations from the denominator.
+ */
+export function smoothedReliability(m: WindowMetrics): number {
+  const eff = effectiveTotal(m);
+  return (m.successes + PRIOR_SUCCESSES) / (eff + PRIOR_TOTAL);
 }
 
 interface RegistrySummary {
@@ -54,12 +92,12 @@ export interface RecomputeOpts {
 
 /** Computes a 0–1 score from a 30-day window of observations. */
 export function computeScore(m: WindowMetrics): number {
-  if (m.total === 0) return 1.0;
-  const reliability = m.successes / m.total;
+  const eff = effectiveTotal(m);
+  const reliability = smoothedReliability(m);
   const latencyScore = m.p95LatencyMs == null
     ? 1.0
     : Math.max(0, 1 - m.p95LatencyMs / LATENCY_CEILING_MS);
-  const coverageRate = 1 - m.emptyOnRich / m.total;
+  const coverageRate = eff > 0 ? 1 - m.emptyOnRich / eff : 1.0;
   return (
     W_RELIABILITY * reliability +
     W_LATENCY * latencyScore +
@@ -89,7 +127,10 @@ export function nextStatus(
   }
   if (current === ServiceStatus.PROBATION) {
     if (reliability >= PROMOTION_THRESHOLD) return ServiceStatus.ACTIVE;
-    if (reliability < BLOCK_THRESHOLD) return ServiceStatus.BLOCKED;
+    // Only hard-block once we've seen enough calls to trust the failure signal.
+    if (reliability < BLOCK_THRESHOLD && total >= MIN_BLOCK_OBSERVATIONS) {
+      return ServiceStatus.BLOCKED;
+    }
     return ServiceStatus.PROBATION;
   }
   return current;
@@ -104,6 +145,7 @@ async function defaultFetchMetrics(): Promise<WindowMetrics[]> {
       resource: string;
       total: string;
       successes: string;
+      excluded: string;
       p95_latency_ms: string | null;
       empty_on_rich: string;
     }>
@@ -117,6 +159,19 @@ async function defaultFetchMetrics(): Promise<WindowMetrics[]> {
       -- service computed 0 reliability and got demoted active→probation→blocked
       -- — the real driver of the W0.11 "0 active services" deadlock.
       COUNT(*) FILTER (WHERE status = ${ObservationStatus.OK})::text       AS successes,
+      -- Payer-side / config failures (our max-value cap, insufficient balance,
+      -- no wallet) are NOT the upstream being down — counting them as failures
+      -- permanently blocked genuinely-working services. service_observations
+      -- stores the full agnicFetch message in error_code, so match on substring.
+      COUNT(*) FILTER (
+        WHERE status = ${ObservationStatus.ERROR}
+          AND (
+            error_code ILIKE '%payment exceeds maximum%'
+            OR error_code ILIKE '%insufficient%balance%'
+            OR error_code ILIKE '%no wallet%'
+            OR error_code ILIKE '%no_wallet%'
+          )
+      )::text                                                              AS excluded,
       percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms)::text      AS p95_latency_ms,
       COALESCE(SUM(CASE WHEN empty_on_rich THEN 1 ELSE 0 END), 0)::text   AS empty_on_rich
     FROM service_observations
@@ -127,6 +182,7 @@ async function defaultFetchMetrics(): Promise<WindowMetrics[]> {
     resource: r.resource,
     total: parseInt(r.total),
     successes: parseInt(r.successes),
+    excluded: parseInt(r.excluded),
     p95LatencyMs: r.p95_latency_ms != null
       ? parseFloat(r.p95_latency_ms)
       : null,
@@ -194,9 +250,12 @@ export async function recomputeScores(
     const reg = registryByResource.get(m.resource);
     if (!reg) continue;
 
-    const reliability = m.total > 0 ? m.successes / m.total : 1;
+    // Status transitions use the smoothed reliability (same value the score is
+    // built from) over the effective sample — both exclude payer-side failures.
+    const eff = Math.max(0, m.total - (m.excluded ?? 0));
+    const reliability = smoothedReliability(m);
     const score = computeScore(m);
-    const newStatus = nextStatus(reg.status, reliability, m.total);
+    const newStatus = nextStatus(reg.status, reliability, eff);
 
     const oldScore = parseFloat(reg.score);
     const scoreChanged = Math.abs(oldScore - score) >= 0.00005;

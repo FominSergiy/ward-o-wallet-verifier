@@ -19,6 +19,7 @@ import type { LlmClient } from "./llm.ts";
 import type { Category, Chain } from "./types.ts";
 import { type EventEmitter, now, safeEmit } from "./events.ts";
 import { recordServiceObservation } from "../observability/observations.ts";
+import { blockDeadServiceIfStructural } from "../registry/block.ts";
 
 // 2s was below the observed median x402 RTT (most services finish in 2–4s) and
 // produced near-100% per-call timeouts. 5s helped but some services still need
@@ -362,6 +363,10 @@ async function invokeWithAlternates(
       outcome.error ?? "(unknown)",
       outcome.errorCode,
     );
+    // Immediately block a structurally-dead endpoint (non-x402, 404, malformed
+    // catalog row) so the NEXT request's selection skips it instead of paying
+    // the 6–9s probe again. Fire-and-forget; no-op offline / on transient codes.
+    blockDeadServiceIfStructural(svc.resource, outcome.errorCode);
     lastOutcome = outcome;
     if (isDomainLevelError(outcome.error)) {
       failedHosts.add(host);

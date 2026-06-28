@@ -1,7 +1,8 @@
 import { assertEquals, assertRejects } from "@std/assert";
-import { custom } from "viem";
+import { custom, fallback } from "viem";
 import {
   fetchOnchainHistory,
+  rpcUrlsForChain,
   UnsupportedChainError,
 } from "./onchain_viem.ts";
 
@@ -62,6 +63,43 @@ Deno.test("fetchOnchainHistory works for base chain", async () => {
   assertEquals(r.chain, "base");
   assertEquals(r.txCount, 0);
   assertEquals(r.balanceEth, 0);
+});
+
+Deno.test("fetchOnchainHistory fails over to a healthy RPC when the first errors", async () => {
+  // Simulate a dead primary provider (like prod's cloudflare-eth.com) followed
+  // by a healthy one. viem's fallback transport must route around the failure.
+  const dead = custom({
+    request: () => Promise.reject(new Error("Cannot fulfill request")),
+  });
+  const healthy = stubTransport({
+    txCount: 7,
+    balanceWei: "0",
+    blockNumber: 100,
+  });
+  const r = await fetchOnchainHistory(ADDR, "eth", {
+    transport: fallback([dead, healthy]),
+  });
+  assertEquals(r.txCount, 7);
+  assertEquals(r.source, "viem");
+});
+
+Deno.test("rpcUrlsForChain: env override (comma-separated) wins; defaults otherwise", () => {
+  const prev = Deno.env.get("RPC_URL_ETH");
+  try {
+    Deno.env.set("RPC_URL_ETH", "https://a.example , https://b.example");
+    assertEquals(rpcUrlsForChain("eth"), [
+      "https://a.example",
+      "https://b.example",
+    ]);
+    Deno.env.delete("RPC_URL_ETH");
+    // Defaults are a non-empty ordered list (no longer a single endpoint).
+    assertEquals(rpcUrlsForChain("eth").length > 1, true);
+    // base also has multiple defaults now.
+    assertEquals(rpcUrlsForChain("base").length >= 1, true);
+  } finally {
+    if (prev === undefined) Deno.env.delete("RPC_URL_ETH");
+    else Deno.env.set("RPC_URL_ETH", prev);
+  }
 });
 
 // Note: our Chain enum doesn't include unsupported chains directly — they all
