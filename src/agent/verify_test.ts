@@ -135,6 +135,10 @@ Deno.test("verifyAgent returns stub verdict + receipts when synthesis throws", a
     {
       _testHooks: {
         checkSanctionsOracle: cleanOracleFn(),
+        resolveEns: ensNull(),
+        // Pin eth-labels so the run is offline + deterministic: it now adds a
+        // direct labels receipt alongside the paid sanctions one.
+        fetchLabelsRegistry: registryHit([]),
         selectFromRegistry: () => Promise.resolve(fakePlan()),
         // deno-lint-ignore no-explicit-any
         invokeAll: () => Promise.resolve(fakeInvocation() as any),
@@ -148,8 +152,11 @@ Deno.test("verifyAgent returns stub verdict + receipts when synthesis throws", a
   assertEquals(r.verdict.safe, false);
   assertEquals(r.verdict.confidence, "low");
   assertEquals(r.verdict.headline.includes("Synthesis failed"), true);
-  assertEquals(r.outcomes.length, 1);
+  // Two receipts: the paid sanctions outcome + the free eth-labels direct one.
+  assertEquals(r.outcomes.length, 2);
   assertEquals(r.outcomes[0].status, "ok");
+  const labelsOutcome = r.outcomes.find((o) => o.category === "labels");
+  assertEquals(labelsOutcome?.paid, false);
   assertEquals(r.totalSpentUsdc, 0.001);
 });
 
@@ -768,6 +775,95 @@ Deno.test("registry_skipped_when_labels_category_not_requested", async () => {
     },
   );
   assertEquals(registryCalled, false);
+});
+
+Deno.test("verifyAgent emits a direct labels service event for eth-labels", async () => {
+  const events: VerifyEvent[] = [];
+  await verifyAgent(
+    { address: "0x71660c4005BA85c37ccec55d0C4493E66Fe775d3" },
+    {
+      onEvent: (e) => events.push(e),
+      _testHooks: {
+        checkSanctionsOracle: cleanOracleFn(),
+        resolveEns: ensNull(),
+        fetchLabelsRegistry: registryHit([
+          {
+            address: "0x71660c4005ba85c37ccec55d0c4493e66fe775d3",
+            chainId: 1,
+            label: "coinbase",
+            nameTag: "Coinbase 1",
+          },
+        ]),
+        selectFromRegistry: () => Promise.resolve(fakePlan()),
+        // deno-lint-ignore no-explicit-any
+        invokeAll: () => Promise.resolve(fakeInvocation() as any),
+        synthesizeVerdict: () => Promise.resolve(fakeVerdict()),
+      },
+    },
+  );
+  // Like ENS, eth-labels must emit a direct chain-primitive service path so the
+  // flow diagram renders the labels node even with no paid labels service.
+  const labelsStart = events.find(
+    (e) =>
+      e.type === "service" &&
+      e.status === "start" &&
+      e.resource.startsWith("eth-labels://"),
+  );
+  assertEquals(labelsStart !== undefined, true);
+  if (labelsStart?.type === "service") {
+    assertEquals(labelsStart.kind, "direct");
+    assertEquals(labelsStart.category, "labels");
+  }
+  const labelsOk = events.find(
+    (e) =>
+      e.type === "service" &&
+      e.status === "ok" &&
+      e.resource.startsWith("eth-labels://"),
+  );
+  assertEquals(labelsOk !== undefined, true);
+  if (labelsOk?.type === "service") {
+    assertEquals(labelsOk.kind, "direct");
+    assertEquals(typeof labelsOk.duration_ms, "number");
+  }
+});
+
+Deno.test("labels appears in outcomes/receipts when only eth-labels resolves it (no paid labels service in plan)", async () => {
+  const r = await verifyAgent(
+    { address: "0x71660c4005BA85c37ccec55d0C4493E66Fe775d3" },
+    {
+      _testHooks: {
+        checkSanctionsOracle: cleanOracleFn(),
+        resolveEns: ensNull(),
+        fetchLabelsRegistry: registryHit([
+          {
+            address: "0x71660c4005ba85c37ccec55d0c4493e66fe775d3",
+            chainId: 1,
+            label: "coinbase",
+            nameTag: "Coinbase 1",
+          },
+        ]),
+        selectFromRegistry: () => Promise.resolve(fakePlan()),
+        // No paid labels service ran: empty findings, labels unresolved.
+        invokeAll: () =>
+          Promise.resolve({
+            findings: {},
+            outcomes: [],
+            unresolved: ["labels"],
+            totalSpentUsdc: 0,
+            walletNetwork: "base" as const,
+          }),
+        synthesizeVerdict: () => Promise.resolve(fakeVerdict()),
+      },
+    },
+  );
+  // A receipt for the free eth-labels source must exist with paid:false even
+  // though no paid labels service was invoked.
+  const labelsOutcome = r.outcomes.find((o) => o.category === "labels");
+  assertEquals(labelsOutcome !== undefined, true);
+  assertEquals(labelsOutcome?.paid, false);
+  assertEquals(labelsOutcome?.amountUsdc, 0);
+  assertEquals(labelsOutcome?.status, "ok");
+  assertEquals(labelsOutcome?.resource.startsWith("eth-labels://"), true);
 });
 
 Deno.test("verifyAgent onEvent thrown by consumer does not crash verifyAgent", async () => {

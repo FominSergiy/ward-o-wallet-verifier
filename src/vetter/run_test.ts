@@ -420,3 +420,101 @@ Deno.test(
     assertEquals(result.probationMoves.length, 0);
   },
 );
+
+// ── Host denylist (A2) ──────────────────────────────────────────────────────
+// Wholesale-dead providers (orbisapi.com de-x402'd its whole catalog) must
+// never be re-seeded by discovery, or a DB block is undone on the next run.
+
+function denyCandidates() {
+  // Two discovered candidates in the same category: one on the denied host,
+  // one on a live host. Both pass isLikelyInvokableEndpoint (real paths).
+  return () =>
+    Promise.resolve({
+      walletNetwork: "base" as const,
+      candidates: {
+        sanctions: [
+          {
+            resource: "https://orbisapi.com/proxy/address-risk-api/screen",
+            description: "dead orbis screener",
+            accepts: [{
+              scheme: "exact" as const,
+              network: "eip155:8453",
+              amount: "1000",
+              asset: "0xUSDC",
+              payTo: "0xABC",
+              maxTimeoutSeconds: 300,
+            }],
+          },
+          {
+            resource: "https://api.anchor-x402.com/v1/screen",
+            description: "live screener",
+            accepts: [{
+              scheme: "exact" as const,
+              network: "eip155:8453",
+              amount: "1000",
+              asset: "0xUSDC",
+              payTo: "0xABC",
+              maxTimeoutSeconds: 300,
+            }],
+          },
+        ],
+      },
+      errors: {},
+    });
+}
+
+Deno.test("runVetter: skips candidates from a denied host", async () => {
+  const prev = Deno.env.get("DISCOVERY_HOST_DENYLIST");
+  Deno.env.delete("DISCOVERY_HOST_DENYLIST"); // use default (orbisapi.com)
+  try {
+    const inserted: string[] = [];
+    const result = await runVetter({
+      fetchActiveAndProbation: () => Promise.resolve([]),
+      probePrice: () => Promise.resolve({ maxAmountRequiredUsdc: null }),
+      updatePrice: noopUpdatePrice,
+      updateStatus: noopUpdateStatus,
+      rewriteRecipePrice: noopRewriteRecipe,
+      runRecomputeScores: noopRecompute,
+      insertCandidate: (resource) => {
+        inserted.push(resource);
+        return Promise.resolve(true);
+      },
+      runFetchCandidates: denyCandidates(),
+    });
+    // Only the live host was inserted; the orbis candidate was skipped.
+    assertEquals(inserted, ["https://api.anchor-x402.com/v1/screen"]);
+    assertEquals(result.newCandidates, 1);
+  } finally {
+    if (prev === undefined) Deno.env.delete("DISCOVERY_HOST_DENYLIST");
+    else Deno.env.set("DISCOVERY_HOST_DENYLIST", prev);
+  }
+});
+
+Deno.test("runVetter: DISCOVERY_HOST_DENYLIST env overrides the default host set", async () => {
+  const prev = Deno.env.get("DISCOVERY_HOST_DENYLIST");
+  // Override: deny the anchor host instead — now orbis is NOT denied.
+  Deno.env.set("DISCOVERY_HOST_DENYLIST", "anchor-x402.com");
+  try {
+    const inserted: string[] = [];
+    await runVetter({
+      fetchActiveAndProbation: () => Promise.resolve([]),
+      probePrice: () => Promise.resolve({ maxAmountRequiredUsdc: null }),
+      updatePrice: noopUpdatePrice,
+      updateStatus: noopUpdateStatus,
+      rewriteRecipePrice: noopRewriteRecipe,
+      runRecomputeScores: noopRecompute,
+      insertCandidate: (resource) => {
+        inserted.push(resource);
+        return Promise.resolve(true);
+      },
+      runFetchCandidates: denyCandidates(),
+    });
+    // The override replaces the default: orbis inserted, anchor skipped.
+    assertEquals(inserted, [
+      "https://orbisapi.com/proxy/address-risk-api/screen",
+    ]);
+  } finally {
+    if (prev === undefined) Deno.env.delete("DISCOVERY_HOST_DENYLIST");
+    else Deno.env.set("DISCOVERY_HOST_DENYLIST", prev);
+  }
+});

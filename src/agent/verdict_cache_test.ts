@@ -205,6 +205,17 @@ Deno.test("verdict_cache: second call returns cached verdict without service cal
     _testHooks: {
       checkSanctionsOracle: cleanOracleFn(),
       resolveEns: ensNullFn(),
+      // Pin eth-labels so the run is offline + deterministic. It contributes a
+      // free direct receipt alongside the paid sanctions one.
+      fetchLabelsRegistry: () =>
+        Promise.resolve({
+          source: "eth_labels_registry" as const,
+          endpoint: "https://eth-labels.com/labels/test",
+          address: ADDR,
+          chain: "eth" as const,
+          labels: [],
+          checkedAt: new Date().toISOString(),
+        }),
       selectFromRegistry: () => Promise.resolve(fakePlan()),
       // deno-lint-ignore no-explicit-any
       invokeAll: () => {
@@ -237,8 +248,14 @@ Deno.test("verdict_cache: second call returns cached verdict without service cal
   // totals so the UI can render the same paid-services breakdown ($0 charged
   // this run is conveyed via fromCache, not by zeroing the receipts).
   assertEquals(r2.fromCache, true);
-  assertEquals(r2.outcomes.length, 1, "cached receipts must be preserved");
+  // Two receipts: paid sanctions + the free eth-labels direct outcome.
+  assertEquals(r2.outcomes.length, 2, "cached receipts must be preserved");
   assertEquals(r2.outcomes[0].category, "sanctions");
+  assertEquals(
+    r2.outcomes.some((o) => o.category === "labels" && o.paid === false),
+    true,
+    "cached receipts include the free eth-labels direct outcome",
+  );
   assertEquals(r2.totalSpentUsdc, 0.001, "original x402 spend preserved");
   // First (fresh) call is not flagged as cached.
   assertEquals(r1.fromCache ?? false, false);
