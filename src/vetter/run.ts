@@ -6,7 +6,12 @@ import {
   type FetchCandidatesOpts,
 } from "../discovery/orchestrator.ts";
 import type { Category, Chain } from "../agent/types.ts";
-import type { DiscoveryEntry } from "../discovery/types.ts";
+import {
+  type CallShape,
+  callShapeFromBazaarInfo,
+  type DiscoveryEntry,
+  extractBazaarInfo,
+} from "../discovery/types.ts";
 import {
   DEFAULT_DENYLIST_TTL_MS,
   type DenylistEntry,
@@ -54,6 +59,7 @@ export interface VetterOpts {
     category: string,
     priceUsdc: number,
     source: string | null,
+    shape: CallShape,
   ) => Promise<boolean>;
   // Network seam
   probePrice?: (resource: string) => Promise<ProbePriceResult>;
@@ -124,11 +130,19 @@ async function defaultUpdateStatus(
   `;
 }
 
+// jsonb columns: postgres.js sends a bare JS object as a Postgres array/record,
+// not json — so serialize ourselves and cast. A null value passes through as
+// SQL NULL (not the JSON literal `null`).
+function jsonbParam(v: unknown): string | null {
+  return v === null || v === undefined ? null : JSON.stringify(v);
+}
+
 async function defaultInsertCandidate(
   resource: string,
   category: string,
   priceUsdc: number,
   source: string | null,
+  shape: CallShape,
 ): Promise<boolean> {
   const db = getDb();
   const existing = await db<
@@ -137,9 +151,15 @@ async function defaultInsertCandidate(
   if (existing.length > 0) return false;
   await db`
     INSERT INTO service_registry
-      (resource, category, price_usdc, status, source, score, last_vetted_at)
+      (resource, category, price_usdc, status, source, score, last_vetted_at,
+       method, query_params, path_params, body_schema, body_type)
     VALUES
-      (${resource}, ${category}, ${priceUsdc}, 'probation', ${source}, 1.0, now())
+      (${resource}, ${category}, ${priceUsdc}, 'probation', ${source}, 1.0, now(),
+       ${shape.method},
+       ${jsonbParam(shape.query_params)}::jsonb,
+       ${jsonbParam(shape.path_params)}::jsonb,
+       ${jsonbParam(shape.body_schema)}::jsonb,
+       ${shape.body_type})
   `;
   return true;
 }
@@ -295,11 +315,16 @@ export async function runVetter(opts: VetterOpts = {}): Promise<VetterResult> {
             entry.accepts[0];
           if (!accept) continue;
           const priceUsdc = parseInt(accept.amount, 10) / 1_000_000;
+          // Snapshot the call shape from the provider's Bazaar hints so the
+          // candidate is written invokable (W0.11). Without this the row would
+          // be a dead "registry row with no recipe" that selection skips.
+          const shape = callShapeFromBazaarInfo(extractBazaarInfo(entry));
           const added = await insertCandidate(
             entry.resource,
             cat,
             priceUsdc,
             null,
+            shape,
           );
           if (added) {
             newCandidates++;

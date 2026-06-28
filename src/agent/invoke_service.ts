@@ -75,6 +75,27 @@ function callErrorCode(e: unknown, fallback: string): string {
 
 const RATE_LIMIT_BACKOFF_MS = 5_000;
 
+// maxValue headroom (W0.11). The per-call budget cap was pinned to the EXACT
+// stored price, so any upstream price drift → payment_exceeds_max (a HARD error,
+// no retry). We send a small buffer over the stored price so a modest increase
+// is absorbed, while a hard CEILING (shared with the vetter's PRICE_CEILING)
+// keeps spend bounded. The vetter reconciles the stored price on its next run.
+const MAXVALUE_CEILING_USDC = 0.10;
+const DEFAULT_MAXVALUE_BUFFER = 1.5;
+
+// Effective per-call maxValue = min(price × buffer, ceiling). Buffer is
+// overridable via INVOKE_MAXVALUE_BUFFER (default 1.5); a non-numeric/empty
+// value falls back to the default. The ceiling always wins so a single call can
+// never authorize more than $0.10 regardless of buffer or stored price.
+export function maxValueForPrice(priceUsdc: number): number {
+  const raw = Deno.env.get("INVOKE_MAXVALUE_BUFFER");
+  const parsed = raw != null ? Number(raw) : NaN;
+  const buffer = Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : DEFAULT_MAXVALUE_BUFFER;
+  return Math.min(priceUsdc * buffer, MAXVALUE_CEILING_USDC);
+}
+
 // Per-call controls threaded from the fan-out: `signal` lets the per-call
 // timeout actually abort the in-flight fetch (instead of leaving it running),
 // and `timeoutMs` bounds each individual attempt at the agnicFetch layer so a
@@ -123,7 +144,7 @@ async function performCall(
   const result = await agnicFetch(built.url, {
     method: built.method,
     body: built.method === "POST" ? built.body : undefined,
-    maxValueUsd: priceUsdc,
+    maxValueUsd: maxValueForPrice(priceUsdc),
     signal: callOpts.signal,
     timeoutMs: callOpts.timeoutMs,
   });

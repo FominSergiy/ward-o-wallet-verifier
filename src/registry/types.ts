@@ -11,4 +11,13 @@ export interface RegistryEntry {
   status: string;
   score: number;
   last_vetted_at: Date | null;
+  // Call shape (W0.11) — how to invoke this service. The DB is the single
+  // source of truth in production; these mirror the new service_registry
+  // columns. Null for legacy rows not yet backfilled (the invocation adapter
+  // falls back to pattern defaults in that case).
+  method: string | null;
+  query_params: Record<string, unknown> | null;
+  path_params: Record<string, unknown> | null;
+  body_schema: unknown | null;
+  body_type: string | null;
 }

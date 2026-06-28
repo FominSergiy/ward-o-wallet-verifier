@@ -3,6 +3,7 @@ import {
   WalletUnfundedError,
 } from "../discovery/types.ts";
 import { SanctionsInvocationError } from "../agent/invoke_all.ts";
+import { RegistryUnavailableError } from "../registry/select.ts";
 
 /**
  * A pipeline error classified into a transport-agnostic response shape.
@@ -12,7 +13,7 @@ import { SanctionsInvocationError } from "../agent/invoke_all.ts";
  * code/status/message only and drop `extra`.
  */
 export interface MappedRouteError {
-  status: 402 | 500 | 502;
+  status: 402 | 500 | 502 | 503;
   code: string;
   message: string;
   extra?: Record<string, unknown>;
@@ -43,6 +44,13 @@ export function mapRouteError(e: unknown): MappedRouteError | null {
     return {
       status: 502,
       code: "sanctions_invocation_failed",
+      message: e.message,
+    };
+  }
+  if (e instanceof RegistryUnavailableError) {
+    return {
+      status: 503,
+      code: "registry_unavailable",
       message: e.message,
     };
   }

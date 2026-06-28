@@ -1,9 +1,17 @@
 import { getDb } from "../db/client.ts";
 import type { ServiceRegistryRow } from "../db/types.ts";
 import { CallRecipeSchema } from "../discovery/recipe.ts";
+import type { Category } from "../agent/types.ts";
+import type { RankedService } from "../discovery/types.ts";
 import type { CallRecipe, RegistryEntry } from "./types.ts";
 
 const RECIPES_PATH = new URL("../../data/call_recipes.json", import.meta.url);
+
+// The registry catalog is snapshotted against Base mainnet. service_registry
+// stores no per-row network/payTo (they're not needed to drive the call — the
+// Agnic gateway settles payment from the upstream's own 402 response, and
+// RankedService.payTo is informational only), so we pin Base here.
+const REGISTRY_NETWORK = "eip155:8453";
 
 function rowToEntry(row: ServiceRegistryRow): RegistryEntry {
   return {
@@ -15,12 +23,54 @@ function rowToEntry(row: ServiceRegistryRow): RegistryEntry {
     status: row.status,
     score: parseFloat(row.score),
     last_vetted_at: row.last_vetted_at,
+    method: row.method,
+    query_params: row.query_params,
+    path_params: row.path_params,
+    body_schema: row.body_schema,
+    body_type: row.body_type,
   };
 }
 
 /**
- * Returns all active registry entries, optionally filtered by category.
- * Ordered by score desc, then insertion order.
+ * Builds the RankedService the invocation phase consumes directly from a
+ * registry row's call-shape columns (W0.11) — the DB-as-single-source-of-truth
+ * replacement for the old recipeToRanked() join against call_recipes.json.
+ *
+ * network is pinned (REGISTRY_NETWORK) and payTo is empty: neither is stored on
+ * the row, and neither drives the actual HTTP call (see REGISTRY_NETWORK note).
+ */
+export function rowToRanked(entry: RegistryEntry): RankedService {
+  return {
+    category: entry.category as Category,
+    resource: entry.resource,
+    description: "",
+    priceUsdc: entry.price_usdc,
+    network: REGISTRY_NETWORK,
+    payTo: "",
+    scheme: "exact",
+    qualityScore: null,
+    rationale: `Registry-selected (status=${entry.status}, score=${
+      entry.score.toFixed(2)
+    }).`,
+    inputInfo: {
+      method: entry.method ?? undefined,
+      queryParams: entry.query_params ?? undefined,
+      pathParams: entry.path_params ?? undefined,
+      body: entry.body_schema ?? undefined,
+      bodyType: entry.body_type ?? undefined,
+    },
+  };
+}
+
+/**
+ * Returns the selectable registry entries (status `active` OR `probation` —
+ * `blocked` is excluded), optionally filtered by category, with their call
+ * shapes. Ordered so `active` rows always outrank `probation` (the fallback
+ * tier), then by score desc, then insertion order.
+ *
+ * probation is included so freshly discovered candidates receive real traffic
+ * and can accumulate the observations needed to be promoted to active —
+ * closing the W0.11 promotion deadlock.
  */
 export async function getActiveServices(
   category?: string,
@@ -29,12 +79,12 @@ export async function getActiveServices(
   const rows = category != null
     ? await db<ServiceRegistryRow[]>`
         SELECT * FROM service_registry
-        WHERE status = 'active' AND category = ${category}
-        ORDER BY score DESC, created_at ASC`
+        WHERE status IN ('active', 'probation') AND category = ${category}
+        ORDER BY (status = 'active') DESC, score DESC, created_at ASC`
     : await db<ServiceRegistryRow[]>`
         SELECT * FROM service_registry
-        WHERE status = 'active'
-        ORDER BY score DESC, created_at ASC`;
+        WHERE status IN ('active', 'probation')
+        ORDER BY (status = 'active') DESC, score DESC, created_at ASC`;
   return rows.map(rowToEntry);
 }
 

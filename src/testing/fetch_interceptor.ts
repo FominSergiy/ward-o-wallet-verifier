@@ -35,8 +35,27 @@ export interface Cassette {
   entries: CassetteEntry[];
 }
 
+// The agnic x402 fetch URL carries `maxValue` (the per-call USDC budget cap) as
+// a query param. That cap is a client-side budget knob — it does NOT change the
+// upstream's response — so it must NOT be part of the replay key, otherwise a
+// change to the budget buffer (e.g. INVOKE_MAXVALUE_BUFFER) would invalidate
+// every recorded cassette. Strip it so record + replay key on the request
+// identity only.
+function normalizeUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    if (u.searchParams.has("maxValue")) {
+      u.searchParams.delete("maxValue");
+      return u.toString();
+    }
+    return url;
+  } catch {
+    return url;
+  }
+}
+
 function makeKey(url: string, method: string): string {
-  return `${method.toUpperCase()}:${url}`;
+  return `${method.toUpperCase()}:${normalizeUrl(url)}`;
 }
 
 function headersToRecord(headers: Headers): Record<string, string> {
@@ -117,11 +136,16 @@ export function installRecordInterceptor(
  * request has no matching cassette entry.
  */
 export function installReplayInterceptor(entries: CassetteEntry[]): () => void {
+  // Re-derive the key from the recorded request via makeKey() rather than
+  // trusting the persisted entry.key string: makeKey() normalizes the URL
+  // (strips maxValue), so cassettes recorded before that normalization — whose
+  // entry.key still embeds maxValue=… — match live, buffered requests.
   const queues = new Map<string, CassetteEntry[]>();
   for (const entry of entries) {
-    const q = queues.get(entry.key);
+    const key = makeKey(entry.request.url, entry.request.method);
+    const q = queues.get(key);
     if (q) q.push(entry);
-    else queues.set(entry.key, [entry]);
+    else queues.set(key, [entry]);
   }
 
   globalThis.fetch = (
