@@ -106,7 +106,9 @@ export interface PlanEvent {
 export interface VerifyReceipt {
   category: Category;
   resource: string;
-  status: "ok" | "error" | "skipped";
+  // "fallback_ok" = resolved via the LLM-built fallback call (still a success;
+  // carries amountUsdc + durationMs and counts toward the x402 subtotal).
+  status: "ok" | "fallback_ok" | "error" | "skipped";
   // "pattern" = direct pattern-adapter call, "pattern+subpath" = descriptor
   // payload was resolved by retrying against a sub-endpoint (see
   // docs/features/adapter-descriptor-retry.md), "llm" = LLM-built fallback.

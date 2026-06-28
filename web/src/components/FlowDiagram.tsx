@@ -17,9 +17,11 @@ const FALLBACK_X = 490;
 const SYNTH_X = 600;
 const VERDICT_X = 710;
 
-// Direct nodes hang under the payment diamond. Vertical offset from the row's
-// baseline Y to the center of the first direct circle.
-const DIRECT_DY = 22;
+// Free chain-primitive sub-nodes hang directly beneath their category box (not
+// the payment column), so they read as children of that category. DIRECT_DY is
+// the vertical offset from the row baseline Y to the center of the circles —
+// large enough to clear the box (y±16) and the group caption above the circles.
+const DIRECT_DY = 46;
 const DIRECT_R = 7;
 const DIRECT_SPACING = 38;
 
@@ -59,21 +61,32 @@ function DirectNodes({ direct, y }: { direct: DirectNode[]; y: number }) {
   if (direct.length === 0) return null;
   const total = direct.length;
   const span = (total - 1) * DIRECT_SPACING;
-  const startX = PAYMENT_X - span / 2;
+  // Center the fan-out on the category column so it sits squarely under the
+  // category box, not floating over by the payment column.
+  const startX = CATEGORY_X - span / 2;
   const cy = y + DIRECT_DY;
 
-  // Bounding container — visually groups the sub-fan-out as one logical
-  // unit belonging to its parent category row above.
+  // Bounding container — hugs the bottom of the category box above and wraps
+  // the caption + circles + chain labels into one grouped widget.
   const padX = DIRECT_R + 10;
-  const padTop = DIRECT_R + 4;
-  const padBot = DIRECT_R + 12; // room for label below the circle
+  const boxBottom = y + 16; // category rect is y-16 .. y+16
+  const containerY = boxBottom + 4;
+  const captionY = containerY + 11;
+  const labelY = cy + DIRECT_R + 8;
   const containerX = startX - padX;
-  const containerY = cy - padTop;
   const containerW = span + padX * 2;
-  const containerH = padTop + padBot;
+  const containerH = labelY + 6 - containerY;
 
   return (
     <g>
+      {/* connector from the category box down into the group container */}
+      <line
+        className="direct-connector"
+        x1={CATEGORY_X}
+        y1={boxBottom}
+        x2={CATEGORY_X}
+        y2={containerY}
+      />
       <rect
         className="direct-container"
         x={containerX}
@@ -82,8 +95,8 @@ function DirectNodes({ direct, y }: { direct: DirectNode[]; y: number }) {
         height={containerH}
         rx={4}
       />
-      <text className="direct-row-tag" x={containerX - 4} y={cy}>
-        direct
+      <text className="direct-caption" x={CATEGORY_X} y={captionY}>
+        free sources
       </text>
       {direct.map((d, i) => {
         const cx = startX + i * DIRECT_SPACING;
@@ -97,7 +110,7 @@ function DirectNodes({ direct, y }: { direct: DirectNode[]; y: number }) {
               cy={cy}
               r={DIRECT_R}
             />
-            <text className="direct-label" x={cx} y={cy + DIRECT_R + 8}>
+            <text className="direct-label" x={cx} y={labelY}>
               {d.label}
             </text>
           </g>
