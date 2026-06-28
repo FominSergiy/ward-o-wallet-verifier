@@ -4,30 +4,62 @@
 // the case 5/5 in the v1 real-wallet-test report).
 
 import {
-  createPublicClient,
-  http,
   type Address,
+  createPublicClient,
+  fallback,
+  http,
   type PublicClient,
   type Transport,
 } from "viem";
-import {
-  arbitrum,
-  base,
-  mainnet,
-  optimism,
-  polygon,
-} from "viem/chains";
+import { arbitrum, base, mainnet, optimism, polygon } from "viem/chains";
 import type { Chain } from "./types.ts";
 
-const DEFAULT_RPCS: Record<string, string> = {
-  eth: Deno.env.get("RPC_URL_ETH") ?? "https://cloudflare-eth.com",
-  base: Deno.env.get("RPC_URL_BASE") ?? "https://mainnet.base.org",
-  "base-sepolia": Deno.env.get("RPC_URL_BASE_SEPOLIA") ??
-    "https://sepolia.base.org",
-  polygon: Deno.env.get("RPC_URL_POLYGON") ?? "https://polygon-rpc.com",
-  arbitrum: Deno.env.get("RPC_URL_ARBITRUM") ?? "https://arb1.arbitrum.io/rpc",
-  optimism: Deno.env.get("RPC_URL_OPTIMISM") ?? "https://mainnet.optimism.io",
+// Multiple public RPCs per chain so a single dead/rate-limited provider can't
+// sink the free onchain_history fallback. The previous single default
+// (https://cloudflare-eth.com) was returning "Cannot fulfill request" in prod,
+// so EVERY viem rescue failed (0/12 success) — the fallback meant to guarantee
+// onchain coverage never worked. We now build a viem `fallback` transport over
+// this ordered list, which ranks providers and fails over automatically. Each
+// chain's env var (e.g. RPC_URL_ETH) overrides the defaults and may be a single
+// URL or a comma-separated list (e.g. a paid Alchemy/Infura endpoint first).
+const DEFAULT_RPC_LIST: Record<string, string[]> = {
+  eth: [
+    "https://eth.llamarpc.com",
+    "https://rpc.ankr.com/eth",
+    "https://cloudflare-eth.com",
+  ],
+  base: ["https://mainnet.base.org", "https://base.llamarpc.com"],
+  "base-sepolia": ["https://sepolia.base.org"],
+  polygon: ["https://polygon-rpc.com", "https://polygon.llamarpc.com"],
+  arbitrum: ["https://arb1.arbitrum.io/rpc", "https://arbitrum.llamarpc.com"],
+  optimism: ["https://mainnet.optimism.io", "https://optimism.llamarpc.com"],
 };
+
+const RPC_ENV_VAR: Record<string, string> = {
+  eth: "RPC_URL_ETH",
+  base: "RPC_URL_BASE",
+  "base-sepolia": "RPC_URL_BASE_SEPOLIA",
+  polygon: "RPC_URL_POLYGON",
+  arbitrum: "RPC_URL_ARBITRUM",
+  optimism: "RPC_URL_OPTIMISM",
+};
+
+/**
+ * Ordered RPC URL list for a chain: the env override (single URL or
+ * comma-separated list) when set, otherwise the built-in public defaults.
+ * Exported for unit testing the parse/override behavior.
+ */
+export function rpcUrlsForChain(chain: string): string[] {
+  const envName = RPC_ENV_VAR[chain];
+  const raw = envName ? Deno.env.get(envName) : undefined;
+  if (raw) {
+    const urls = raw.split(",").map((u) => u.trim()).filter((u) =>
+      u.length > 0
+    );
+    if (urls.length > 0) return urls;
+  }
+  return DEFAULT_RPC_LIST[chain] ?? [];
+}
 
 // viem chain definitions per our Chain enum value.
 const VIEM_CHAINS = {
@@ -73,13 +105,17 @@ function buildClient(chain: SupportedChain, transport?: Transport): {
   client: PublicClient;
   rpcUrl: string;
 } {
-  const rpcUrl = DEFAULT_RPCS[chain];
+  const urls = rpcUrlsForChain(chain);
+  // A `fallback` transport tries each provider in order and fails over on
+  // error, so one dead public RPC no longer kills the rescue. `rpcUrl` keeps the
+  // primary for logging/receipts.
+  const built = transport ?? fallback(urls.map((u) => http(u)));
   // deno-lint-ignore no-explicit-any
   const client = createPublicClient({
     chain: VIEM_CHAINS[chain],
-    transport: transport ?? http(rpcUrl),
+    transport: built,
   }) as any;
-  return { client, rpcUrl };
+  return { client, rpcUrl: urls[0] ?? "" };
 }
 
 /**
@@ -99,7 +135,7 @@ export async function isContract(
   if (!isSupported(chain)) return false;
   try {
     const built = opts.client
-      ? { client: opts.client, rpcUrl: DEFAULT_RPCS[chain] }
+      ? { client: opts.client, rpcUrl: rpcUrlsForChain(chain)[0] ?? "" }
       : buildClient(chain, opts.transport);
     const code = await built.client.getCode({ address: address as Address });
     return code !== undefined && code !== "0x";
@@ -116,7 +152,7 @@ export async function fetchOnchainHistory(
   if (!isSupported(chain)) throw new UnsupportedChainError(chain);
 
   const built = opts.client
-    ? { client: opts.client, rpcUrl: DEFAULT_RPCS[chain] }
+    ? { client: opts.client, rpcUrl: rpcUrlsForChain(chain)[0] ?? "" }
     : buildClient(chain, opts.transport);
 
   const { client, rpcUrl } = built;

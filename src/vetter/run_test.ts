@@ -1,5 +1,5 @@
 import { assertEquals } from "@std/assert";
-import { runVetter } from "./run.ts";
+import { isLikelyInvokableEndpoint, runVetter } from "./run.ts";
 import type { CallShape } from "../discovery/types.ts";
 
 // Shared no-op stubs for seams not under test.
@@ -15,6 +15,100 @@ const noopFetchCandidates = () =>
     candidates: {},
     errors: {},
   });
+
+// ── Discovery junk filter ─────────────────────────────────────────────────────
+
+Deno.test("isLikelyInvokableEndpoint: rejects descriptor/meta URLs, keeps real endpoints", () => {
+  // Real, invokable endpoints — including legit `:address` path params.
+  assertEquals(
+    isLikelyInvokableEndpoint("https://api.x402.com/v1/screen"),
+    true,
+  );
+  assertEquals(
+    isLikelyInvokableEndpoint(
+      "https://orbisapi.com/proxy/wallet/balance/:address",
+    ),
+    true,
+  );
+  assertEquals(
+    isLikelyInvokableEndpoint(
+      "https://w.workers.dev/v1/wallet/cex_attribution",
+    ),
+    true,
+  );
+  // Provider-catalog meta-URLs that can never serve data.
+  assertEquals(
+    isLikelyInvokableEndpoint(
+      "https://orbisapi.com/proxy/wallet-balance-api/wallet-balance/openapi.json",
+    ),
+    false,
+  );
+  assertEquals(
+    isLikelyInvokableEndpoint(
+      "https://orbisapi.com/proxy/wallet-api-5f3267/:endpoint",
+    ),
+    false,
+  );
+  assertEquals(
+    isLikelyInvokableEndpoint("https://orbisapi.com/proxy/wallet-balance/info"),
+    false,
+  );
+});
+
+Deno.test(
+  "runVetter: skips non-invokable discovered candidates (no dead probation rows)",
+  async () => {
+    const inserted: string[] = [];
+    const result = await runVetter({
+      fetchActiveAndProbation: () => Promise.resolve([]),
+      probePrice: () => Promise.resolve({ maxAmountRequiredUsdc: null }),
+      updatePrice: noopUpdatePrice,
+      updateStatus: noopUpdateStatus,
+      rewriteRecipePrice: noopRewriteRecipe,
+      runRecomputeScores: noopRecompute,
+      insertCandidate: (resource) => {
+        inserted.push(resource);
+        return Promise.resolve(true);
+      },
+      runFetchCandidates: () =>
+        Promise.resolve({
+          walletNetwork: "base" as const,
+          candidates: {
+            onchain_history: [
+              {
+                resource: "https://good.example/balance/:address",
+                description: "balance",
+                accepts: [{
+                  scheme: "exact" as const,
+                  network: "eip155:8453",
+                  amount: "1000",
+                  asset: "0xUSDC",
+                  payTo: "0xABC",
+                  maxTimeoutSeconds: 300,
+                }],
+              },
+              {
+                resource: "https://junk.example/wallet-api/:endpoint",
+                description: "catch-all template",
+                accepts: [{
+                  scheme: "exact" as const,
+                  network: "eip155:8453",
+                  amount: "1000",
+                  asset: "0xUSDC",
+                  payTo: "0xABC",
+                  maxTimeoutSeconds: 300,
+                }],
+              },
+            ],
+          },
+          errors: {},
+        }),
+    });
+
+    assertEquals(inserted, ["https://good.example/balance/:address"]);
+    assertEquals(result.newCandidates, 1);
+  },
+);
 
 // ── Test 0: discovered candidate is inserted WITH its call shape (W0.11) ──────
 // The call shape must be snapshotted from the provider's bazaar input hints so
