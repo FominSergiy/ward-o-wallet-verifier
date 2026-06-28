@@ -283,3 +283,45 @@ Deno.test("selectFromRegistry: DB read failure throws RegistryUnavailableError (
       "service registry unavailable",
     );
   }));
+
+// ── (c) host denylist (A2) — defense-in-depth in selection ────────────────────
+// Even if a denied-host row survives as active/probation in the DB, selection
+// must never return it.
+
+Deno.test("selectFromRegistry: a denied-host probation row is excluded", () =>
+  withDb(async () => {
+    const prev = Deno.env.get("DISCOVERY_HOST_DENYLIST");
+    Deno.env.delete("DISCOVERY_HOST_DENYLIST"); // default denies orbisapi.com
+    try {
+      const plan = await selectFromRegistry("0xabc", ["sanctions"], {
+        loadRecipes: recipeLoaderMustNotRun,
+        // A live anchor row + a denied orbis probation row (higher score).
+        getActive: () =>
+          Promise.resolve([
+            entry(
+              "orbis1",
+              "sanctions",
+              "https://orbisapi.com/proxy/address-risk-api/screen",
+              0.99,
+              ServiceStatus.PROBATION,
+            ),
+            entry(
+              "anchor1",
+              "sanctions",
+              "https://api.anchor-x402.com/v1/screen",
+              0.50,
+            ),
+          ]),
+      });
+      // Orbis is filtered out → anchor is the only (primary) service.
+      assertEquals(plan.services.length, 1);
+      assertEquals(
+        plan.services[0].resource,
+        "https://api.anchor-x402.com/v1/screen",
+      );
+      assertEquals(plan.alternates.sanctions, undefined);
+    } finally {
+      if (prev === undefined) Deno.env.delete("DISCOVERY_HOST_DENYLIST");
+      else Deno.env.set("DISCOVERY_HOST_DENYLIST", prev);
+    }
+  }));

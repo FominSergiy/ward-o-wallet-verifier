@@ -15,7 +15,7 @@ import {
   type OracleResult,
 } from "./sanctions_oracle.ts";
 import { ensSupportedFor, resolveEns } from "./ens_resolver.ts";
-import { fetchLabelsRegistry } from "./labels_registry.ts";
+import { fetchLabelsRegistry, type RegistryResult } from "./labels_registry.ts";
 import { type VerdictCache } from "./verdict_cache.ts";
 import {
   type DenylistEntry,
@@ -429,6 +429,125 @@ async function resolveEnsWithEvents(
   }
 }
 
+interface LabelsWithEvents {
+  /** The registry result for merging into findings, or null on failure. */
+  result: RegistryResult | null;
+  /**
+   * Synthetic receipt so labels surfaces an outcome (paid:false) even when no
+   * paid labels x402 service exists — without it the category has no receipt
+   * and no diagram node.
+   */
+  outcome: ServiceInvocationOutcome;
+}
+
+// Run the free eth-labels.com registry supplement with structured service
+// events + a synthetic receipt, mirroring resolveEnsWithEvents. eth-labels is
+// the free labels floor: once the paid labels catalog went away (orbis was
+// de-x402'd) this is the only thing resolving the category, so it must surface
+// a diagram node (kind:"direct") and a receipt — not just a silent findings
+// merge. A failure is non-fatal (labels is a supplementary signal): we emit an
+// error event + receipt and return a null result so the verdict still proceeds.
+async function fetchLabelsWithEvents(
+  address: string,
+  chain: Chain,
+  labelsRegistryFn: typeof fetchLabelsRegistry,
+  emit: EventEmitter | undefined,
+  request_id: string,
+): Promise<LabelsWithEvents> {
+  const resource = `eth-labels://${chain}`;
+  const start = Date.now();
+  safeEmit(emit, {
+    type: "service",
+    status: "start",
+    category: "labels",
+    resource,
+    kind: "direct",
+    priceUsdc: 0,
+    request_id,
+    duration_ms: 0,
+    cost_usd: null,
+    at: now(),
+  });
+  try {
+    const result = await labelsRegistryFn(address, chain);
+    const duration_ms = Date.now() - start;
+    safeEmit(emit, {
+      type: "service",
+      status: "ok",
+      category: "labels",
+      resource,
+      kind: "direct",
+      priceUsdc: 0,
+      amountUsdc: 0,
+      request_id,
+      duration_ms,
+      cost_usd: null,
+      at: now(),
+    });
+    safeEmit(emit, {
+      type: "log",
+      level: "info",
+      message:
+        `labels_registry: hits=${result.labels.length} (endpoint=${result.endpoint})`,
+      at: now(),
+    });
+    return {
+      result,
+      outcome: {
+        category: "labels",
+        resource,
+        data: result,
+        status: "ok",
+        amountUsdc: 0,
+        durationMs: duration_ms,
+        paid: false,
+        network: null,
+        adapterPath: "pattern",
+      },
+    };
+  } catch (e) {
+    const msg = (e as Error).message;
+    const duration_ms = Date.now() - start;
+    log.warn(
+      `[verify-agent] eth-labels registry lookup failed (proceeding): ${msg}`,
+    );
+    safeEmit(emit, {
+      type: "service",
+      status: "error",
+      category: "labels",
+      resource,
+      kind: "direct",
+      priceUsdc: 0,
+      request_id,
+      duration_ms,
+      cost_usd: null,
+      error: msg,
+      at: now(),
+    });
+    safeEmit(emit, {
+      type: "log",
+      level: "warn",
+      message: `labels_registry_failed: ${msg}`,
+      at: now(),
+    });
+    return {
+      result: null,
+      outcome: {
+        category: "labels",
+        resource,
+        data: null,
+        status: "error",
+        error: msg,
+        amountUsdc: 0,
+        durationMs: duration_ms,
+        paid: false,
+        network: null,
+        adapterPath: "pattern",
+      },
+    };
+  }
+}
+
 export async function verifyAgent(
   req: VerifyRequest,
   opts: VerifyAgentOpts = {},
@@ -706,24 +825,19 @@ export async function verifyAgent(
   // since they're supplementary signals, not gates.
   const wantEns = categories.includes("ens");
   const wantLabels = categories.includes("labels");
-  const [invocation, ensSettled, registrySettled] = await Promise.all([
+  const [invocation, ensSettled, labelsSettled] = await Promise.all([
     invokeAllFn(plan, DEFAULT_CHAIN, { llm, onEvent: emit, request_id }),
     wantEns
       ? resolveEnsWithEvents(req.address, ensResolveFn, emit, request_id)
       : Promise.resolve(null),
     wantLabels
-      ? labelsRegistryFn(req.address, DEFAULT_CHAIN).catch((e: Error) => {
-        log.warn(
-          `[verify-agent] eth-labels registry lookup failed (proceeding): ${e.message}`,
-        );
-        safeEmit(emit, {
-          type: "log",
-          level: "warn",
-          message: `labels_registry_failed: ${e.message}`,
-          at: now(),
-        });
-        return null;
-      })
+      ? fetchLabelsWithEvents(
+        req.address,
+        DEFAULT_CHAIN,
+        labelsRegistryFn,
+        emit,
+        request_id,
+      )
       : Promise.resolve(null),
   ]);
   safeEmit(emit, {
@@ -735,21 +849,24 @@ export async function verifyAgent(
     at: now(),
   });
 
-  if (wantLabels && registrySettled !== null) {
-    safeEmit(emit, {
-      type: "log",
-      level: "info",
-      message:
-        `labels_registry: hits=${registrySettled.labels.length} (endpoint=${registrySettled.endpoint})`,
-      at: now(),
-    });
-    const prior = invocation.findings.labels;
-    invocation.findings.labels = prior !== undefined
-      ? { x402_result: prior, registry: registrySettled }
-      : { registry: registrySettled };
-    // If x402 labels failed but the registry succeeded, the category is
-    // no longer unresolved — synthesis has usable data.
-    invocation.unresolved = invocation.unresolved.filter((c) => c !== "labels");
+  if (wantLabels && labelsSettled !== null) {
+    // Record the eth-labels direct receipt unconditionally (ok OR error) so the
+    // category always has a receipt + diagram node, even when no paid labels
+    // service ran. The service start/ok/error events were already emitted
+    // inside fetchLabelsWithEvents.
+    invocation.outcomes.push(labelsSettled.outcome);
+    const registrySettled = labelsSettled.result;
+    if (registrySettled !== null) {
+      const prior = invocation.findings.labels;
+      invocation.findings.labels = prior !== undefined
+        ? { x402_result: prior, registry: registrySettled }
+        : { registry: registrySettled };
+      // If x402 labels failed but the registry succeeded, the category is
+      // no longer unresolved — synthesis has usable data.
+      invocation.unresolved = invocation.unresolved.filter((c) =>
+        c !== "labels"
+      );
+    }
   }
 
   // Merge oracle-clean evidence into the sanctions finding so synthesis can

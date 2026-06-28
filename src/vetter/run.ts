@@ -23,6 +23,7 @@ import {
   type SanctionedAddressSource,
 } from "../agent/ofac_list.ts";
 import { checkSanctionsOracle } from "../agent/sanctions_oracle.ts";
+import { getDeniedHosts, isDeniedHost } from "../discovery/host_denylist.ts";
 
 const PRICE_CEILING_USDC = 0.10;
 const PRICE_BUMP_FACTOR = 1.20;
@@ -325,6 +326,7 @@ export async function runVetter(opts: VetterOpts = {}): Promise<VetterResult> {
   // ── 2. Discovery: insert unknown candidates as probation ───────────────────
   if (!skipDiscovery) {
     try {
+      const deniedHosts = getDeniedHosts();
       const result = await runFetchCandidates(ALL_CATEGORIES, "base");
       for (
         const [cat, entries] of Object.entries(result.candidates) as [
@@ -333,6 +335,15 @@ export async function runVetter(opts: VetterOpts = {}): Promise<VetterResult> {
         ][]
       ) {
         for (const entry of entries) {
+          // Wholesale-dead providers (e.g. orbisapi.com, de-x402'd) must never
+          // be re-seeded by discovery. Skip before any insert so a DB block is
+          // not undone on the next vetter run.
+          if (isDeniedHost(entry.resource, deniedHosts)) {
+            log.info(
+              `[vetter] skipping denied host: ${cat} ${entry.resource}`,
+            );
+            continue;
+          }
           // Skip provider-catalog meta-URLs (OpenAPI/info/:endpoint) that can
           // never serve real data — they'd just become dead probation rows.
           if (!isLikelyInvokableEndpoint(entry.resource)) {
