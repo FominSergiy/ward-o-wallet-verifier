@@ -88,7 +88,8 @@ function isDirectKind(
   return (
     resource.startsWith("chainalysis_oracle://") ||
     resource.startsWith("viem://") ||
-    resource.startsWith("ens://")
+    resource.startsWith("ens://") ||
+    resource.startsWith("eth-labels://")
   );
 }
 
@@ -100,6 +101,9 @@ function directLabel(resource: string): string {
   if (scheme === "chainalysis_oracle") return rest;
   if (scheme === "ens") return "ens";
   if (scheme === "viem") return `viem/${rest}`;
+  // eth-labels is the free labels floor (eth-labels://eth). Show the source
+  // name, not the raw URI, so the circle under the labels row reads cleanly.
+  if (scheme === "eth-labels") return "eth-labels";
   return resource;
 }
 
