@@ -7,6 +7,7 @@ import type {
   WalletNetwork,
 } from "../discovery/types.ts";
 import { buildDeterministicSources } from "../discovery/deterministic_sources.ts";
+import { getDeniedHosts, isDeniedHost } from "../discovery/host_denylist.ts";
 import { dbEnabled } from "../db/client.ts";
 import { getActiveServices, loadAllRecipes, rowToRanked } from "./read.ts";
 import type { CallRecipe } from "./types.ts";
@@ -117,12 +118,18 @@ export async function selectFromRegistry(
     } catch (e) {
       throw new RegistryUnavailableError((e as Error).message);
     }
+    // Defense-in-depth against wholesale-dead providers (e.g. orbisapi.com):
+    // even if a denied-host row survives as active/probation, never select it.
+    // Scoped to the production DB path only — the offline recipe branch is a
+    // frozen replay fixture that must keep mirroring the recorded cassettes.
+    const deniedHosts = getDeniedHosts();
     // getActiveServices() already orders rows (active before probation, then
     // score desc), so iterating in order preserves ranking within a category.
     for (const entry of active) {
       // Defense-in-depth: blocked services must never be selected regardless of
       // what the getActive seam returns or how the DB query is shaped.
       if (entry.status === "blocked") continue;
+      if (isDeniedHost(entry.resource, deniedHosts)) continue;
       push(entry.category as Category, rowToRanked(entry));
     }
   } else {
