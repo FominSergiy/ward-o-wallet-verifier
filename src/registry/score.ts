@@ -108,7 +108,12 @@ async function defaultFetchMetrics(): Promise<WindowMetrics[]> {
     SELECT
       resource,
       COUNT(*)::text                                                        AS total,
-      COUNT(*) FILTER (WHERE status = 'success')::text                     AS successes,
+      -- service_observations records successes as 'ok' (covers both the
+      -- pattern-adapter "ok" and LLM-fallback "fallback_ok" outcomes; see
+      -- invoke_all.ts). The previous 'success' literal matched nothing, so EVERY
+      -- service computed 0 reliability and got demoted active→probation→blocked
+      -- — the real driver of the W0.11 "0 active services" deadlock.
+      COUNT(*) FILTER (WHERE status = 'ok')::text                          AS successes,
       percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms)::text      AS p95_latency_ms,
       COALESCE(SUM(CASE WHEN empty_on_rich THEN 1 ELSE 0 END), 0)::text   AS empty_on_rich
     FROM service_observations
