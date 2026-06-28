@@ -82,6 +82,15 @@ Postgres conventions, settled in W0.1. Follow these; don't introduce another DB,
 - **Config:** a single `DATABASE_URL`. **Unset = no-op client** (queries resolve empty, no socket) so `deno task test` stays offline-safe. Gate any DB-dependent test on `dbEnabled()` / `DATABASE_URL` and `ignore` it when absent.
 - **Schema:** plain portable Postgres in `db/migrations/*.sql` (no Neon/Supabase-specific features), applied by [scripts/migrate.ts](scripts/migrate.ts) via `deno task db:migrate` (forward-only, tracked in `schema_migrations`). Row types live in [src/db/types.ts](src/db/types.ts) — keep them column-for-column with the SQL.
 
+#### Neon MCP key — scope & allowed operations (verified 2026-06-28)
+
+`NEON_API_KEY` in `.env` is a **project-scoped** key bound to **project `super-grass-68246474`** (`ward-o-wallet-verifier`; default/primary branch `production` = `br-wispy-butterfly-aip28cgh`). The Neon MCP server (`mcp__neon__*`) is wired via [.mcp.json](.mcp.json) using this key. What it can and cannot do:
+
+- **Always pass `projectId: super-grass-68246474` explicitly** (also in `.env` as `NEON_PROJECT_ID`). The MCP tool schemas come from Neon's hosted server (`mcp.neon.tech/mcp`, proxied via `mcp-remote` in [.mcp.json](.mcp.json)) — there is **no** client-side way to bake a default project into them, and the key cannot enumerate projects to discover its own ID. So the `projectId` argument is unavoidable; read it from `NEON_PROJECT_ID`.
+- ✅ **Allowed — project-scoped reads/ops (with explicit `projectId`):** `describe_project`, `describe_branch`, `get_database_tables`, `describe_table_schema`, `run_sql` / `run_sql_transaction` (reads tested working), `explain_sql_statement`, `list_branch_computes`, `get_connection_string`. You can read all `public` + `neon_auth` tables.
+- ❌ **Not allowed — org/account-level ops:** `list_projects`, `list_organizations`, `list_shared_projects`, `search`, and the REST equivalents (`/projects`, `/users/me`). These return `404 / "not allowed for organization API keys"`. Don't call them — they will always fail with this key.
+- **Writes / migrations:** schema changes still go through `db/migrations/*.sql` + `deno task db:migrate` (see above), **not** MCP migration tools. Treat MCP as read/inspect access; never run destructive SQL (`DROP`/`DELETE`/`TRUNCATE`/`UPDATE` without `WHERE`) without explicit user approval.
+
 
 ## Surfaces
 

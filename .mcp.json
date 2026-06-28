@@ -1,5 +1,13 @@
 {
   "mcpServers": {
+    "neon": {
+      "command": "sh",
+      "args": [
+        "-c",
+        "set -a; . ./.env; set +a; exec npx -y mcp-remote https://mcp.neon.tech/mcp --header \"Authorization:Bearer ${NEON_API_KEY}\""
+      ],
+      "cwd": "/Users/sfomin/project-space/agnic-agent-wallet-verifier"
+    },
     "github": {
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-github"],
