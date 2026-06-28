@@ -47,13 +47,19 @@
   stroke-dasharray: 4 3;
 }
 
-/* Bounding box around a category's direct (chain-primitive) sub-fan-out —
-   visually groups oracle-per-chain, ENS, or viem nodes as one widget so they
-   don't blur into the adjacent category row below. */
+/* Bounding box around a category's free (chain-primitive) sub-fan-out —
+   visually groups oracle-per-chain, ENS, or viem nodes as one widget docked
+   beneath their category box so they don't read as orphaned. */
 .flow-diagram .direct-container {
   fill: rgba(154, 184, 220, 0.04);
   stroke: #3A4A5A;
   stroke-dasharray: 3 3;
+  stroke-width: 1;
+}
+
+/* Short tether from the category box down into the group container. */
+.flow-diagram .direct-connector {
+  stroke: #3A4A5A;
   stroke-width: 1;
 }
 
@@ -88,11 +94,13 @@
   pointer-events: none;
 }
 
-.flow-diagram .direct-row-tag {
+/* Group caption sitting at the top of the container, centered on the category
+   column. Replaces the old ambiguous left-anchored "direct" tag. */
+.flow-diagram .direct-caption {
   font-family: var(--mono);
   font-size: 8px;
   fill: #8A8888;
-  text-anchor: end;
+  text-anchor: middle;
   dominant-baseline: middle;
   pointer-events: none;
 }

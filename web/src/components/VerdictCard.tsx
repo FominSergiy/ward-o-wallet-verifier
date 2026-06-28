@@ -16,14 +16,21 @@ interface Props {
 // web_sentiment) that failed reads as a non-blocking skip, not an error; a
 // rate-limited call reads honestly instead of as a misleading "timeout".
 function receiptStatusLabel(r: VerifyReceipt): string {
-  if (r.status === "ok") return `${fmtUsd(r.amountUsdc)} · ${r.durationMs ?? "?"}ms`;
+  // fallback_ok is a successful resolution via the LLM-built call — it carries
+  // the same amount + duration as a plain ok, and its cost is summed into the
+  // x402 subtotal, so render it identically (the [llm] adapter badge already
+  // marks it as a fallback). Showing it here also makes the per-row costs add
+  // up to the "x402 services" subtotal.
+  if (r.status === "ok" || r.status === "fallback_ok") {
+    return `${fmtUsd(r.amountUsdc)} · ${r.durationMs ?? "?"}ms`;
+  }
   if (r.bestEffort) return "skipped · best-effort";
   if (r.errorCode === "rate_limited") return "rate-limited";
   return r.status;
 }
 
 function receiptErrorText(r: VerifyReceipt): string | null {
-  if (r.status === "ok") return null;
+  if (r.status === "ok" || r.status === "fallback_ok") return null;
   if (r.bestEffort) return "best-effort · non-blocking";
   if (r.errorCode === "rate_limited") return "rate-limited";
   return r.error ?? null;
