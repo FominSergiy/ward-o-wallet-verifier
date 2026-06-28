@@ -1,14 +1,11 @@
 import { useState } from "react";
 import type { PlanView } from "../types";
 import { CATEGORY_HINTS } from "../categoryLabels";
+import { fmtUsd } from "../utils";
 
 interface Props {
   plan: PlanView;
   onSave: () => void;
-}
-
-function fmtUsd(v: number): string {
-  return `$${v.toFixed(4)}`;
 }
 
 export function PlanCard({ plan, onSave }: Props) {

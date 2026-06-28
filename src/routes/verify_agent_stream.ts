@@ -4,18 +4,14 @@ import { zValidator } from "hono/zod-validator";
 import { z } from "zod";
 import { VerifyRequestSchema } from "../agent/types.ts";
 import { verifyAgent, type VerifyAgentResult } from "../agent/verify.ts";
-import {
-  DiscoveryFetchError,
-  WalletUnfundedError,
-} from "../discovery/types.ts";
-import {
-  BEST_EFFORT_CATEGORIES,
-  SanctionsInvocationError,
-} from "../agent/invoke_all.ts";
+import { BEST_EFFORT_CATEGORIES } from "../agent/invoke_all.ts";
 import { type AgnicBudget, fetchAgnicBudget } from "../discovery/network.ts";
 import { type EventEmitter, now, type VerifyEvent } from "../agent/events.ts";
 import { type VerdictCache } from "../agent/verdict_cache.ts";
 import { type SanctionedDenylist } from "../agent/sanctioned_denylist.ts";
+import { mapRouteError } from "./errors.ts";
+import { budgetThreshold } from "./budget.ts";
+import { log } from "../observability/log.ts";
 
 const VerifyAgentStreamRequestSchema = VerifyRequestSchema.extend({
   budgetCeiling: z.number().positive().optional(),
@@ -23,17 +19,7 @@ const VerifyAgentStreamRequestSchema = VerifyRequestSchema.extend({
   depth: z.enum(["fast", "deep"]).optional(),
 });
 
-const DEFAULT_BUDGET_MIN_USD = 0.10;
 const PING_INTERVAL_MS = 15_000;
-
-function budgetThreshold(): number {
-  const raw = Deno.env.get("AGNIC_BUDGET_MIN_USD");
-  if (!raw) return DEFAULT_BUDGET_MIN_USD;
-  const parsed = parseFloat(raw);
-  return Number.isFinite(parsed) && parsed >= 0
-    ? parsed
-    : DEFAULT_BUDGET_MIN_USD;
-}
 
 function resultPayload(result: VerifyAgentResult): Record<string, unknown> {
   return {
@@ -149,7 +135,7 @@ export function createVerifyAgentStreamRouter(
               return;
             }
           } catch (e) {
-            console.warn(
+            log.warn(
               `[verify-agent-stream] pre-flight budget check failed (proceeding): ${
                 (e as Error).message
               }`,
@@ -167,42 +153,13 @@ export function createVerifyAgentStreamRouter(
             });
             emit({ type: "result", payload: resultPayload(result), at: now() });
           } catch (e) {
-            if (e instanceof WalletUnfundedError) {
+            const mapped = mapRouteError(e);
+            if (mapped) {
               emit({
                 type: "error",
-                code: "wallet_unfunded",
-                status: 402,
-                message: e.message,
-                at: now(),
-              });
-              return;
-            }
-            if (e instanceof SanctionsInvocationError) {
-              emit({
-                type: "error",
-                code: "sanctions_invocation_failed",
-                status: 502,
-                message: e.message,
-                at: now(),
-              });
-              return;
-            }
-            if (e instanceof DiscoveryFetchError) {
-              emit({
-                type: "error",
-                code: "discovery_upstream_failed",
-                status: 502,
-                message: e.message,
-                at: now(),
-              });
-              return;
-            }
-            if (e instanceof Error && e.message.includes("AGNIC_API_KEY")) {
-              emit({
-                type: "error",
-                code: "missing_config",
-                status: 500,
-                message: e.message,
+                code: mapped.code,
+                status: mapped.status,
+                message: mapped.message,
                 at: now(),
               });
               return;

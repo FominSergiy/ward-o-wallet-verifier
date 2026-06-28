@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { log } from "../observability/log.ts";
 import type { Chain } from "../agent/types.ts";
 import { defaultLlm, type LlmClient } from "../agent/llm.ts";
 import type { BazaarInfo, RankedService } from "./types.ts";
@@ -246,7 +247,9 @@ export function buildCallFromInfo(
     return { url: service.resource, method: "POST", body: { address, chain } };
   }
 
-  const method = (info.method ?? "POST").toUpperCase() === "GET" ? "GET" : "POST";
+  const method = (info.method ?? "POST").toUpperCase() === "GET"
+    ? "GET"
+    : "POST";
 
   if (method === "GET") {
     let url = service.resource;
@@ -346,7 +349,9 @@ Construct the request:
 - Always return a valid http(s) URL.
 
 CRITICAL — URL rules (the catalog URL is authoritative):
-- The path portion of \`url\` MUST be exactly "${urlWithoutQuery(service.resource)}" with any \`:param\` placeholders substituted (use the wallet address for address-like params). DO NOT add, remove, rename, or guess any path segments — no \`/classify\`, \`/predict\`, \`/labels\`, \`/social\`, etc.
+- The path portion of \`url\` MUST be exactly "${
+    urlWithoutQuery(service.resource)
+  }" with any \`:param\` placeholders substituted (use the wallet address for address-like params). DO NOT add, remove, rename, or guess any path segments — no \`/classify\`, \`/predict\`, \`/labels\`, \`/social\`, etc.
 - For GET, you MAY append a query string (\`?address=...&chain=...\`).
 - For POST, the URL must have no query string and the address goes in the body.
 - If the catalog URL already declares the full path, leave it as-is.
@@ -378,13 +383,14 @@ CRITICAL — URL rules (the catalog URL is authoritative):
   const llmPath = urlWithoutQuery(out.url);
   const expectedPath = substitutedCatalogPath(service, address);
   if (!pathsEquivalent(llmPath, expectedPath)) {
-    console.warn(
+    log.warn(
       `[adapter-llm] url-changed: rewriting LLM url "${out.url}" → catalog "${service.resource}" (method=${out.method})`,
     );
     if (out.method === "GET") {
       const rewritten = {
-        url:
-          `${expectedPath}?address=${encodeURIComponent(address)}&chain=${encodeURIComponent(chain)}`,
+        url: `${expectedPath}?address=${encodeURIComponent(address)}&chain=${
+          encodeURIComponent(chain)
+        }`,
         method: "GET" as const,
       };
       assertNoUnsubstitutedPlaceholders(rewritten.url);

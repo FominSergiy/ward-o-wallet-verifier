@@ -2,17 +2,10 @@ import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { zValidator } from "hono/zod-validator";
 import { z } from "zod";
-import { CategorySchema, type Category } from "../agent/types.ts";
+import { type Category, CategorySchema } from "../agent/types.ts";
 import { discover } from "../discovery/discover.ts";
-import {
-  DiscoveryFetchError,
-  WalletUnfundedError,
-} from "../discovery/types.ts";
-import {
-  type EventEmitter,
-  now,
-  type VerifyEvent,
-} from "../agent/events.ts";
+import { type EventEmitter, now, type VerifyEvent } from "../agent/events.ts";
+import { mapRouteError } from "./errors.ts";
 
 // Mirrors src/agent/verify.ts DEFAULT_CATEGORIES so the plan card is a
 // faithful preview of an Execute run. "ens" doesn't have a paid Bazaar
@@ -30,7 +23,10 @@ const DEFAULT_CATEGORIES: Category[] = [
 const PING_INTERVAL_MS = 15_000;
 
 const discoverStreamBodySchema = z.object({
-  address: z.string().regex(/^0x[0-9a-fA-F]{40}$/, "Must be a valid EVM address"),
+  address: z.string().regex(
+    /^0x[0-9a-fA-F]{40}$/,
+    "Must be a valid EVM address",
+  ),
   categories: z.array(CategorySchema).min(1).optional(),
 });
 
@@ -105,32 +101,13 @@ export function createDiscoverStreamRouter(
               at: now(),
             });
           } catch (e) {
-            if (e instanceof WalletUnfundedError) {
+            const mapped = mapRouteError(e);
+            if (mapped) {
               emit({
                 type: "error",
-                code: "wallet_unfunded",
-                status: 402,
-                message: e.message,
-                at: now(),
-              });
-              return;
-            }
-            if (e instanceof DiscoveryFetchError) {
-              emit({
-                type: "error",
-                code: "discovery_upstream_failed",
-                status: 502,
-                message: e.message,
-                at: now(),
-              });
-              return;
-            }
-            if (e instanceof Error && e.message.includes("AGNIC_API_KEY")) {
-              emit({
-                type: "error",
-                code: "missing_config",
-                status: 500,
-                message: e.message,
+                code: mapped.code,
+                status: mapped.status,
+                message: mapped.message,
                 at: now(),
               });
               return;

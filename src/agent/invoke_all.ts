@@ -2,6 +2,7 @@ import {
   invokeRankedService,
   type ServiceInvocationOutcome,
 } from "./invoke_service.ts";
+import { log } from "../observability/log.ts";
 import type {
   DiscoveryPlan,
   RankedService,
@@ -295,7 +296,7 @@ async function invokeWithAlternates(
     const svc = candidates[i];
     const host = hostOf(svc.resource);
     if (failedHosts.has(host)) {
-      console.warn(
+      log.warn(
         `[invoke] skipping ${svc.resource} — host ${host} already failed with domain-level error`,
       );
       continue;
@@ -336,7 +337,7 @@ async function invokeWithAlternates(
     if (outcome.status === "ok" || outcome.status === "fallback_ok") {
       await recordOk(svc.resource);
       if (i > 0) {
-        console.warn(
+        log.warn(
           `[invoke] primary failed for ${primary.category}; succeeded on alternate ${svc.resource}`,
         );
       }
@@ -381,7 +382,7 @@ async function invokeWithAlternates(
     safeEmit(emit, failEvent);
     recordServiceObservation(failEvent);
     if (hasNextCandidate) {
-      console.warn(
+      log.warn(
         `[invoke] ${primary.category}: ${svc.resource} errored (${outcome.error}); trying next alternate`,
       );
     }
@@ -443,7 +444,7 @@ export async function invokeAll(
       try {
         const viemData = await viemFetcher(plan.address, chain);
         const durationMs = Date.now() - viemStart;
-        console.warn(
+        log.warn(
           `[invoke] onchain_history x402 failed; viem fallback succeeded (txCount=${viemData.txCount}, balanceEth=${
             viemData.balanceEth.toFixed(4)
           })`,
@@ -479,7 +480,7 @@ export async function invokeAll(
         recordServiceObservation(viemOkEvent);
       } catch (e) {
         const msg = (e as Error).message;
-        console.warn(
+        log.warn(
           `[invoke] viem fallback for onchain_history failed: ${msg}`,
         );
         const viemErrEvent = {
@@ -517,7 +518,7 @@ export async function invokeAll(
     (labelsOutcome.status === "ok" || labelsOutcome.status === "fallback_ok")
   ) {
     if (isEmptyAttribution(labelsOutcome.data)) {
-      console.warn(
+      log.warn(
         `[invoke] labels service ${labelsOutcome.resource} returned empty attribution on rich-history wallet — recording quality miss`,
       );
       await recordEmptyOnRich(labelsOutcome.resource);
@@ -535,7 +536,7 @@ export async function invokeAll(
       );
     }
   } else {
-    console.warn(
+    log.warn(
       "[invoke] sanctions not in plan — proceeding without OFAC gate",
     );
   }

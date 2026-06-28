@@ -19,11 +19,3 @@ export function loadLastPlan(): SavedPlan | null {
     return null;
   }
 }
-
-export function clearLastPlan(): void {
-  try {
-    localStorage.removeItem(KEY);
-  } catch {
-    // ignore
-  }
-}
