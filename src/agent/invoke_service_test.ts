@@ -483,6 +483,49 @@ Deno.test("invokeRankedService surfaces adapter_call_failed on non-Agnic exec th
   }
 });
 
+Deno.test("invokeRankedService: payment-cap error is hard (no LLM fallback)", async () => {
+  // Regression for the de-x402/price-drift case: agnicFetch normalizes
+  // "Payment exceeds maximum allowed value" → payment_exceeds_maximum_allowed_value.
+  // That's a payment-budget rejection, not an input-shape problem, so it must
+  // NOT waste an LLM fallback + retry. A GET service (no POST-shape fallback)
+  // isolates the LLM-fallback decision.
+  setupAgnic();
+  const orig = globalThis.fetch;
+  const cap = captureConsole();
+  let fetchCalls = 0;
+  globalThis.fetch = (_url, _init) => {
+    fetchCalls++;
+    return Promise.resolve(
+      jsonResp(402, {
+        error: "Payment exceeds maximum allowed value",
+        error_description: "Payment Required",
+      }),
+    );
+  };
+  let llmCalls = 0;
+  const llm: LlmClient = {
+    generateStructured<T>(schema: z.ZodType<T>, _p: string): Promise<T> {
+      llmCalls++;
+      return Promise.resolve(
+        schema.parse({ url: "https://svc.example/x", method: "GET" }),
+      );
+    },
+  };
+  try {
+    const out = await invokeRankedService(svc(), ADDR, "base", { llm });
+    assertEquals(out.status, "error");
+    // The cap error must short-circuit: no LLM fallback, single network call.
+    assertEquals(llmCalls, 0, "cap error must not trigger LLM fallback");
+    assertEquals(fetchCalls, 1, "only the pattern attempt should hit network");
+    assertEquals(out.adapterPath, "pattern");
+    assertEquals(out.errorCode, "payment_exceeds_maximum_allowed_value");
+  } finally {
+    cap.restore();
+    globalThis.fetch = orig;
+    teardownAgnic();
+  }
+});
+
 Deno.test("invokeRankedService skips pattern adapter when FORCE_LLM_ADAPTER=true", async () => {
   setupAgnic();
   Deno.env.set("FORCE_LLM_ADAPTER", "true");
