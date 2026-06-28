@@ -4,6 +4,7 @@
 // the verify pipeline.
 
 import { getDb } from "../db/client.ts";
+import { log } from "./log.ts";
 import type { ServiceEvent } from "../agent/events.ts";
 
 export function recordServiceObservation(event: ServiceEvent): void {
@@ -25,7 +26,7 @@ export function recordServiceObservation(event: ServiceEvent): void {
          ${event.error ?? null})
     `,
   ).catch((err: unknown) => {
-    console.error(
+    log.error(
       "[observations] failed to write service_observation:",
       (err as Error)?.message ?? err,
     );

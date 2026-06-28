@@ -1,5 +1,6 @@
-import { useFlowState, type NodeStatus, type CategoryNode, type DirectNode } from "../hooks/useFlowState";
+import { type CategoryNode, type DirectNode, type NodeStatus, useFlowState } from "../hooks/useFlowState";
 import type { Category, VerdictLabel, VerifyEvent } from "../types";
+import { fmtUsd } from "../utils";
 import "./FlowDiagram.css";
 
 interface Props {
@@ -52,12 +53,6 @@ function edgeClassFor(from: NodeStatus, to: NodeStatus): string {
   if (from === "ok" && (to === "ok" || to === "active")) return "ok";
   if (from === "ok" || from === "active" || to === "active" || to === "ok") return "lit";
   return "";
-}
-
-function fmtUsd(v?: number): string {
-  if (v == null) return "—";
-  if (v < 0.01) return `$${v.toFixed(4)}`;
-  return `$${v.toFixed(3)}`;
 }
 
 function DirectNodes({ direct, y }: { direct: DirectNode[]; y: number }) {

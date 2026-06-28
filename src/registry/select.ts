@@ -1,4 +1,5 @@
 import type { Category } from "../agent/types.ts";
+import { log } from "../observability/log.ts";
 import type { LlmClient } from "../agent/llm.ts";
 import { type EventEmitter, now, safeEmit } from "../agent/events.ts";
 import type {
@@ -92,7 +93,7 @@ export async function selectFromRegistry(
   try {
     active = await getActive();
   } catch (e) {
-    console.warn(
+    log.warn(
       `[select] registry read failed (${
         (e as Error).message
       }) — falling back to call_recipes.json`,
@@ -120,7 +121,7 @@ export async function selectFromRegistry(
         // Registry row references a service_id we have no call recipe for —
         // we can't invoke it, so skip. (W0.10's vetter is responsible for
         // keeping recipes and registry rows in sync.)
-        console.warn(
+        log.warn(
           `[select] active registry entry ${entry.resource} (service_id=${entry.service_id}) has no call recipe — skipping`,
         );
         continue;

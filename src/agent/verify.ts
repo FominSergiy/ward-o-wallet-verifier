@@ -1,4 +1,5 @@
 import type { VerifyRequest } from "./types.ts";
+import { log } from "../observability/log.ts";
 import { defaultLlm, type LlmClient, withCostTracking } from "./llm.ts";
 import type { Category, Chain } from "./types.ts";
 import { selectFromRegistry } from "../registry/select.ts";
@@ -566,7 +567,7 @@ export async function verifyAgent(
     a.result?.isSanctioned === true
   );
   if (flaggedAttempt && flaggedAttempt.result) {
-    console.warn(
+    log.warn(
       `[verify-agent] Chainalysis oracle flagged ${req.address} as sanctioned on ${flaggedAttempt.chain} — short-circuiting (no x402 spend)`,
     );
     const walletNetwork: WalletNetwork = "base";
@@ -712,7 +713,7 @@ export async function verifyAgent(
       : Promise.resolve(null),
     wantLabels
       ? labelsRegistryFn(req.address, DEFAULT_CHAIN).catch((e: Error) => {
-        console.warn(
+        log.warn(
           `[verify-agent] eth-labels registry lookup failed (proceeding): ${e.message}`,
         );
         safeEmit(emit, {
@@ -796,7 +797,7 @@ export async function verifyAgent(
     }, { llm });
   } catch (e) {
     synthesisError = (e as Error).message;
-    console.error(
+    log.error(
       `[verify-agent] synthesis failed; returning stub verdict with preserved receipts: ${synthesisError}`,
     );
     safeEmit(emit, {

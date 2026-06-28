@@ -1,4 +1,5 @@
 import type { Category } from "../agent/types.ts";
+import { log } from "../observability/log.ts";
 import { defaultLlm, type LlmClient } from "../agent/llm.ts";
 import {
   failureRate,
@@ -251,14 +252,14 @@ async function filterDurablyBlocked(
     const kept = entries.filter((_, i) => !blockedFlags[i]);
     let final: DiscoveryEntry[];
     if (kept.length === 0 && entries.length > 0) {
-      console.warn(
+      log.warn(
         `[rank] all candidates for ${cat} are durably blocked — re-including them as degraded fallback`,
       );
       final = entries;
     } else {
       if (kept.length < entries.length) {
         const dropped = entries.length - kept.length;
-        console.warn(
+        log.warn(
           `[rank] filtered ${dropped} durably-blocked candidate(s) from ${cat}`,
         );
       }
@@ -275,7 +276,7 @@ async function filterDurablyBlocked(
       const promoted = final.filter((_, i) => !demotedFlags[i]);
       const demoted = final.filter((_, i) => demotedFlags[i]);
       if (demoted.length > 0) {
-        console.warn(
+        log.warn(
           `[rank] quality-demoted ${demoted.length} candidate(s) in ${cat} (empty-on-rich-history pattern detected)`,
         );
       }
@@ -322,7 +323,7 @@ export async function rankServices(
     });
   } catch (e) {
     const cats = entries.map(([cat]) => cat).join(",");
-    console.warn(
+    log.warn(
       `[rank] LLM rerank failed for categories [${cats}], falling back to quality-sort: ${
         (e as Error).message
       }`,

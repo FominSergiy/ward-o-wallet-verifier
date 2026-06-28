@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { VerifyEvent } from "../types";
+import { fmtUsd } from "../utils";
 
 interface Props {
   events: VerifyEvent[];
@@ -15,10 +16,6 @@ function ts(at: string): string {
   } catch {
     return at;
   }
-}
-
-function fmtUsd(v?: number): string {
-  return v == null ? "—" : `$${v.toFixed(4)}`;
 }
 
 function renderEvent(e: VerifyEvent): { cls: string; tag: string; text: string } {

@@ -3,17 +3,13 @@ import { zValidator } from "hono/zod-validator";
 import { z } from "zod";
 import { VerifyRequestSchema } from "../agent/types.ts";
 import { verifyAgent } from "../agent/verify.ts";
-import {
-  DiscoveryFetchError,
-  WalletUnfundedError,
-} from "../discovery/types.ts";
-import {
-  BEST_EFFORT_CATEGORIES,
-  SanctionsInvocationError,
-} from "../agent/invoke_all.ts";
+import { BEST_EFFORT_CATEGORIES } from "../agent/invoke_all.ts";
 import { type AgnicBudget, fetchAgnicBudget } from "../discovery/network.ts";
 import { type VerdictCache } from "../agent/verdict_cache.ts";
 import { type SanctionedDenylist } from "../agent/sanctioned_denylist.ts";
+import { jsonErrorBody, mapRouteError } from "./errors.ts";
+import { budgetThreshold } from "./budget.ts";
+import { log } from "../observability/log.ts";
 
 const VerifyAgentRequestSchema = VerifyRequestSchema.extend({
   budgetCeiling: z.number().positive().optional(),
@@ -21,17 +17,6 @@ const VerifyAgentRequestSchema = VerifyRequestSchema.extend({
   // pipeline. Omitted → deep, preserving the historical single-tier contract.
   depth: z.enum(["fast", "deep"]).optional(),
 });
-
-const DEFAULT_BUDGET_MIN_USD = 0.10;
-
-function budgetThreshold(): number {
-  const raw = Deno.env.get("AGNIC_BUDGET_MIN_USD");
-  if (!raw) return DEFAULT_BUDGET_MIN_USD;
-  const parsed = parseFloat(raw);
-  return Number.isFinite(parsed) && parsed >= 0
-    ? parsed
-    : DEFAULT_BUDGET_MIN_USD;
-}
 
 export interface VerifyAgentRouterOpts {
   /** Test seam for the pre-flight budget fetcher. Defaults to fetchAgnicBudget. */
@@ -77,7 +62,7 @@ export function createVerifyAgentRouter(
         }, 503);
       }
     } catch (e) {
-      console.warn(
+      log.warn(
         `[verify-agent] pre-flight budget check failed (proceeding): ${
           (e as Error).message
         }`,
@@ -123,31 +108,8 @@ export function createVerifyAgentRouter(
         fromCache: result.fromCache ?? false,
       });
     } catch (e) {
-      if (e instanceof WalletUnfundedError) {
-        return c.json({
-          error: "wallet_unfunded",
-          message: e.message,
-          baseAddress: e.baseAddress,
-          baseSepoliaAddress: e.baseSepoliaAddress,
-        }, 402);
-      }
-      if (e instanceof SanctionsInvocationError) {
-        return c.json({
-          error: "sanctions_invocation_failed",
-          message: e.message,
-        }, 502);
-      }
-      if (e instanceof DiscoveryFetchError) {
-        return c.json({
-          error: "discovery_upstream_failed",
-          message: e.message,
-          status: e.status,
-          url: e.url,
-        }, 502);
-      }
-      if (e instanceof Error && e.message.includes("AGNIC_API_KEY")) {
-        return c.json({ error: "missing_config", message: e.message }, 500);
-      }
+      const mapped = mapRouteError(e);
+      if (mapped) return c.json(jsonErrorBody(mapped), mapped.status);
       throw e;
     }
   });

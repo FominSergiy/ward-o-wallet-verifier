@@ -12,6 +12,7 @@ import {
   denoKvDenylist,
   type SanctionedDenylist,
 } from "./agent/sanctioned_denylist.ts";
+import { log } from "./observability/log.ts";
 
 async function dbHealth(): Promise<"ok" | "disabled" | "error"> {
   if (!dbEnabled()) return "disabled";
@@ -62,7 +63,7 @@ export function createApp(
   app.route("/mcp", createMcpRouter(verdictCache, denylist));
 
   app.onError((err, c) => {
-    console.error(err);
+    log.error("[main] unhandled request error:", err);
     return c.json({ error: err.message }, 500);
   });
 
@@ -78,6 +79,6 @@ if (import.meta.main) {
   const cache = denoKvCache(kv);
   const denylist = denoKvDenylist(kv);
   const port = parseInt(Deno.env.get("PORT") ?? "8000");
-  console.log(`Starting on :${port}`);
+  log.info(`Starting on :${port}`);
   Deno.serve({ port }, createApp(cache, denylist).fetch);
 }

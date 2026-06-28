@@ -1,4 +1,5 @@
 import { getDb } from "../db/client.ts";
+import { log } from "../observability/log.ts";
 import { type RecomputeResult, recomputeScores } from "../registry/score.ts";
 import {
   fetchCandidates as defaultFetchCandidates,
@@ -204,7 +205,7 @@ async function defaultRewriteRecipePrice(
   }
 
   if (!found) {
-    console.warn(
+    log.warn(
       `[vetter] no recipe entry for resource=${resource} (source=${
         serviceId ?? "unknown"
       }) — call_recipes.json not updated`,
@@ -245,7 +246,7 @@ export async function runVetter(opts: VetterOpts = {}): Promise<VetterResult> {
 
     if (realPrice > PRICE_CEILING_USDC) {
       // Above safety ceiling — put on probation for human review, no auto-bump.
-      console.warn(
+      log.warn(
         `[vetter] price above ceiling for ${row.resource}: real=$${
           realPrice.toFixed(6)
         } > ceiling=$${PRICE_CEILING_USDC} — moving to probation`,
@@ -265,7 +266,7 @@ export async function runVetter(opts: VetterOpts = {}): Promise<VetterResult> {
     // Auto-bump: new price = real × 1.20, rounded to 6 decimal places.
     const newPrice = Math.round(realPrice * PRICE_BUMP_FACTOR * 1_000_000) /
       1_000_000;
-    console.log(
+    log.info(
       `[vetter] price bump ${row.resource}: $${storedPrice} → $${newPrice} (real=$${realPrice})`,
     );
     await updatePrice(row.resource, newPrice);
@@ -302,14 +303,14 @@ export async function runVetter(opts: VetterOpts = {}): Promise<VetterResult> {
           );
           if (added) {
             newCandidates++;
-            console.log(
+            log.info(
               `[vetter] new candidate: ${cat} ${entry.resource} @$${priceUsdc}`,
             );
           }
         }
       }
     } catch (e) {
-      console.warn(`[vetter] discovery failed: ${(e as Error).message}`);
+      log.warn(`[vetter] discovery failed: ${(e as Error).message}`);
     }
   }
 
@@ -374,7 +375,7 @@ export async function warmSanctionedDenylist(
         }
       } catch (e) {
         // RPC failure → trust the OFAC list rather than dropping the address.
-        console.warn(
+        log.warn(
           `[vetter] denylist cross-check RPC failed for ${address} (writing anyway): ${
             (e as Error).message
           }`,
@@ -386,7 +387,7 @@ export async function warmSanctionedDenylist(
     written++;
   }
 
-  console.log(
+  log.info(
     `[vetter] denylist warm: source=${source} fetched=${addresses.length} written=${written} skipped=${skipped}`,
   );
   return { source, fetched: addresses.length, written, skipped };

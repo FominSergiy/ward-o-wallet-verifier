@@ -1,4 +1,5 @@
 import { agnicFetch, AgnicFetchError } from "../clients/agnic.ts";
+import { log } from "../observability/log.ts";
 import {
   AdapterFailedError,
   assertNoUnsubstitutedPlaceholders,
@@ -148,7 +149,7 @@ async function performCallWithRateLimitRetry(
     return await performCall(built, priceUsdc, callOpts);
   } catch (e) {
     if (e instanceof AgnicFetchError && isRateLimitError(e)) {
-      console.warn(
+      log.warn(
         `[invoke] ${resource} rate-limited; backing off ${RATE_LIMIT_BACKOFF_MS}ms before retry`,
       );
       await abortableSleep(RATE_LIMIT_BACKOFF_MS, callOpts.signal);
@@ -214,7 +215,7 @@ export async function invokeRankedService(
   // so we can exercise the LLM-built call path + URL-rewrite validator on
   // real production traffic. Production runs should leave this unset.
   if (Deno.env.get("FORCE_LLM_ADAPTER") === "true") {
-    console.warn(
+    log.warn(
       `[invoke] FORCE_LLM_ADAPTER=true — skipping pattern adapter for ${service.resource}`,
     );
     return await invokeViaLlmOnly(
@@ -258,7 +259,7 @@ export async function invokeRankedService(
         callOpts,
       );
       if (i > 0) {
-        console.warn(
+        log.warn(
           `[invoke] ${service.resource} succeeded with fallback POST shape ${i} (body=${
             JSON.stringify(built.body).slice(0, 80)
           })`,
@@ -317,7 +318,7 @@ export async function invokeRankedService(
       "timeout",
     );
   }
-  console.warn(
+  log.warn(
     `[invoke] pattern-match failed for ${service.resource} (${patternShapes.length} shape(s) tried) — trying LLM fallback (${
       (lastError as Error)?.message
     })`,
@@ -344,7 +345,7 @@ async function invokeViaLlmOnly(
         lerr.reason.startsWith("unsubstituted_path_param")
       ? "unsubstituted_path_param"
       : "adapter_llm_build_failed";
-    console.error(
+    log.error(
       `[invoke] both adapters failed for ${service.resource}: ${reason}`,
     );
     return errorOutcome(service, reason, start, "llm", code);
@@ -361,7 +362,7 @@ async function invokeViaLlmOnly(
   } catch (e2) {
     const msg = (e2 as Error).message;
     const code = callErrorCode(e2, "adapter_call_failed");
-    console.error(
+    log.error(
       `[invoke] both adapters failed for ${service.resource}: ${msg}`,
     );
     return errorOutcome(service, msg, start, "llm", code);
@@ -383,7 +384,7 @@ async function handleDescriptorResponse(
 ): Promise<ServiceInvocationOutcome> {
   const action = pickActionEndpoint(endpoints, service.category);
   if (!action) {
-    console.warn(
+    log.warn(
       `[invoke] ${service.resource} returned descriptor with no action endpoint; endpoints=${
         JSON.stringify(endpoints)
       }`,
@@ -404,7 +405,7 @@ async function handleDescriptorResponse(
     assertNoUnsubstitutedPlaceholders(retryUrl);
   } catch (e) {
     const msg = (e as Error).message;
-    console.warn(
+    log.warn(
       `[invoke] ${service.resource} descriptor sub-path ${action} reintroduced an unsubstituted placeholder: ${msg}`,
     );
     return errorOutcome(
@@ -419,7 +420,7 @@ async function handleDescriptorResponse(
     ? { url: retryUrl, method: "POST", body: built.body }
     : { url: retryUrl, method: "GET" };
 
-  console.warn(
+  log.warn(
     `[invoke] ${service.resource} returned descriptor — retrying against sub-path ${action}`,
   );
 
@@ -434,7 +435,7 @@ async function handleDescriptorResponse(
   } catch (e) {
     const msg = (e as Error).message;
     const code = callErrorCode(e, "descriptor_retry_failed");
-    console.warn(
+    log.warn(
       `[invoke] ${service.resource} descriptor sub-path retry (${action}) failed: ${msg}`,
     );
     return errorOutcome(service, msg, start, "pattern+subpath", code);
@@ -442,7 +443,7 @@ async function handleDescriptorResponse(
 
   const stillDescriptor = isServiceDescriptor(r.data);
   if (stillDescriptor) {
-    console.warn(
+    log.warn(
       `[invoke] ${service.resource} sub-path ${action} also returned descriptor; endpoints=${
         JSON.stringify(stillDescriptor.endpoints)
       }`,

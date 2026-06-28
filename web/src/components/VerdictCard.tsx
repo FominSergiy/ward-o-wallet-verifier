@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import type { VerdictLabel, VerifyReceipt, VerifyResultPayload } from "../types";
 import { WardoMascot, type WardoVariant } from "./WardoMascot";
 import { CATEGORY_HINTS } from "../categoryLabels";
+import { fmtUsd } from "../utils";
 
 interface Props {
   result: VerifyResultPayload;
@@ -9,10 +10,6 @@ interface Props {
   // that calls this to run the paid deep check.
   onDeepCheck?: () => void;
   deepCheckBusy?: boolean;
-}
-
-function fmtUsd(v?: number): string {
-  return v == null ? "—" : `$${v.toFixed(4)}`;
 }
 
 // Human label for a receipt's outcome. A best-effort category (e.g.

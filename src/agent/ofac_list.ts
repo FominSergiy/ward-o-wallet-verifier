@@ -11,6 +11,8 @@
 // seeds.json) so the warm step degrades gracefully and the test suite stays
 // offline-safe.
 
+import { log } from "../observability/log.ts";
+
 const OFAC_ETH_URL =
   "https://raw.githubusercontent.com/0xB10C/ofac-sanctioned-digital-currency-addresses/lists/sanctioned_addresses_ETH.json";
 const SEED_PATH = new URL("../../data/sanctioned_seeds.json", import.meta.url);
@@ -79,7 +81,7 @@ export async function fetchOfacEthAddresses(
     }
     return { addresses, source: "ofac:0xB10C" };
   } catch (e) {
-    console.warn(
+    log.warn(
       `[ofac_list] live fetch failed, falling back to local seed: ${
         (e as Error).message
       }`,
@@ -87,7 +89,7 @@ export async function fetchOfacEthAddresses(
     try {
       return { addresses: normalize(await readSeed()), source: "local-seed" };
     } catch (seedErr) {
-      console.error(
+      log.error(
         `[ofac_list] local seed read also failed: ${
           (seedErr as Error).message
         }`,

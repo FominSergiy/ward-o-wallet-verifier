@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { log } from "./observability/log.ts";
 
 // Agnic exposes an OpenAI-compatible chat completions API at /v1/chat/completions.
 // We use tool-calling to enforce structured output: define a single function
@@ -184,7 +185,7 @@ export async function generateStructured<T>(
       if (!isObj(inner)) continue;
       const unwrapped = schema.safeParse(inner);
       if (unwrapped.success) {
-        console.warn(
+        log.warn(
           `[gateway] unwrapped tool args from envelope key "${k}"`,
         );
         parsedArgs = inner;
