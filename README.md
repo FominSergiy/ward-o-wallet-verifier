@@ -5,30 +5,78 @@
 
 [![CI](https://github.com/FominSergiy/ward-o-wallet-verifier/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/FominSergiy/ward-o-wallet-verifier/actions/workflows/ci.yml?query=branch%3Amain)
 
-Backend service for **autonomous-agent wallet risk verification**. Hand it a wallet address + EVM chain and it returns a structured risk verdict — so your agent can decide whether to proceed with a payment or interaction without a human poking around on Etherscan.
+**A free wallet risk check for agents that spend money.** Hand WARD-o an EVM
+wallet address and it returns a structured risk verdict — `safe_to_transact`,
+`do_not_transact`, or `insufficient_data` — so your agent can decide whether to
+proceed with a payment without a human poking around on Etherscan.
 
-The novel bit: instead of hard-coding a fixed list of intel providers, the service **discovers** relevant third-party services at runtime via the [x402 protocol](https://www.x402.org) and **pays for them on-demand** with USDC micropayments. New services that publish themselves to the x402 directory become available automatically.
+It's free to use. Every _deep_ check spends a few cents of USDC from the
+operator's wallet; there's no plan, invoice, or signup for the web app. If it's
+useful, you can [buy the author a coffee](https://buymeacoffee.com/sergiy_fomin)
+— purely in kind.
 
 ## How it works
 
-Three-stage pipeline:
+Two tiers:
 
-- **Discover** — fan out to [CDP's x402 discovery search](https://api.cdp.coinbase.com/platform/v2/x402/discovery/search) for each risk category (sanctions, entity labels, on-chain history, web sentiment, contract analysis). An LLM reranks candidates by relevance and quality; a durable health store filters out services that have recently failed payment or returned errors.
-- **Pay & invoke** — call the selected services in parallel through [Agnic's](https://agnic.ai) x402 proxy (`/api/x402/fetch?url=…&maxValue=…`), which handles the USDC payment handshake. A pre-flight balance check on `/verify-agent` aborts with `503` if the wallet can't cover the run. When a primary service fails, the next ranked alternate is tried automatically.
-- **Synthesize** — Claude Opus (default `anthropic/claude-opus-4.7`, overridable via `SYNTHESIS_MODEL`) reads the findings and emits a structured `WalletVerdict` (`safe` / `risk_flag` / `insufficient_data`). All paid receipts are returned even if synthesis fails, so no spend is lost.
+- **Fast — free, ~1s, $0 spend.** A sanctions gate: a local denylist plus the
+  Chainalysis on-chain oracle, fanned out across every supported EVM chain. A
+  sanctioned address returns `do_not_transact` immediately, with no payment.
+- **Deep — a few cents, slower.** Selects vetted risk services from a curated
+  registry, invokes them in parallel — paying per call in USDC over the
+  [x402 protocol](https://www.x402.org) via [Agnic's](https://agnic.ai) proxy —
+  and reads free chain primitives (Chainalysis oracle, ENS, label registries)
+  alongside. Claude (Opus) then weighs the evidence by category into a final
+  structured verdict. When a provider misbehaves, the next ranked alternate is
+  tried; a partial verdict still ships, and all paid receipts are returned even
+  if synthesis fails.
 
-## API
+The deep check **isn't instant** — it makes live calls to third-party data
+sources and a language model. That's the honest trade for breadth of signal.
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET | `/health` | Liveness check. |
-| POST | `/discover` | Run the discovery stage only. Returns planned services, ranked alternates, and estimated USDC cost. **No payments.** |
-| POST | `/invoke` | Run discovery + parallel paid invocation across all selected categories. Returns findings, receipts, and total spend. |
-| POST | `/verify-agent` | Same as `/invoke` plus a pre-flight balance guard and LLM synthesis into a final verdict. The endpoint your agent calls. |
+> **A note on x402 discovery.** Early versions re-discovered providers live via
+> x402 on _every_ call. That was too slow for an interactive tool, so the hot
+> path now selects from a curated, vetted **registry**
+> ([src/registry/](src/registry/)); live x402 discovery moved to a background
+> vetter that keeps the registry fresh. x402 is still the payment rail for the
+> paid providers — it's just no longer in the request's critical path.
 
-Request bodies all share `{ address: "0x…" }`; `/discover` and `/invoke` accept an optional `categories` array, `/verify-agent` accepts an optional `budgetCeiling` (USDC). Chain selection is automatic — the Chainalysis sanctions oracle fans out across all five supported EVM chains and the strictest signal wins.
+## Surfaces
 
-Example:
+HTTP API (mounted in [src/main.ts](src/main.ts)):
+
+| Method | Path                                        | Purpose                                                                         |
+| ------ | ------------------------------------------- | ------------------------------------------------------------------------------- |
+| GET    | `/health`                                   | Liveness.                                                                       |
+| POST   | `/discover`                                 | Discovery only — planned services + estimated cost. **No payments.**            |
+| POST   | `/invoke`                                   | Discover + parallel paid invocation. Returns findings, receipts, total spend.   |
+| POST   | `/verify-agent`                             | Full pipeline + pre-flight balance guard + LLM synthesis → final verdict. JSON. |
+| POST   | `/verify-agent-stream`                      | Same, streamed as SSE (phase / service / verdict events).                       |
+| POST   | `/request-key`                              | Mint a self-serve API key for the MCP server.                                   |
+| GET    | `/api/blog/posts` · `/api/blog/posts/:slug` | Blog read API (feeds the site's `/blog`).                                       |
+| POST   | `/mcp`                                      | MCP Streamable HTTP (bearer: an issued key, or `MCP_SHARED_SECRET`).            |
+
+Also an **MCP server** — tools `verify_wallet` (fast/deep) and
+`get_deep_verdict`, over stdio ([src/mcp/stdio.ts](src/mcp/stdio.ts)) and
+Streamable HTTP ([src/mcp/http.ts](src/mcp/http.ts)) — and a **React product
+site** ([web/](web/)): About, Verifier, Blog.
+
+### Getting an MCP key
+
+The web app is open and keyless. The MCP server needs a key — mint one (no
+account):
+
+```bash
+curl -X POST http://localhost:8000/request-key
+# → { "apiKey": "wardo_sk_…", "prefix": "wardo_sk_…", "note": "shown once" }
+```
+
+Pass it as the Bearer token when you add the server to your MCP client. Keys are
+**attribution + revocation handles, not paywalls** — the product is free; the
+key just lets the operator see usage and cut off abuse. Issued keys need
+`DATABASE_URL` set.
+
+## API example
 
 ```bash
 curl -X POST http://localhost:8000/verify-agent \
@@ -36,7 +84,9 @@ curl -X POST http://localhost:8000/verify-agent \
   -d '{"address":"0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"}'
 ```
 
-Route handlers live in [src/routes/](src/routes/) — look there for the exact request/response shapes.
+Request bodies share `{ address: "0x…" }`; `/verify-agent` accepts optional
+`depth` (`fast` | `deep`, default `deep`) and `budgetCeiling`. Chain selection
+is automatic. Route handlers live in [src/routes/](src/routes/).
 
 ## Quick start
 
@@ -52,44 +102,51 @@ Then hit `/verify-agent` with the curl above.
 ## Prerequisites
 
 - **Deno 2.x**
-- **An Agnic API key** (`agnic_tok_…`) — one key powers both LLM calls and x402 payments. The associated wallet must be funded with USDC on **Base** (or **Base Sepolia** for testing). No other API keys or per-service URLs are required — endpoints come from x402 discovery at runtime.
+- **An Agnic API key** (`agnic_tok_…`) — one key powers both LLM calls and x402
+  payments. The associated wallet must be funded with USDC on **Base** (or
+  **Base Sepolia** for testing).
+- **Optional `DATABASE_URL`** (Neon Postgres) — required only for the self-serve
+  API keys, the blog, and durable metrics. Unset = the DB layer is a no-op and
+  the app still serves the verifier.
 
-Env vars: `AGNIC_API_KEY` is required; `AI_MODEL`, `SYNTHESIS_MODEL`, `AGNIC_BUDGET_MIN_USD`, `ALLOWED_ORIGIN`, `PORT` are optional. See [.env.example](.env.example) for defaults.
+Env vars: `AGNIC_API_KEY` is required; `AI_MODEL`, `SYNTHESIS_MODEL`,
+`AGNIC_BUDGET_MIN_USD`, `ALLOWED_ORIGIN`, `PORT`, `MCP_SHARED_SECRET`,
+`DATABASE_URL` are optional. See [.env.example](.env.example).
 
 ## Stack
 
-- Runtime: Deno 2.x
-- HTTP: [Hono](https://hono.dev/) + Zod validation
-- Chain reads: [viem](https://viem.sh/)
-- LLM gateway + x402 payment proxy: [Agnic](https://agnic.ai) (OpenAI-compatible, OpenRouter model IDs)
-- Synthesis: Claude Opus; ranking/adapter: Claude Sonnet
+- Runtime: Deno 2.x · HTTP: [Hono](https://hono.dev/) + Zod
+- DB: Neon Postgres via `npm:postgres` (no-op when `DATABASE_URL` is unset)
+- Chain reads: [viem](https://viem.sh/) · LLM + x402 settlement:
+  [Agnic](https://agnic.ai) (OpenAI-compatible)
+- Synthesis: Claude Opus; ranking: Claude Sonnet · MCP:
+  `@modelcontextprotocol/sdk`
 
 ## Tasks
 
-| Task | Command |
-|------|---------|
-| Dev server (watch) | `deno task dev` |
-| Run server | `deno task start` |
-| Tests | `deno task test` |
-| Lint | `deno task lint` |
-| Format | `deno task fmt` |
-| Type-check | `deno task check` |
+| Task                       | Command                                                |
+| -------------------------- | ------------------------------------------------------ |
+| Dev server (watch)         | `deno task dev`                                        |
+| Tests (offline)            | `deno task test`                                       |
+| Lint / format / type-check | `deno task lint` · `deno task fmt` · `deno task check` |
+| DB migrations              | `deno task db:migrate` (needs `DATABASE_URL`)          |
+| Post-deploy MCP smoke      | `WARDO_API_URL=… deno task mcp:smoke`                  |
 
 ## Deployment
 
-| Surface | Host | URL pattern |
-|---------|------|-------------|
-| Backend API | [Deno Deploy](https://deno.com/deploy) (entrypoint `src/main.ts`) | `https://<project>.deno.dev` |
+| Surface        | Host                                                                                                            | URL pattern                   |
+| -------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| Backend API    | [Deno Deploy](https://deno.com/deploy) (entrypoint `src/main.ts`)                                               | `https://<project>.deno.dev`  |
 | Frontend (web) | [Cloudflare Pages](https://pages.cloudflare.com/) (root `web/`, build `npm ci && npm run build`, output `dist`) | `https://<project>.pages.dev` |
 
-Both platforms auto-deploy from `main` on every push and create preview deployments for PRs via their native GitHub integrations. The GitHub Actions workflow at [.github/workflows/ci.yml](.github/workflows/ci.yml) gates merges with `deno fmt --check`, `deno lint`, `deno task check`, `deno task test` and the frontend's `npm run typecheck` + `npm run build`.
-
-On Deno Deploy the filesystem is read-only, so the service-health store transparently falls back to an in-memory `Map` when `DENO_DEPLOYMENT_ID` is present — see [src/discovery/health_store.ts](src/discovery/health_store.ts). Cache resets on cold start; this is intentional for hackathon scale.
-
-Provisioning runbook + env-var contract: [docs/deployment.md](docs/deployment.md).
+Both auto-deploy from `main`. On Deno Deploy the filesystem is read-only, so the
+service-health store falls back to an in-memory `Map` when `DENO_DEPLOYMENT_ID`
+is present (cache resets on cold start — fine at current scale). Provisioning
+runbook + env contract: [docs/deployment.md](docs/deployment.md).
 
 ## UI
 
-A small Vite + React single-page app drives the backend end-to-end — input a wallet, click **Plan** to see the discovery plan (free chain primitives + paid x402 services with cost estimates), click **Execute** to stream phase / service / verdict events in real time. Lives in [web/](web/); see [web/README.md](web/README.md) for dev setup.
-
-![WARD-o UI — header, address input, Plan / Execute buttons, idle pixel tamagotchi](docs/assets/wardo-ui.png)
+A small Vite + React SPA in [web/](web/): an **About** landing page, the
+**Verifier** (input a wallet, Fast Check or Deep Check, watch
+phase/service/verdict events stream live), and a **Blog** backed by `/api/blog`.
+See [web/README.md](web/README.md).

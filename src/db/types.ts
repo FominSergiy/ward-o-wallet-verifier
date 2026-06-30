@@ -64,7 +64,9 @@ export interface ServiceRegistryRow {
 }
 
 /** service_observations — per-call outcomes (W0.8). severity_contribution
- * (W2.1) and outcome_label (W4) are forward-compat, dormant for now. */
+ * (W2.1) and outcome_label (W4) are forward-compat, dormant for now. api_key_id
+ * (0005) attributes the call to the issued API key that triggered the run;
+ * NULL for anonymous/keyless runs. */
 export interface ServiceObservationRow {
   id: string;
   resource: string;
@@ -76,7 +78,24 @@ export interface ServiceObservationRow {
   empty_on_rich: boolean;
   severity_contribution: string | null;
   outcome_label: string | null;
+  api_key_id: string | null;
   created_at: Date;
+}
+
+/** blog_posts — hand-authored technical write-ups for the product site's /blog
+ * (0004_blog_posts.sql). body_md is Markdown; published/published_at gate and
+ * order the public list. */
+export interface BlogPostRow {
+  id: string;
+  slug: string;
+  title: string;
+  excerpt: string | null;
+  body_md: string;
+  cover_image_url: string | null;
+  published: boolean;
+  published_at: Date;
+  created_at: Date;
+  updated_at: Date;
 }
 
 /** service_health_durable — mirror of ServiceHealth (W0.3). */

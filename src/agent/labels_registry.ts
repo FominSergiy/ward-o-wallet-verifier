@@ -8,7 +8,7 @@
 //   - The Bazaar catalog has no labeler today that knows top-N CEX hot
 //     wallets (Coinbase 1, Kraken 4, Binance HW20). The v7 e2e run pinned
 //     these at safe_to_transact/medium because synthesis had no entity
-//     attribution to promote them. See docs/real-wallet-tests/report_v7.md.
+//     attribution to promote them. See docs/archive/real-wallet-tests/report_v7.md.
 //   - This module supplements — never replaces — the x402 labels call.
 //     verify.ts merges the result into findings.labels under a `registry`
 //     key alongside the x402 result (same pattern the Chainalysis oracle

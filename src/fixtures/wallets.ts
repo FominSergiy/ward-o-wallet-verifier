@@ -7,7 +7,7 @@ export interface WalletFixture {
   expected: Verdict;
 }
 
-// Canonical regression cases. Source of truth: docs/real-wallet-tests/report_v8.md
+// Canonical regression cases. Source of truth: docs/archive/real-wallet-tests/report_v8.md
 // (latest baseline, 9/9 strict match). Anchors E2E route suites + future regression tests.
 export const WALLET_FIXTURES: WalletFixture[] = [
   {
