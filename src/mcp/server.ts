@@ -4,6 +4,15 @@ import { type Category, CategorySchema } from "../agent/types.ts";
 import { verifyAgent, type VerifyAgentResult } from "../agent/verify.ts";
 import { type VerdictCache } from "../agent/verdict_cache.ts";
 import { type SanctionedDenylist } from "../agent/sanctioned_denylist.ts";
+import { runWithRequestContext } from "../observability/request_context.ts";
+
+/** Per-request attribution the HTTP transport binds before each tool runs. */
+export interface McpAuthContext {
+  apiKeyId: string | null;
+  tenantId: string | null;
+}
+
+const ANON_AUTH: McpAuthContext = { apiKeyId: null, tenantId: null };
 
 interface VerifyWalletArgs {
   address: string;
@@ -47,10 +56,20 @@ export function formatResult(
 
 // Transport-agnostic factory. Both `stdio.ts` and `http.ts` mount the same
 // tool surface against different transports.
+//
+// `getAuthContext` lets the HTTP transport bind per-request attribution
+// (apiKeyId / tenantId) into the tool body. The streamable-HTTP transport
+// returns its Response BEFORE the tool runs, so an AsyncLocalStorage scope
+// wrapped around handleRequest() does NOT enclose the tool — instead each tool
+// reads the accessor at execution time and re-establishes the ambient context
+// itself, so the fire-and-forget observation + usage writers attribute the run.
+// stdio (and tests) omit it → anonymous (null/null).
 export function buildMcpServer(
   verdictCache?: VerdictCache,
   denylist?: SanctionedDenylist,
+  getAuthContext?: () => McpAuthContext,
 ): McpServer {
+  const authOf = getAuthContext ?? (() => ANON_AUTH);
   const server = new McpServer({
     name: "ward-o-wallet-verifier",
     version: "0.1.0",
@@ -81,15 +100,22 @@ export function buildMcpServer(
     async (
       { address, budgetCeiling, categories, depth }: VerifyWalletArgs,
     ) => {
-      const result = await verifyAgent(
-        { address },
-        {
-          budgetCeiling,
-          categories,
-          depth: depth ?? "fast",
-          verdictCache,
-          denylist,
-        },
+      const { apiKeyId, tenantId } = authOf();
+      const result = await runWithRequestContext(
+        apiKeyId,
+        tenantId,
+        () =>
+          verifyAgent(
+            { address },
+            {
+              budgetCeiling,
+              categories,
+              depth: depth ?? "fast",
+              route: "mcp:verify_wallet",
+              verdictCache,
+              denylist,
+            },
+          ),
       );
       return formatResult(result);
     },
@@ -122,9 +148,22 @@ export function buildMcpServer(
         categories?: Category[];
       },
     ) => {
-      const result = await verifyAgent(
-        { address: deepCheckToken },
-        { budgetCeiling, categories, depth: "deep", verdictCache, denylist },
+      const { apiKeyId, tenantId } = authOf();
+      const result = await runWithRequestContext(
+        apiKeyId,
+        tenantId,
+        () =>
+          verifyAgent(
+            { address: deepCheckToken },
+            {
+              budgetCeiling,
+              categories,
+              depth: "deep",
+              route: "mcp:get_deep_verdict",
+              verdictCache,
+              denylist,
+            },
+          ),
       );
       return formatResult(result);
     },

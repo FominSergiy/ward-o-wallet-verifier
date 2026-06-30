@@ -22,7 +22,8 @@ export function recordServiceObservation(event: ServiceEvent): void {
     : ObservationStatus.ERROR;
   const cost_usd = event.cost_usd != null ? String(event.cost_usd) : null;
   // Ambient attribution: the issued API key that triggered this run (null for
-  // anonymous/keyless runs). Set by the MCP transport via runWithApiKey().
+  // anonymous/keyless runs). Bound by the caller via runWithRequestContext()
+  // (the keyed HTTP routes and the MCP tool handlers).
   const apiKeyId = currentApiKeyId();
 
   Promise.resolve(

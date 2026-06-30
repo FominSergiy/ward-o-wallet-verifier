@@ -21,6 +21,7 @@ import {
   type DenylistEntry,
   type SanctionedDenylist,
 } from "./sanctioned_denylist.ts";
+import { recordUsageEvent } from "../observability/usage.ts";
 
 // Two-tier depth selector. "deep" (default) runs the full pipeline:
 // denylist + oracle → discovery → paid x402 fanout → LLM synthesis. "fast"
@@ -89,6 +90,9 @@ export interface VerifyAgentOpts {
   categories?: Category[];
   onEvent?: EventEmitter;
   request_id?: string;
+  // Origin label for the usage_events trace row, e.g. "verify-agent" or
+  // "mcp:get_deep_verdict". Defaults to "verify-agent".
+  route?: string;
   verdictCache?: VerdictCache;
   // Long-TTL sanctions denylist (warmed by the vetter cron). Checked at the top
   // of the pipeline before the oracle fan-out; a hit short-circuits to a
@@ -548,7 +552,33 @@ async function fetchLabelsWithEvents(
   }
 }
 
+// Public entry point. Generates the request id once, runs the pipeline, and
+// emits exactly one usage_events trace row at the terminal verdict — on EVERY
+// path (cache hit, denylist/oracle short-circuit, fast tier, full deep run), so
+// REST and MCP callers both get a row for free. The write is fire-and-forget;
+// it never slows or breaks the returned verdict. A run that throws before a
+// verdict (e.g. a hard budget-cap error) records nothing — there is no terminal
+// outcome to trace.
 export async function verifyAgent(
+  req: VerifyRequest,
+  opts: VerifyAgentOpts = {},
+): Promise<VerifyAgentResult> {
+  const request_id = opts.request_id ?? crypto.randomUUID();
+  const route = opts.route ?? "verify-agent";
+  const startedAt = Date.now();
+  const result = await verifyAgentImpl(req, { ...opts, request_id });
+  recordUsageEvent({
+    request_id,
+    route,
+    verdict: result.verdict.verdict,
+    cost_usd: result.totalSpentUsdc,
+    phase: result.tier ?? null,
+    duration_ms: Date.now() - startedAt,
+  });
+  return result;
+}
+
+async function verifyAgentImpl(
   req: VerifyRequest,
   opts: VerifyAgentOpts = {},
 ): Promise<VerifyAgentResult> {

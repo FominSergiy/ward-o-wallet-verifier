@@ -6,25 +6,35 @@ import { lookupApiKey, type ResolvedKey } from "../auth/api_keys.ts";
 // tagged in service_observations; a missing/invalid/unknown key just runs
 // anonymously (null). NEVER rejects — these routes stay open to everyone.
 //
-// Callers wrap the verify pipeline call in runWithApiKey(resolvedId, …) so the
-// ambient id reaches the fire-and-forget observation writer. We resolve the id
-// up front (one indexed DB lookup) rather than via Hono middleware, because the
-// SSE route runs the pipeline inside a stream callback that can outlive the
-// middleware's next() — wrapping the actual call is what guarantees scope.
+// Callers wrap the verify pipeline call in runWithRequestContext(apiKeyId,
+// tenantId, …) so the ambient ids reach the fire-and-forget observation +
+// usage writers. We resolve them up front (one indexed DB lookup) rather than
+// via Hono middleware, because the SSE route runs the pipeline inside a stream
+// callback that can outlive the middleware's next() — wrapping the actual call
+// is what guarantees scope.
 
-export async function resolveApiKeyId(
+/** Resolved attribution for a request: both null when anonymous/unmatched. */
+export interface KeyContext {
+  apiKeyId: string | null;
+  tenantId: string | null;
+}
+
+export async function resolveKeyContext(
   c: Context,
   lookup: (token: string) => Promise<ResolvedKey | null> = lookupApiKey,
-): Promise<string | null> {
+): Promise<KeyContext> {
   const auth = c.req.header("authorization") ?? "";
   const bearer = auth.startsWith("Bearer ")
     ? auth.slice("Bearer ".length).trim()
     : "";
-  if (!bearer) return null;
+  if (!bearer) return { apiKeyId: null, tenantId: null };
   try {
     const resolved = await lookup(bearer);
-    return resolved?.id ?? null;
+    return {
+      apiKeyId: resolved?.id ?? null,
+      tenantId: resolved?.tenantId ?? null,
+    };
   } catch {
-    return null;
+    return { apiKeyId: null, tenantId: null };
   }
 }
