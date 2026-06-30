@@ -5,6 +5,8 @@ import { createVerifyAgentStreamRouter } from "./routes/verify_agent_stream.ts";
 import { discoverRouter } from "./routes/discover.ts";
 import { discoverStreamRouter } from "./routes/discover_stream.ts";
 import { invokeRouter } from "./routes/invoke.ts";
+import { requestKeyRouter } from "./routes/request_key.ts";
+import { blogRouter } from "./routes/blog.ts";
 import { createMcpRouter } from "./mcp/http.ts";
 import { dbEnabled, getDb } from "./db/client.ts";
 import { denoKvCache, type VerdictCache } from "./agent/verdict_cache.ts";
@@ -60,6 +62,8 @@ export function createApp(
   app.route("/discover", discoverRouter);
   app.route("/discover-stream", discoverStreamRouter);
   app.route("/invoke", invokeRouter);
+  app.route("/request-key", requestKeyRouter);
+  app.route("/api/blog", blogRouter);
   app.route("/mcp", createMcpRouter(verdictCache, denylist));
 
   app.onError((err, c) => {

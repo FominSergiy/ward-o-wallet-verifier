@@ -14,7 +14,9 @@ interface CodeBlockProps {
 }
 
 function Code({ lang, children }: CodeBlockProps) {
-  const highlighted = hljs.highlight(children.trim(), { language: lang, ignoreIllegals: true }).value;
+  const highlighted =
+    hljs.highlight(children.trim(), { language: lang, ignoreIllegals: true })
+      .value;
   return (
     <figure className="docs-code">
       <div className="docs-code-bar">
@@ -38,8 +40,9 @@ export function DocsPage() {
         <div className="docs-eyebrow">Project · Architectural overview</div>
         <h1>Ward-o Wallet Verifier</h1>
         <p className="docs-lede">
-          One address in, one verdict out. Discover paid x402 risk services,
-          fan out in parallel, fall back gracefully, synthesize with an LLM.
+          One address in, one verdict out. A free sanctions gate first; then, on
+          demand, paid risk providers from a curated registry — fanned out in
+          parallel, with graceful fallback — synthesized by an LLM.
         </p>
       </header>
 
@@ -47,64 +50,149 @@ export function DocsPage() {
         <div className="docs-eyebrow">00 — Overview</div>
         <h2>What it does</h2>
         <p>
-          You hand Ward-o an EVM wallet address. It looks for risk-relevant
-          paid services in the Coinbase x402 bazaar, picks one per category,
-          pays them in USDC, and asks an LLM to weigh the evidence.
-          You get back a structured verdict —{" "}
-          <Inline>safe_to_transact</Inline>, <Inline>do_not_transact</Inline>,
-          or <Inline>insufficient_data</Inline> — plus on-chain receipts for
-          every paid call.
+          You hand Ward-o an EVM wallet address. A free <em>fast</em>{" "}
+          tier screens it against a sanctions denylist and the Chainalysis
+          on-chain oracle in about a second, at zero spend. If you want the full
+          picture, the <em>deep</em>{" "}
+          tier selects risk providers from a curated registry, pays them per
+          call in USDC, reads free chain primitives alongside, and asks an LLM
+          to weigh the evidence. You get back a structured verdict —{" "}
+          <Inline>safe_to_transact</Inline>,{" "}
+          <Inline>do_not_transact</Inline>, or{" "}
+          <Inline>insufficient_data</Inline>{" "}
+          — plus on-chain receipts for every paid call. The deep tier isn't
+          instant: it makes live third-party and LLM calls, and we'd rather be
+          honest about that.
         </p>
         <p>
           The whole thing runs on Deno + Hono, talks to the Agnic gateway for
-          both LLM inference and x402 settlement, and exposes itself three
-          ways: an HTTP API (both streaming SSE and plain JSON), an MCP
-          server, and the React UI you're reading this on.
+          both LLM inference and x402 settlement, and exposes itself three ways:
+          an HTTP API (both streaming SSE and plain JSON), an MCP server, and
+          the React UI you're reading this on.
         </p>
 
         <figure className="docs-flow">
-          <svg viewBox="0 0 760 130" role="img" aria-label="Discovery to verify pipeline">
+          <svg
+            viewBox="0 0 760 130"
+            role="img"
+            aria-label="Discovery to verify pipeline"
+          >
             <defs>
-              <marker id="docs-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="strokeWidth" markerWidth="6" markerHeight="6" orient="auto">
+              <marker
+                id="docs-arrow"
+                viewBox="0 0 10 10"
+                refX="9"
+                refY="5"
+                markerUnits="strokeWidth"
+                markerWidth="6"
+                markerHeight="6"
+                orient="auto"
+              >
                 <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" />
               </marker>
             </defs>
             {/* Boxes — each width sized to its label, 22px gaps between, 10px margins */}
             {[
-              { x: 10,  w: 70,  label: "address" },
+              { x: 10, w: 70, label: "address" },
               { x: 102, w: 115, label: "detect network" },
               { x: 239, w: 130, label: "discover + rerank" },
               { x: 391, w: 130, label: "invoke (parallel)" },
               { x: 543, w: 115, label: "LLM synthesis" },
-              { x: 680, w: 70,  label: "verdict" },
+              { x: 680, w: 70, label: "verdict" },
             ].map((b) => (
               <g key={b.label}>
-                <rect x={b.x} y={45} width={b.w} height={40} rx={4} fill="none" stroke="currentColor" strokeOpacity="0.4" />
-                <text x={b.x + b.w / 2} y={70} textAnchor="middle" fill="currentColor" fontSize="11" fontFamily="Menlo, monospace">{b.label}</text>
+                <rect
+                  x={b.x}
+                  y={45}
+                  width={b.w}
+                  height={40}
+                  rx={4}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeOpacity="0.4"
+                />
+                <text
+                  x={b.x + b.w / 2}
+                  y={70}
+                  textAnchor="middle"
+                  fill="currentColor"
+                  fontSize="11"
+                  fontFamily="Menlo, monospace"
+                >
+                  {b.label}
+                </text>
               </g>
             ))}
             {/* Arrows — x1 = prevRight+1, x2 = nextLeft-1 so tip lands on box edge */}
             {[
-              { x1: 81,  x2: 101 },
+              { x1: 81, x2: 101 },
               { x1: 218, x2: 238 },
               { x1: 370, x2: 390 },
               { x1: 522, x2: 542 },
               { x1: 659, x2: 679 },
             ].map((a, i) => (
-              <line key={i} x1={a.x1} y1={65} x2={a.x2} y2={65} stroke="currentColor" strokeOpacity="0.5" strokeWidth="1.2" markerEnd="url(#docs-arrow)" />
+              <line
+                key={i}
+                x1={a.x1}
+                y1={65}
+                x2={a.x2}
+                y2={65}
+                stroke="currentColor"
+                strokeOpacity="0.5"
+                strokeWidth="1.2"
+                markerEnd="url(#docs-arrow)"
+              />
             ))}
             {/* Fanout fan above invoke (center x=456) */}
-            <g stroke="currentColor" strokeOpacity="0.25" strokeDasharray="2 3" strokeWidth="1">
+            <g
+              stroke="currentColor"
+              strokeOpacity="0.25"
+              strokeDasharray="2 3"
+              strokeWidth="1"
+            >
               <line x1={456} y1={45} x2={441} y2={20} />
               <line x1={456} y1={45} x2={456} y2={18} />
               <line x1={456} y1={45} x2={471} y2={20} />
             </g>
-            <text x={456} y={14} textAnchor="middle" fill="currentColor" fillOpacity="0.55" fontSize="9" fontFamily="Menlo, monospace">N services</text>
+            <text
+              x={456}
+              y={14}
+              textAnchor="middle"
+              fill="currentColor"
+              fillOpacity="0.55"
+              fontSize="9"
+              fontFamily="Menlo, monospace"
+            >
+              N services
+            </text>
             {/* Short-circuit branch under discover + rerank (center x=304) */}
-            <line x1={304} y1={85} x2={304} y2={108} stroke="currentColor" strokeOpacity="0.3" strokeDasharray="2 3" strokeWidth="1" />
-            <text x={304} y={120} textAnchor="middle" fill="currentColor" fillOpacity="0.55" fontSize="9" fontFamily="Menlo, monospace">oracle short-circuit → verdict</text>
+            <line
+              x1={304}
+              y1={85}
+              x2={304}
+              y2={108}
+              stroke="currentColor"
+              strokeOpacity="0.3"
+              strokeDasharray="2 3"
+              strokeWidth="1"
+            />
+            <text
+              x={304}
+              y={120}
+              textAnchor="middle"
+              fill="currentColor"
+              fillOpacity="0.55"
+              fontSize="9"
+              fontFamily="Menlo, monospace"
+            >
+              oracle short-circuit → verdict
+            </text>
           </svg>
-          <figcaption>One linear path on the happy day; alternates fan out from invoke; the oracle short-circuits the whole pipeline when an address is sanctioned.</figcaption>
+          <figcaption>
+            One linear path on the happy day; alternates fan out from invoke;
+            the oracle short-circuits the whole pipeline when an address is
+            sanctioned.
+          </figcaption>
         </figure>
       </section>
 
@@ -112,15 +200,15 @@ export function DocsPage() {
         <div className="docs-eyebrow">01 — Surfaces</div>
         <h2>Three ways to talk to it</h2>
         <p>
-          Same pipeline behind every surface. The frontend is pure
-          presentation; the API and MCP server are peers, not layers.
+          Same pipeline behind every surface. The frontend is pure presentation;
+          the API and MCP server are peers, not layers.
         </p>
 
         <h3>Frontend (this page)</h3>
         <p>
-          A Vite + React SPA that streams server events from the backend
-          and renders them as a live terminal log plus structured cards. No
-          business logic lives here — it's a thin window on top of{" "}
+          A Vite + React SPA that streams server events from the backend and
+          renders them as a live terminal log plus structured cards. No business
+          logic lives here — it's a thin window on top of{" "}
           <Inline>/verify-agent-stream</Inline>.
         </p>
         <Code lang="typescript">
@@ -135,11 +223,11 @@ export function DocsPage() {
 
         <h3>Standalone HTTP API</h3>
         <p>
-          The same handler powers the UI, a curl call, or any custom agent.
-          A pre-flight budget guard is the first thing it does — if the
-          Agnic wallet is too thin to cover the verify run, it bails with a
-          clean <Inline>503 budget_exhausted</Inline> instead of half-paying
-          for services.
+          The same handler powers the UI, a curl call, or any custom agent. A
+          pre-flight budget guard is the first thing it does — if the Agnic
+          wallet is too thin to cover the verify run, it bails with a clean{" "}
+          <Inline>503 budget_exhausted</Inline>{" "}
+          instead of half-paying for services.
         </p>
         <Code lang="typescript">
           {`router.post("/", zValidator("json", VerifyAgentRequestSchema), async (c) => {
@@ -172,8 +260,7 @@ export function DocsPage() {
             <Inline>POST /invoke</Inline> — discover + invoke, no synthesis.
           </li>
           <li>
-            <Inline>POST /verify-agent</Inline> — full pipeline, JSON
-            response.
+            <Inline>POST /verify-agent</Inline> — full pipeline, JSON response.
           </li>
           <li>
             <Inline>POST /verify-agent-stream</Inline> — full pipeline, SSE.
@@ -185,7 +272,10 @@ export function DocsPage() {
 
         <h3>MCP server</h3>
         <p>
-          One tool today: <Inline>verify_wallet</Inline>. A
+          Two tools: <Inline>verify_wallet</Inline> (fast and deep tiers) and
+          {" "}
+          <Inline>get_deep_verdict</Inline>{" "}
+          (run the paid deep check after a fast result asks for one). A
           transport-agnostic factory builds an <Inline>McpServer</Inline>{" "}
           that both <Inline>stdio.ts</Inline> and <Inline>http.ts</Inline>{" "}
           mount — same tool surface, different wire.
@@ -226,10 +316,15 @@ export function DocsPage() {
 }`}
         </Code>
         <p>
-          The HTTP transport is gated by an <Inline>MCP_SHARED_SECRET</Inline>{" "}
-          bearer token; if it's unset the route returns{" "}
-          <Inline>503 mcp_disabled</Inline> so you can ship the binary
-          without accidentally exposing the tool.
+          The HTTP transport is bearer-gated. The token is either a self-serve
+          API key (<Inline>POST /request-key</Inline>, validated against the DB)
+          or the admin{" "}
+          <Inline>MCP_SHARED_SECRET</Inline>. With neither a key store nor a
+          secret configured, the route returns <Inline>503 mcp_disabled</Inline>
+          {" "}
+          so you can ship the binary without accidentally exposing the tool.
+          Keys are attribution + revocation handles, not paywalls — the service
+          is free.
         </p>
       </section>
 
@@ -237,18 +332,27 @@ export function DocsPage() {
         <div className="docs-eyebrow">02 — Pipeline</div>
         <h2>Discovery → verify</h2>
         <p>
-          The work happens in two acts. <em>Discovery</em> finds candidate
-          paid services and picks one per category. <em>Verify</em> pays
-          them in parallel, falls back when they misbehave, and hands the
+          The work happens in two acts. <em>Discovery</em>{" "}
+          finds candidate paid services and picks one per category.{" "}
+          <em>Verify</em>{" "}
+          pays them in parallel, falls back when they misbehave, and hands the
           evidence to an LLM for synthesis.
+        </p>
+        <p>
+          One honest caveat: the diagram below describes live discovery, which
+          is how <Inline>/discover</Inline>{" "}
+          and the background vetter still work. The <em>verify</em>{" "}
+          hot path no longer re-discovers on every call — it selects from a
+          curated, vetted registry (<Inline>src/registry</Inline>){" "}
+          the vetter keeps fresh. Same providers, same x402 payments, just off
+          the request's critical path so a check doesn't wait on discovery.
         </p>
 
         <h3>1 · Discover</h3>
         <p>
-          Detect the wallet network, fetch candidates per category, rerank
-          with an LLM, build a fallback list, and total the estimated cost.
-          The whole orchestrator is small on purpose — easy to swap any
-          step in tests.
+          Detect the wallet network, fetch candidates per category, rerank with
+          an LLM, build a fallback list, and total the estimated cost. The whole
+          orchestrator is small on purpose — easy to swap any step in tests.
         </p>
         <Code lang="typescript">
           {`export async function discover(
@@ -276,9 +380,9 @@ export function DocsPage() {
 
         <h3>2 · Fan-out</h3>
         <p>
-          One search query per requested category, all in flight at once.
-          A failed or empty category records an error but never kills the
-          run — we'd rather return a partial verdict than nothing.
+          One search query per requested category, all in flight at once. A
+          failed or empty category records an error but never kills the run —
+          we'd rather return a partial verdict than nothing.
         </p>
         <Code lang="typescript">
           {`const entries = Object.entries(queries) as [Category, string][];
@@ -299,8 +403,8 @@ const settled = await Promise.all(
 
         <h3>3 · Rerank with graceful fallback</h3>
         <p>
-          An LLM picks the best service per category against an ordered
-          list of criteria — roughly:
+          An LLM picks the best service per category against an ordered list of
+          criteria — roughly:
         </p>
         <ol className="docs-criteria">
           <li>Recent failure rate (durably blocked → out).</li>
@@ -337,11 +441,10 @@ if (selection) {
 
         <h3>4 · Invoke with per-host fallback</h3>
         <p>
-          The primary service goes first. If it fails, we walk the
-          alternates the discoverer prepared. If the failure looks
-          domain-level (DNS, 404, host completely down), we add the host
-          to a blocklist and skip every sibling service from the same
-          provider in this run.
+          The primary service goes first. If it fails, we walk the alternates
+          the discoverer prepared. If the failure looks domain-level (DNS, 404,
+          host completely down), we add the host to a blocklist and skip every
+          sibling service from the same provider in this run.
         </p>
         <Code lang="typescript">
           {`for (let i = 0; i < candidates.length; i++) {
@@ -368,12 +471,12 @@ if (selection) {
 
         <h3>5 · Durable health store</h3>
         <p>
-          Some failures are one-strike-and-out: malformed catalog entries
-          with literal <Inline>:endpoint</Inline> placeholders, HTML error
-          pages from non-x402 upstreams, descriptor roots with no usable
-          action. Retrying those is wasted USDC, so the ranker filters
-          them on every subsequent run until the store is reset. Soft
-          quality demotion (empty payloads on rich-history wallets) is
+          Some failures are one-strike-and-out: malformed catalog entries with
+          literal <Inline>:endpoint</Inline>{" "}
+          placeholders, HTML error pages from non-x402 upstreams, descriptor
+          roots with no usable action. Retrying those is wasted USDC, so the
+          ranker filters them on every subsequent run until the store is reset.
+          Soft quality demotion (empty payloads on rich-history wallets) is
           time-windowed at 7 days.
         </p>
         <Code lang="typescript">
@@ -389,11 +492,11 @@ if (selection) {
         <h3>6 · AI synthesis (and a chain-primitive short-circuit)</h3>
         <p>
           Before we spend a cent on x402, we hit the Chainalysis sanctions
-          oracle on every supported EVM chain in parallel. If any chain
-          flags the address, we short-circuit to a deterministic verdict
-          — zero x402 spend, instant{" "}
-          <Inline>do_not_transact</Inline>. The expensive LLM synthesis
-          only runs when the cheap deterministic checks come back clean.
+          oracle on every supported EVM chain in parallel. If any chain flags
+          the address, we short-circuit to a deterministic verdict — zero x402
+          spend, instant{" "}
+          <Inline>do_not_transact</Inline>. The expensive LLM synthesis only
+          runs when the cheap deterministic checks come back clean.
         </p>
         <Code lang="typescript">
           {`const oracleAttempts = await checkOracleAcrossChains(
@@ -456,10 +559,11 @@ export async function synthesizeVerdict(
         <div className="docs-eyebrow">03 — Result</div>
         <h2>Structured response</h2>
         <p>
-          Every surface — JSON endpoint, SSE stream, MCP tool — returns the
-          same <Inline>WalletVerdict</Inline> shape. One verdict, one
-          confidence level, per-category findings, full coverage accounting,
-          and a USDC receipt.
+          Every surface — JSON endpoint, SSE stream, MCP tool — returns the same
+          {" "}
+          <Inline>WalletVerdict</Inline>{" "}
+          shape. One verdict, one confidence level, per-category findings, full
+          coverage accounting, and a USDC receipt.
         </p>
         <Code lang="json">
           {`{
@@ -495,25 +599,26 @@ export async function synthesizeVerdict(
         <h3>Stack</h3>
         <ul className="docs-bullets">
           <li>
-            <strong>Runtime:</strong> Deno + Hono on the backend, Vite +
-            React on the frontend.
+            <strong>Runtime:</strong>{" "}
+            Deno + Hono on the backend, Vite + React on the frontend.
           </li>
           <li>
-            <strong>Payments:</strong> x402 via the Coinbase bazaar,
-            settled in USDC on Base through the Agnic gateway.
+            <strong>Payments:</strong>{" "}
+            x402 via the Coinbase bazaar, settled in USDC on Base through the
+            Agnic gateway.
           </li>
           <li>
-            <strong>LLM:</strong> Claude (Opus for synthesis, smaller
-            models for reranking) via the Agnic OpenAI-compatible
-            endpoint.
+            <strong>LLM:</strong>{" "}
+            Claude (Opus for synthesis, smaller models for reranking) via the
+            Agnic OpenAI-compatible endpoint.
           </li>
           <li>
-            <strong>Hosting:</strong> Deno Deploy for the API, Cloudflare
-            Pages for the frontend.
+            <strong>Hosting:</strong>{" "}
+            Deno Deploy for the API, Cloudflare Pages for the frontend.
           </li>
           <li>
-            <strong>Integrations:</strong> Model Context Protocol SDK for
-            the MCP tool surface.
+            <strong>Integrations:</strong>{" "}
+            Model Context Protocol SDK for the MCP tool surface.
           </li>
         </ul>
 
@@ -545,50 +650,49 @@ export async function synthesizeVerdict(
         <h2>What's working</h2>
         <ul className="docs-bullets">
           <li>
-            <strong>Real payments, real receipts.</strong> The discovery
-            pipeline actually pays for live x402 services and surfaces
-            the transaction hashes back to the UI. Nothing simulated.
+            <strong>Real payments, real receipts.</strong>{" "}
+            The discovery pipeline actually pays for live x402 services and
+            surfaces the transaction hashes back to the UI. Nothing simulated.
           </li>
           <li>
-            <strong>Graceful degradation.</strong> Per-host blocklisting
-            plus durable + time-windowed health demotion means a flaky
-            merchant doesn't poison the run — alternates take over and
-            the verdict still ships.
+            <strong>Graceful degradation.</strong>{" "}
+            Per-host blocklisting plus durable + time-windowed health demotion
+            means a flaky merchant doesn't poison the run — alternates take over
+            and the verdict still ships.
           </li>
           <li>
-            <strong>Streaming end-to-end.</strong> Every phase emits SSE
-            events, so the UI and any subscribed agent see services
-            start, pay, succeed, or fall back in real time.
+            <strong>Streaming end-to-end.</strong>{" "}
+            Every phase emits SSE events, so the UI and any subscribed agent see
+            services start, pay, succeed, or fall back in real time.
           </li>
         </ul>
 
         <h2>What's not</h2>
         <ul className="docs-bullets">
           <li>
-            <strong>Discovery latency.</strong> The full discover →
-            rerank → invoke loop is slower than it should be for an
-            interactive tool. Most of the cost is in dynamic discovery
-            and in the LLM guessing input parameters for services we've
-            never seen before.
+            <strong>Deep-tier latency.</strong>{" "}
+            Moving the hot path to a curated registry killed the per-call
+            discovery cost, but a deep check still waits on live third-party
+            providers and an LLM synthesis hop. It's a few seconds, not
+            sub-second. The free fast tier is the instant one.
           </li>
           <li>
-            <strong>Param guessing.</strong> Every paid call where we
-            have to infer the request body adds wall-clock time and
-            another LLM hop.
+            <strong>Coverage depends on the registry.</strong>{" "}
+            A deep verdict is only as good as the providers we've vetted in. New
+            risk categories mean vetting new services.
           </li>
         </ul>
 
         <h2>What's next</h2>
         <ul className="docs-bullets">
           <li>
-            Share with the dev and crypto communities and collect
-            feedback — what's interesting, what's broken, what they'd
-            actually pay for.
+            Keep it free and shared. Every deep check is paid out of pocket;
+            while that's cheap, anyone can use it.
           </li>
           <li>
-            Decide which way to lean: further into dynamic bazaar
-            discovery, or further into curated determinism on the known
-            services. The latency answer probably picks for us.
+            Collect feedback from the dev and crypto communities — what's
+            useful, what's missing — and write up the interesting parts on the
+            blog.
           </li>
         </ul>
       </section>

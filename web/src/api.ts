@@ -1,6 +1,13 @@
 import type { VerifyEvent } from "./types";
+import { WEB_KEY } from "./config";
 
 const BASE = import.meta.env.VITE_API_BASE_URL ?? "";
+
+// Attribution only: when a web-ui key is configured, send it so paid runs are
+// tagged in service_observations. Absent → anonymous (the routes stay open).
+function authHeaders(): Record<string, string> {
+  return WEB_KEY ? { Authorization: `Bearer ${WEB_KEY}` } : {};
+}
 
 async function consumeSSE(
   path: string,
@@ -13,6 +20,7 @@ async function consumeSSE(
     headers: {
       "Content-Type": "application/json",
       Accept: "text/event-stream",
+      ...authHeaders(),
     },
     body: JSON.stringify(body),
     signal,
@@ -87,4 +95,57 @@ export function streamVerify(
 ): Promise<void> {
   const body = depth ? { address, depth } : { address };
   return consumeSSE("/verify-agent-stream", body, onEvent, signal);
+}
+
+// ---------- blog ----------
+
+export interface BlogSummary {
+  slug: string;
+  title: string;
+  excerpt: string | null;
+  coverImageUrl: string | null;
+  publishedAt: string;
+}
+
+export interface BlogPost extends BlogSummary {
+  bodyMd: string;
+}
+
+export async function fetchBlogPosts(): Promise<BlogSummary[]> {
+  const res = await fetch(`${BASE}/api/blog/posts`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const body = await res.json();
+  return (body.posts ?? []) as BlogSummary[];
+}
+
+export async function fetchBlogPost(slug: string): Promise<BlogPost | null> {
+  const res = await fetch(`${BASE}/api/blog/posts/${encodeURIComponent(slug)}`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return (await res.json()) as BlogPost;
+}
+
+// ---------- self-serve API key ----------
+
+export interface IssuedKeyResponse {
+  apiKey: string;
+  prefix: string;
+  note: string;
+}
+
+export async function requestApiKey(
+  label?: string,
+): Promise<IssuedKeyResponse> {
+  const res = await fetch(`${BASE}/request-key`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(label ? { label } : {}),
+  });
+  if (!res.ok) {
+    const j = await res.json().catch(() => ({}));
+    throw new Error(
+      typeof j.message === "string" ? j.message : `HTTP ${res.status}`,
+    );
+  }
+  return (await res.json()) as IssuedKeyResponse;
 }

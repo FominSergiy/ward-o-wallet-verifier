@@ -11,6 +11,8 @@ import { type VerdictCache } from "../agent/verdict_cache.ts";
 import { type SanctionedDenylist } from "../agent/sanctioned_denylist.ts";
 import { mapRouteError } from "./errors.ts";
 import { budgetThreshold } from "./budget.ts";
+import { resolveApiKeyId } from "./key_attribution.ts";
+import { runWithApiKey } from "../observability/request_context.ts";
 import { log } from "../observability/log.ts";
 
 const VerifyAgentStreamRequestSchema = VerifyRequestSchema.extend({
@@ -75,8 +77,12 @@ export function createVerifyAgentStreamRouter(
   router.post(
     "/",
     zValidator("json", VerifyAgentStreamRequestSchema),
-    (c) => {
+    async (c) => {
       const { budgetCeiling, depth, ...req } = c.req.valid("json");
+      // Resolve the calling key before the stream opens (best-effort, null when
+      // anonymous). The verify call below runs inside runWithApiKey so its
+      // service_observations are attributed.
+      const apiKeyId = await resolveApiKeyId(c);
 
       return streamSSE(c, async (stream) => {
         const queue: VerifyEvent[] = [];
@@ -143,14 +149,15 @@ export function createVerifyAgentStreamRouter(
           }
 
           try {
-            const result = await verifyFn(req, {
-              budgetCeiling,
-              depth,
-              onEvent: emit,
-              request_id: crypto.randomUUID(),
-              verdictCache,
-              denylist,
-            });
+            const result = await runWithApiKey(apiKeyId, () =>
+              verifyFn(req, {
+                budgetCeiling,
+                depth,
+                onEvent: emit,
+                request_id: crypto.randomUUID(),
+                verdictCache,
+                denylist,
+              }));
             emit({ type: "result", payload: resultPayload(result), at: now() });
           } catch (e) {
             const mapped = mapRouteError(e);

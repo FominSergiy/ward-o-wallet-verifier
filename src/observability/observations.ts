@@ -6,6 +6,7 @@
 import { getDb } from "../db/client.ts";
 import { ObservationStatus } from "../db/enums.ts";
 import { log } from "./log.ts";
+import { currentApiKeyId } from "./request_context.ts";
 import type { ServiceEvent } from "../agent/events.ts";
 
 export function recordServiceObservation(event: ServiceEvent): void {
@@ -20,15 +21,19 @@ export function recordServiceObservation(event: ServiceEvent): void {
     ? ObservationStatus.OK
     : ObservationStatus.ERROR;
   const cost_usd = event.cost_usd != null ? String(event.cost_usd) : null;
+  // Ambient attribution: the issued API key that triggered this run (null for
+  // anonymous/keyless runs). Set by the MCP transport via runWithApiKey().
+  const apiKeyId = currentApiKeyId();
 
   Promise.resolve(
     db`
       INSERT INTO service_observations
-        (resource, request_id, status, duration_ms, cost_usd, error_code)
+        (resource, request_id, status, duration_ms, cost_usd, error_code,
+         api_key_id)
       VALUES
         (${event.resource}, ${event.request_id}, ${status},
          ${event.duration_ms ?? null}, ${cost_usd},
-         ${event.error ?? null})
+         ${event.error ?? null}, ${apiKeyId})
     `,
   ).catch((err: unknown) => {
     log.error(

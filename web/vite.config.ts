@@ -16,6 +16,10 @@ export default defineConfig(({ mode }) => {
         "/verify-agent-stream": target,
         "/verify-agent": target,
         "/health": target,
+        "/request-key": target,
+        // Blog read API is namespaced under /api so it never shadows the SPA's
+        // client-side /blog route.
+        "/api": target,
       },
     },
   };
