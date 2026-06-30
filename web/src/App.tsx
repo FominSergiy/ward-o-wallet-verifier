@@ -35,7 +35,6 @@ function NotFound() {
 
 function route(path: string): ReactNode {
   if (path === "/") return <LandingPage />;
-  if (path === "/verify") return <VerifierApp />;
   if (path === "/blog") return <BlogIndex />;
   if (path.startsWith("/blog/")) {
     return <BlogPost slug={decodeURIComponent(path.slice("/blog/".length))} />;
@@ -46,10 +45,19 @@ function route(path: string): ReactNode {
 
 export function App() {
   const path = useLocation();
+  // Keep VerifierApp mounted across navigation so its state (address, verdict,
+  // terminal logs, in-flight streams) survives a trip to the landing/blog/docs
+  // pages. We hide it with CSS instead of unmounting. `display: contents` makes
+  // the wrapper generate no box, so the cards keep their place in the `.app`
+  // layout exactly as before when visible.
+  const onVerify = path === "/verify";
   return (
     <div className="app">
       <Logo currentPath={path} />
-      {route(path)}
+      <div style={{ display: onVerify ? "contents" : "none" }}>
+        <VerifierApp />
+      </div>
+      {!onVerify && route(path)}
       <Footer />
     </div>
   );
