@@ -14,6 +14,7 @@
     "test": "deno test --allow-net --allow-env --allow-read --allow-write --allow-sys",
     "test:unit": "deno test --allow-net --allow-env --allow-read --allow-write --allow-sys",
     "test:e2e": "RUN_E2E=1 deno test --allow-net --allow-env --allow-read --allow-write --allow-sys",
+    "smoke:prod": "RUN_PROD_E2E=1 deno test --allow-net --allow-env --allow-read --allow-write src/routes/prod_e2e_test.ts",
     "mcp:stdio": "deno run --allow-net --allow-env --allow-read --allow-write --env-file=.env src/mcp/stdio.ts",
     "mcp:smoke": "deno run --allow-net --allow-env scripts/mcp_smoke.ts",
     "benchmark": "deno run --allow-net --allow-env --allow-read --allow-write --env-file=.env scripts/benchmark.ts",

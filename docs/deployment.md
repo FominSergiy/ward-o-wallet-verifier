@@ -135,6 +135,13 @@ Repo Settings → **Branches → Add rule** for `main`:
 - **Rollback:** Deno Deploy → Project → Deployments → click any prior deployment → **Promote to production**. Cloudflare Pages → Deployments → **Rollback**.
 - **Secret rotation:** rotate `AGNIC_API_KEY` or `MCP_SHARED_SECRET` in the Deno Deploy dashboard; the next deploy picks it up. No code change. Rotating `MCP_SHARED_SECRET` invalidates all live MCP sessions — connected agents will need to re-initialize with the new bearer token.
 - **Logs:** Deno Deploy → Project → Logs. Cloudflare Pages → Deployment → View build / Functions logs.
+- **Post-deploy smoke (telemetry):** after a deploy, run the gated prod E2E to prove `usage_events` is written and `api_key_id` / `tenant_id` attribution lands on the MCP path. It mints a fresh key, runs one paid deep check through the live `/mcp`, then reads the prod DB to assert both rows. **Real x402 spend (~$0.01–0.05 USDC).**
+  ```bash
+  RUN_PROD_E2E=1 PROD_BASE_URL=https://wallet-verifier.ward-o.deno.net \
+    DATABASE_URL=<prod-readonly-production-branch> \
+    ~/.deno/bin/deno task smoke:prod
+  ```
+  Unset `RUN_PROD_E2E` → the test is skipped, so it never runs in the offline `deno task test` gate.
 
 ## 4. MCP endpoint
 

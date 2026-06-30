@@ -5,8 +5,8 @@ import { type Category, CategorySchema, ChainSchema } from "../agent/types.ts";
 import { discover } from "../discovery/discover.ts";
 import { invokeAll } from "../agent/invoke_all.ts";
 import { jsonErrorBody, mapRouteError } from "./errors.ts";
-import { resolveApiKeyId } from "./key_attribution.ts";
-import { runWithApiKey } from "../observability/request_context.ts";
+import { resolveKeyContext } from "./key_attribution.ts";
+import { runWithRequestContext } from "../observability/request_context.ts";
 
 const DEFAULT_CATEGORIES: Category[] = [
   "sanctions",
@@ -32,12 +32,13 @@ invokeRouter.post(
   async (c) => {
     const { address, chain, categories } = c.req.valid("json");
     const cats = categories ?? DEFAULT_CATEGORIES;
-    const apiKeyId = await resolveApiKeyId(c);
+    const { apiKeyId, tenantId } = await resolveKeyContext(c);
 
     try {
       const plan = await discover(address, cats);
-      const result = await runWithApiKey(
+      const result = await runWithRequestContext(
         apiKeyId,
+        tenantId,
         () => invokeAll(plan, chain),
       );
       return c.json({

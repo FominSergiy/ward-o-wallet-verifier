@@ -9,8 +9,8 @@ import { type VerdictCache } from "../agent/verdict_cache.ts";
 import { type SanctionedDenylist } from "../agent/sanctioned_denylist.ts";
 import { jsonErrorBody, mapRouteError } from "./errors.ts";
 import { budgetThreshold } from "./budget.ts";
-import { resolveApiKeyId } from "./key_attribution.ts";
-import { runWithApiKey } from "../observability/request_context.ts";
+import { resolveKeyContext } from "./key_attribution.ts";
+import { runWithRequestContext } from "../observability/request_context.ts";
 import { log } from "../observability/log.ts";
 
 const VerifyAgentRequestSchema = VerifyRequestSchema.extend({
@@ -71,20 +71,26 @@ export function createVerifyAgentRouter(
       );
     }
 
-    // Best-effort attribution: tag this run with the calling key (the web UI's
-    // embedded key, or any issued key); anonymous → null. Wraps the pipeline so
-    // service_observations rows pick up the id via the ambient context.
-    const apiKeyId = await resolveApiKeyId(c);
+    // Best-effort attribution: tag this run with the calling key + tenant (the
+    // web UI's embedded key, or any issued key); anonymous → null. Wraps the
+    // pipeline so service_observations + usage_events rows pick up the ids via
+    // the ambient context.
+    const { apiKeyId, tenantId } = await resolveKeyContext(c);
 
     try {
-      const result = await runWithApiKey(apiKeyId, () =>
-        runVerify(req, {
-          budgetCeiling,
-          depth,
-          request_id: crypto.randomUUID(),
-          verdictCache,
-          denylist,
-        }));
+      const result = await runWithRequestContext(
+        apiKeyId,
+        tenantId,
+        () =>
+          runVerify(req, {
+            budgetCeiling,
+            depth,
+            route: "verify-agent",
+            request_id: crypto.randomUUID(),
+            verdictCache,
+            denylist,
+          }),
+      );
       return c.json({
         verdict: result.verdict,
         tier: result.tier,
