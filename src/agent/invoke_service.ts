@@ -106,6 +106,18 @@ export function maxValueForPrice(priceUsdc: number): number {
   return Math.min(priceUsdc * buffer, MAXVALUE_CEILING_USDC);
 }
 
+/**
+ * True when a service's price is actually payable under our per-call cap — i.e.
+ * the authorized maxValue would cover the price. Equivalent to price ≤ the
+ * $0.10 ceiling under the default buffer, but derived from maxValueForPrice so
+ * it stays consistent if the buffer/ceiling ever change. Used by registry
+ * selection to skip candidates we can never pay (which otherwise win the primary
+ * slot on score and fail every call with payment_exceeds_maximum).
+ */
+export function isPayable(priceUsdc: number): boolean {
+  return maxValueForPrice(priceUsdc) >= priceUsdc;
+}
+
 // Per-call controls threaded from the fan-out: `signal` lets the per-call
 // timeout actually abort the in-flight fetch (instead of leaving it running),
 // and `timeoutMs` bounds each individual attempt at the agnicFetch layer so a

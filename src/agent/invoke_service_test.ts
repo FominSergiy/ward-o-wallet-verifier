@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   appendSubPath,
   invokeRankedService,
+  isPayable,
   maxValueForPrice,
 } from "./invoke_service.ts";
 import { type LlmClient, mockLlm } from "./llm.ts";
@@ -948,6 +949,15 @@ Deno.test("maxValueForPrice: honors INVOKE_MAXVALUE_BUFFER override", () => {
     "not-a-number",
     () => assertEquals(maxValueForPrice(0.001), 0.0015),
   );
+});
+
+Deno.test("isPayable: true at/below the cap, false above it", () => {
+  withBufferEnv(null, () => {
+    assertEquals(isPayable(0.005), true);
+    assertEquals(isPayable(0.1), true); // boundary — exactly at the ceiling
+    assertEquals(isPayable(0.15), false);
+    assertEquals(isPayable(1.5), false);
+  });
 });
 
 // Reads the maxValue micro-USDC the agnic client put on its outgoing request
