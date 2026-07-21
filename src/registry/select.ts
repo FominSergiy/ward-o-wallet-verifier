@@ -9,6 +9,7 @@ import type {
 import { buildDeterministicSources } from "../discovery/deterministic_sources.ts";
 import { getDeniedHosts, isDeniedHost } from "../discovery/host_denylist.ts";
 import { dbEnabled } from "../db/client.ts";
+import { isPayable } from "../agent/invoke_service.ts";
 import { getActiveServices, loadAllRecipes, rowToRanked } from "./read.ts";
 import type { CallRecipe } from "./types.ts";
 
@@ -130,6 +131,23 @@ export async function selectFromRegistry(
       // what the getActive seam returns or how the DB query is shaped.
       if (entry.status === "blocked") continue;
       if (isDeniedHost(entry.resource, deniedHosts)) continue;
+      // Never select a service we can't actually pay for: a price above the
+      // per-call cap fails 100% with payment_exceeds_maximum, yet those failures
+      // are excluded from the reliability score (score.ts), so an over-cap
+      // service keeps its score, wins the primary slot, and fails every call.
+      // Filtering here removes it from both the primary slot and the fallback
+      // alternates, letting a cheaper payable candidate take over.
+      if (!isPayable(entry.price_usdc)) {
+        safeEmit(emit, {
+          type: "log",
+          level: "info",
+          message: `registry_select: skip ${entry.resource} — price $${
+            entry.price_usdc.toFixed(4)
+          } exceeds per-call cap`,
+          at: now(),
+        });
+        continue;
+      }
       push(entry.category as Category, rowToRanked(entry));
     }
   } else {

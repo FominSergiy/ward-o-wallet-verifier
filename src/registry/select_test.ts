@@ -325,3 +325,92 @@ Deno.test("selectFromRegistry: a denied-host probation row is excluded", () =>
       else Deno.env.set("DISCOVERY_HOST_DENYLIST", prev);
     }
   }));
+
+// ── over-cap price filter — a service we can't pay for is never selected ───────
+// A labels service priced above the per-call cap ($0.10) fails 100% with
+// payment_exceeds_maximum, yet those failures are excluded from its score, so it
+// keeps winning the primary slot. Selection must skip it entirely — from both
+// the primary slot and the fallback alternates — so a cheaper payable candidate
+// takes over.
+
+Deno.test("selectFromRegistry: over-cap primary is skipped, cheaper payable candidate wins", () =>
+  withDb(async () => {
+    const overCap = entry(
+      "lab-expensive",
+      "labels",
+      "https://x402-endpoints.onrender.com/crypto/wallet-forensics",
+      0.90, // top score — would win on rank if price were ignored
+    );
+    overCap.price_usdc = 0.15; // above the $0.10 per-call cap
+    const cheap = entry(
+      "lab-cheap",
+      "labels",
+      "https://x402.agentutility.ai/wallet-label",
+      0.25, // lower score, but payable
+      ServiceStatus.PROBATION,
+    );
+    cheap.price_usdc = 0.005;
+
+    const plan = await selectFromRegistry("0xabc", ["labels"], {
+      loadRecipes: recipeLoaderMustNotRun,
+      getActive: () => Promise.resolve([overCap, cheap]),
+    });
+
+    // Cheap payable candidate is the primary; over-cap one appears nowhere.
+    assertEquals(plan.services.length, 1);
+    assertEquals(
+      plan.services[0].resource,
+      "https://x402.agentutility.ai/wallet-label",
+    );
+    assertEquals(plan.alternates.labels, undefined);
+    assertEquals(plan.unresolvedCategories, []);
+  }));
+
+Deno.test("selectFromRegistry: category with only over-cap candidates is unresolved", () =>
+  withDb(async () => {
+    const a = entry(
+      "lab-a",
+      "labels",
+      "https://taxpulse-phi.vercel.app/api/crypto/wallet-sleuth",
+      0.54,
+      ServiceStatus.PROBATION,
+    );
+    a.price_usdc = 1.5;
+    const b = entry(
+      "lab-b",
+      "labels",
+      "https://chain-analyzer.com/api/v1/x402/wallet/:address/cluster",
+      0.25,
+      ServiceStatus.PROBATION,
+    );
+    b.price_usdc = 2.5;
+
+    const plan = await selectFromRegistry("0xabc", ["labels"], {
+      loadRecipes: recipeLoaderMustNotRun,
+      getActive: () => Promise.resolve([a, b]),
+    });
+
+    assertEquals(plan.services, []);
+    assertEquals(plan.unresolvedCategories, ["labels"]);
+  }));
+
+Deno.test("selectFromRegistry: offline path does not apply the price cap filter", () =>
+  withoutDb(async () => {
+    // Regression guard: the price filter is scoped to the DB/production path, so
+    // an over-cap recipe on the offline branch must still be selected (offline
+    // recipes are a frozen replay fixture that must keep mirroring cassettes).
+    const recipes: Record<string, CallRecipe> = {
+      lab1: recipe(
+        "lab1",
+        "labels",
+        "https://labels.example/lookup",
+        0.15, // above the cap, but offline path must not filter
+      ),
+    };
+    const plan = await selectFromRegistry("0xabc", ["labels"], {
+      loadRecipes: () => Promise.resolve(recipes),
+    });
+
+    assertEquals(plan.services.length, 1);
+    assertEquals(plan.services[0].resource, "https://labels.example/lookup");
+  }));
