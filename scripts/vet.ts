@@ -43,6 +43,20 @@ try {
   }
 
   console.log(`New candidates: ${result.newCandidates}`);
+
+  const p = result.probeResult;
+  if (p.belowFloor) {
+    console.log("Probe:          skipped (balance below floor)");
+  } else if (p.observations === 0) {
+    console.log("Probe:          disabled (no budget) or nothing to probe");
+  } else {
+    console.log(
+      `Probe:          ${p.probed} probed, ${p.skipped} skipped, ${p.observations} obs, $${
+        p.spendUsdc.toFixed(6)
+      } spent`,
+    );
+  }
+
   console.log(
     `Score updates:  ${result.scoreResult.updated} (${result.scoreResult.transitions.length} transitions)`,
   );

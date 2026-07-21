@@ -22,6 +22,15 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           AGNIC_API_KEY: ${{ secrets.AGNIC_API_KEY }}
+          # Probation-probe phase (opt-in). Set these repo *variables* to enable
+          # it — unset renders empty and the phase stays a no-op (budget 0).
+          # Recommended to turn on: BUDGET=0.25 (per run; cron is twice daily, so
+          # ≤ $0.50/day) + a MIN_BALANCE floor (e.g. 5) so it only spends from
+          # surplus. Requires USDC balance on AGNIC_API_KEY. See src/vetter/probe.ts.
+          VETTER_PROBE_BUDGET_USDC: ${{ vars.VETTER_PROBE_BUDGET_USDC }}
+          VETTER_PROBE_MIN_BALANCE_USDC: ${{ vars.VETTER_PROBE_MIN_BALANCE_USDC }}
+          VETTER_PROBE_MAX_PRICE_USDC: ${{ vars.VETTER_PROBE_MAX_PRICE_USDC }}
+          VETTER_PROBE_FIXTURES: ${{ vars.VETTER_PROBE_FIXTURES }}
         run: |
           deno run \
             --allow-net --allow-env --allow-read --allow-write \

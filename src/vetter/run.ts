@@ -24,10 +24,35 @@ import {
 } from "../agent/ofac_list.ts";
 import { checkSanctionsOracle } from "../agent/sanctions_oracle.ts";
 import { getDeniedHosts, isDeniedHost } from "../discovery/host_denylist.ts";
+import {
+  type ProbeOpts,
+  probeProbationCandidates,
+  type ProbeResult,
+} from "./probe.ts";
 
 const PRICE_CEILING_USDC = 0.10;
 const PRICE_BUMP_FACTOR = 1.20;
 const PROBE_TIMEOUT_MS = 10_000;
+
+// ── Probation-probe config (all optional; the phase is a no-op unless funded) ──
+// See probe.ts for the full rationale. Budget/floor default to 0 (disabled) so
+// merging this never spends; the Background Vetter workflow opts in by setting
+// VETTER_PROBE_BUDGET_USDC (recommended 0.25/run) + a balance floor.
+function envNum(name: string, fallback: number): number {
+  const raw = Deno.env.get(name);
+  if (raw == null || raw.trim() === "") return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function readProbeConfigFromEnv(): ProbeOpts {
+  return {
+    budgetUsdc: envNum("VETTER_PROBE_BUDGET_USDC", 0),
+    minBalanceUsdc: envNum("VETTER_PROBE_MIN_BALANCE_USDC", 0),
+    maxPriceUsdc: envNum("VETTER_PROBE_MAX_PRICE_USDC", 0.10),
+    fixtureCount: envNum("VETTER_PROBE_FIXTURES", 3),
+  };
+}
 
 // Freshly discovered candidates are UNTESTED. Insert them at a low score (not
 // the old 1.0) so they don't tie/outrank a proven service and steal the primary
@@ -94,6 +119,9 @@ export interface VetterOpts {
     resource: string,
     newPrice: number,
   ) => Promise<void>;
+  // Probe seam. Default reads env config + probes probation candidates; a no-op
+  // when VETTER_PROBE_BUDGET_USDC is unset/0.
+  runProbe?: () => Promise<ProbeResult>;
   // Score seam
   runRecomputeScores?: typeof recomputeScores;
   // Discovery seam
@@ -113,6 +141,7 @@ export interface VetterResult {
   }>;
   probationMoves: Array<{ resource: string; reason: string }>;
   newCandidates: number;
+  probeResult: ProbeResult;
   scoreResult: RecomputeResult;
 }
 
@@ -275,6 +304,8 @@ export async function runVetter(opts: VetterOpts = {}): Promise<VetterResult> {
   const runRecomputeScoresFn = opts.runRecomputeScores ?? recomputeScores;
   const runFetchCandidates = opts.runFetchCandidates ?? defaultFetchCandidates;
   const skipDiscovery = opts.skipDiscovery ?? false;
+  const runProbe = opts.runProbe ??
+    (() => probeProbationCandidates(readProbeConfigFromEnv()));
 
   const priceBumps: VetterResult["priceBumps"] = [];
   const probationMoves: VetterResult["probationMoves"] = [];
@@ -382,10 +413,22 @@ export async function runVetter(opts: VetterOpts = {}): Promise<VetterResult> {
     }
   }
 
+  // ── 2.5. Probe probation candidates to accrue observations ──────────────────
+  // Opt-in (funded via env); a no-op otherwise. Runs after discovery so this
+  // run's fresh candidates are probeable too, and before recompute so the
+  // observations it records feed the promotion/block transitions below.
+  const probeResult = await runProbe();
+
   // ── 3. Recompute scores + status transitions ───────────────────────────────
   const scoreResult = await runRecomputeScoresFn();
 
-  return { priceBumps, probationMoves, newCandidates, scoreResult };
+  return {
+    priceBumps,
+    probationMoves,
+    newCandidates,
+    probeResult,
+    scoreResult,
+  };
 }
 
 // ── Sanctioned denylist warm ($0) ───────────────────────────────────────────

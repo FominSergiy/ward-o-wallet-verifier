@@ -490,6 +490,72 @@ Deno.test("runVetter: skips candidates from a denied host", async () => {
   }
 });
 
+// ── Probe phase wiring ────────────────────────────────────────────────────────
+
+const emptyProbeResult = {
+  probed: 0,
+  skipped: 0,
+  spendUsdc: 0,
+  belowFloor: false,
+  observations: 0,
+};
+
+Deno.test(
+  "runVetter: probe is a no-op by default (unfunded) and surfaces an empty result",
+  async () => {
+    // No runProbe seam + no VETTER_PROBE_BUDGET_USDC env → the real probe
+    // short-circuits on budget 0, so the vetter behaves exactly as before.
+    const result = await runVetter({
+      fetchActiveAndProbation: () => Promise.resolve([]),
+      probePrice: () => Promise.resolve({ maxAmountRequiredUsdc: null }),
+      updatePrice: noopUpdatePrice,
+      updateStatus: noopUpdateStatus,
+      rewriteRecipePrice: noopRewriteRecipe,
+      runRecomputeScores: noopRecompute,
+      insertCandidate: noopInsertCandidate,
+      runFetchCandidates: noopFetchCandidates,
+    });
+
+    assertEquals(result.probeResult, emptyProbeResult);
+  },
+);
+
+Deno.test(
+  "runVetter: probe runs after discovery and before recompute, and its result is surfaced",
+  async () => {
+    const order: string[] = [];
+    const probeResult = { ...emptyProbeResult, probed: 2, observations: 6 };
+
+    const result = await runVetter({
+      fetchActiveAndProbation: () => Promise.resolve([]),
+      probePrice: () => Promise.resolve({ maxAmountRequiredUsdc: null }),
+      updatePrice: noopUpdatePrice,
+      updateStatus: noopUpdateStatus,
+      rewriteRecipePrice: noopRewriteRecipe,
+      insertCandidate: noopInsertCandidate,
+      runFetchCandidates: () => {
+        order.push("discovery");
+        return Promise.resolve({
+          walletNetwork: "base" as const,
+          candidates: {},
+          errors: {},
+        });
+      },
+      runProbe: () => {
+        order.push("probe");
+        return Promise.resolve(probeResult);
+      },
+      runRecomputeScores: () => {
+        order.push("recompute");
+        return Promise.resolve(emptyScoreResult);
+      },
+    });
+
+    assertEquals(order, ["discovery", "probe", "recompute"]);
+    assertEquals(result.probeResult, probeResult);
+  },
+);
+
 Deno.test("runVetter: DISCOVERY_HOST_DENYLIST env overrides the default host set", async () => {
   const prev = Deno.env.get("DISCOVERY_HOST_DENYLIST");
   // Override: deny the anchor host instead — now orbis is NOT denied.
